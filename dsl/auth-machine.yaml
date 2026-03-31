@@ -365,29 +365,32 @@ states:
           - { type: http, action: render_html, template: tenant-select }
         next: TENANT_SELECT
 
+      select_no_membership:
+        trigger: "POST /auth/switch-tenant"
+        guard: "!membership.exists"
+        priority: 1
+        actions:
+          - { type: http, action: json_error, error_ref: TENANT_ACCESS_DENIED }
+        next: TENANT_SELECT
+
+      select_suspended:
+        trigger: "POST /auth/switch-tenant"
+        guard: "tenant.suspended"
+        priority: 2
+        actions:
+          - { type: http, action: json_error, error_ref: TENANT_SUSPENDED }
+        next: TENANT_SELECT
+
       select:
         trigger: "POST /auth/switch-tenant"
         guard: "membership.exists && membership.active && tenant.active"
+        priority: 3
         actions:
           - { type: side_effect, action: set_session_tenant }
           - { type: side_effect, action: issue_jwt }
           - { type: audit, event: TENANT_SWITCHED }
           - { type: http, action: json_ok }
         next: AUTHENTICATED
-
-      select_suspended:
-        trigger: "POST /auth/switch-tenant"
-        guard: "tenant.suspended"
-        actions:
-          - { type: http, action: json_error, error_ref: TENANT_SUSPENDED }
-        next: TENANT_SELECT
-
-      select_no_membership:
-        trigger: "POST /auth/switch-tenant"
-        guard: "!membership.exists"
-        actions:
-          - { type: http, action: json_error, error_ref: TENANT_ACCESS_DENIED }
-        next: TENANT_SELECT
 
   NO_TENANT:
     phase: 1

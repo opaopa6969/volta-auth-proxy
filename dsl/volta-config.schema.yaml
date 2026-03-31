@@ -5,8 +5,14 @@
 $schema: "https://json-schema.org/draft/2020-12/schema"
 title: "volta-config"
 description: "volta-auth-proxy configuration — single source of truth for apps, tenants, and defaults"
+version: 2
 type: object
 required: [domain, apps]
+
+# IMPORTANT: volta is a "config aggregation point", NOT a "traffic aggregation point."
+# volta does NOT reverse-proxy requests. Traefik does.
+# volta generates Traefik dynamic config from this file.
+# volta only handles ForwardAuth (auth check, no request body).
 
 properties:
 
@@ -19,6 +25,13 @@ properties:
         type: string
         description: "Base domain. Apps are {subdomain}.{base}"
         examples: ["example.com", "mycompany.io"]
+      allowed_email_domains:
+        type: array
+        items:
+          type: string
+        description: "Global login restriction. Only emails from these domains can log in. Empty = allow all. Replaces Cloudflare Zero Trust Gmail domain restriction."
+        examples: [["mycompany.com", "partner.com"]]
+        default: []
       ssl:
         type: object
         properties:
@@ -96,6 +109,29 @@ properties:
             credentials:
               type: boolean
               default: true
+        timeout_ms:
+          type: integer
+          default: 30000
+          description: "Upstream timeout in milliseconds (Traefik responseForwarding)"
+        protocol:
+          type: string
+          enum: [http, ws, grpc]
+          default: http
+          description: "Upstream protocol. ws enables WebSocket passthrough in Traefik."
+        strip_prefix:
+          type: string
+          description: "Path prefix to strip before forwarding to upstream"
+          examples: ["/api"]
+        max_body_size:
+          type: string
+          default: "10MB"
+          description: "Max request body size (Traefik buffering config)"
+          examples: ["10MB", "100MB", "0"]
+        extra_headers:
+          type: object
+          description: "Additional headers to send to upstream"
+          additionalProperties:
+            type: string
         metadata:
           type: object
           description: "Arbitrary key-value pairs for app-specific config"

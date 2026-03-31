@@ -32,6 +32,14 @@ initial_state: UNAUTHENTICATED
 # Functions: none (Phase 2: custom functions)
 # Evaluation: short-circuit (left to right)
 # Example: "session.valid && !tenant.suspended && membership.role in ['ADMIN', 'OWNER']"
+#
+# Template expressions (in action target fields):
+#   Syntax: "{variable}" or "{variable || fallback}"
+#   The "||" in templates is a COALESCE operator (not logical OR).
+#   "{request.return_to || config.default_app_url}" means:
+#     if request.return_to is non-null, use it; otherwise use config.default_app_url.
+#   This is DIFFERENT from guard "||" which is logical OR.
+#   Templates are only used in: http.action.redirect.target
 
 # ────────────────────────────────
 # Context: typed variables for guards
@@ -446,6 +454,7 @@ states:
       switch_tenant:
         trigger: "POST /auth/switch-tenant"
         guard: "membership.exists && membership.active && tenant.active"
+        priority: 1
         actions:
           - { type: side_effect, action: invalidate_current_session }
           - { type: side_effect, action: create_session, params: { tenant_id: target_tenant_id } }

@@ -1,0 +1,172 @@
+# volta-auth-proxy Error Code Registry (Single Source of Truth)
+# All 3 DSL files reference error codes from here.
+# Version: 2
+
+version: 2
+
+errors:
+  # ── Authentication ──
+  AUTHENTICATION_REQUIRED:
+    status: 401
+    message:
+      en: "Login is required"
+      ja: "ログインが必要です"
+    recovery:
+      browser: { redirect: "/login?return_to={current_url}" }
+      api: { json: true }
+
+  SESSION_EXPIRED:
+    status: 401
+    message:
+      en: "Your session has expired"
+      ja: "セッションの有効期限が切れました"
+    recovery:
+      browser: { redirect: "/login?return_to={current_url}" }
+      api: { json: true }
+
+  SESSION_REVOKED:
+    status: 401
+    message:
+      en: "Your session was revoked by an administrator"
+      ja: "セッションが管理者によって無効化されました"
+    recovery:
+      browser: { redirect: "/login", show_contact: true }
+      api: { json: true }
+
+  AUTH_FAILED:
+    status: 401
+    message:
+      en: "Authentication failed. Please try again."
+      ja: "認証に失敗しました。もう一度お試しください。"
+    recovery:
+      browser: { redirect: "/login", retry: true }
+      api: { json: true }
+
+  EMAIL_NOT_VERIFIED:
+    status: 401
+    message:
+      en: "Your email address is not verified. Please verify it in your Google account first."
+      ja: "メールアドレスが未検証です。Google アカウントでメール認証を完了してください。"
+    recovery:
+      browser: { show_message: true }
+
+  OIDC_PROVIDER_ERROR:
+    status: 401
+    message:
+      en: "The login provider returned an error. Please try again."
+      ja: "ログインプロバイダーがエラーを返しました。もう一度お試しください。"
+    recovery:
+      browser: { redirect: "/login", retry: true }
+
+  # ── Authorization ──
+  FORBIDDEN:
+    status: 403
+    message:
+      en: "You do not have permission to access this resource"
+      ja: "このリソースにアクセスする権限がありません"
+    recovery:
+      browser: { back_button: true }
+
+  TENANT_ACCESS_DENIED:
+    status: 403
+    message:
+      en: "You are not a member of this workspace"
+      ja: "このワークスペースへのアクセス権がありません"
+    recovery:
+      has_other_tenants: { redirect: "/select-tenant" }
+      no_other_tenants: { show_message: "Request an invitation from a workspace admin" }
+
+  TENANT_SUSPENDED:
+    status: 403
+    message:
+      en: "This workspace is currently suspended"
+      ja: "このワークスペースは一時停止中です"
+    recovery:
+      has_other_tenants: { redirect: "/select-tenant" }
+      no_other_tenants: { show_contact: true }
+
+  ROLE_INSUFFICIENT:
+    status: 403
+    message:
+      en: "You need a higher role to perform this action"
+      ja: "この操作には管理者権限が必要です"
+    recovery:
+      browser: { back_button: true, show_message: "Ask your admin for permission" }
+
+  INVITATION_EMAIL_MISMATCH:
+    status: 403
+    message:
+      en: "This invitation is for a different email address"
+      ja: "この招待は別のメールアドレス宛てです"
+    recovery:
+      browser: { show_message: "Log out and log in with the correct account" }
+
+  # ── Resource ──
+  NOT_FOUND:
+    status: 404
+    message:
+      en: "Resource not found"
+      ja: "見つかりませんでした"
+    recovery:
+      browser: { redirect: "/" }
+
+  CONFLICT:
+    status: 409
+    message:
+      en: "This resource already exists"
+      ja: "すでに存在します"
+
+  INVITATION_EXPIRED:
+    status: 410
+    message:
+      en: "This invitation has expired"
+      ja: "招待リンクの有効期限が切れました"
+    recovery:
+      browser: { show_message: "Ask the inviter to send a new invitation" }
+
+  INVITATION_EXHAUSTED:
+    status: 410
+    message:
+      en: "This invitation has already been used"
+      ja: "この招待リンクは使用済みです"
+    recovery:
+      browser: { redirect: "/login" }
+
+  # ── Rate Limiting ──
+  RATE_LIMITED:
+    status: 429
+    message:
+      en: "Too many requests. Please wait {retry_after} seconds."
+      ja: "リクエストが多すぎます。{retry_after}秒後にお試しください。"
+    headers:
+      Retry-After: "{retry_after_seconds}"
+    recovery:
+      browser: { countdown_timer: true }
+
+  # ── Server ──
+  INTERNAL_ERROR:
+    status: 500
+    message:
+      en: "An unexpected error occurred"
+      ja: "予期しないエラーが発生しました"
+    recovery:
+      browser: { reload_button: true, show_contact: true }
+
+  # ── Policy constraints ──
+  LAST_OWNER_CANNOT_CHANGE:
+    status: 400
+    message:
+      en: "A workspace must have at least one owner"
+      ja: "ワークスペースには最低 1 人のオーナーが必要です"
+
+  MAX_TENANTS_REACHED:
+    status: 400
+    message:
+      en: "You have reached the maximum number of workspaces"
+      ja: "ワークスペースの上限に達しています"
+
+  MAX_MEMBERS_REACHED:
+    status: 400
+    message:
+      en: "This workspace has reached its member limit"
+      ja: "このワークスペースのメンバー上限に達しています"

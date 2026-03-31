@@ -1,8 +1,9 @@
 # volta-auth-proxy Protocol Definition
 # Defines the contract between Gateway and Apps
-# Version: 1
+# Version: 2
 
-version: 1
+version: 2
+errors_ref: "dsl/errors.yaml"  # Error codes defined in single source of truth
 
 # ────────────────────────────────
 # ForwardAuth — Traefik integration
@@ -222,129 +223,10 @@ content_negotiation:
     This breaks all SPA error handling.
 
 # ────────────────────────────────
-# Error definitions
+# Error definitions → See dsl/errors.yaml (single source of truth)
 # ────────────────────────────────
-errors:
-  - code: AUTHENTICATION_REQUIRED
-    status: 401
-    message:
-      en: "Login is required"
-      ja: "ログインが必要です"
-    recovery:
-      browser: { redirect: "/login?return_to={current_url}" }
-      api: { json: true }
-
-  - code: SESSION_EXPIRED
-    status: 401
-    message:
-      en: "Your session has expired"
-      ja: "セッションの有効期限が切れました"
-    recovery:
-      browser: { redirect: "/login?return_to={current_url}" }
-      api: { json: true }
-
-  - code: SESSION_REVOKED
-    status: 401
-    message:
-      en: "Your session was revoked by an administrator"
-      ja: "セッションが管理者によって無効化されました"
-    recovery:
-      browser: { redirect: "/login", show_contact: true }
-      api: { json: true }
-
-  - code: FORBIDDEN
-    status: 403
-    message:
-      en: "You do not have permission to access this resource"
-      ja: "このリソースにアクセスする権限がありません"
-    recovery:
-      browser: { back_button: true }
-      api: { json: true }
-
-  - code: TENANT_ACCESS_DENIED
-    status: 403
-    message:
-      en: "You are not a member of this workspace"
-      ja: "このワークスペースへのアクセス権がありません"
-    recovery:
-      has_other_tenants: { redirect: "/select-tenant" }
-      no_other_tenants: { show_message: "Request an invitation from a workspace admin" }
-
-  - code: TENANT_SUSPENDED
-    status: 403
-    message:
-      en: "This workspace is currently suspended"
-      ja: "このワークスペースは一時停止中です"
-    recovery:
-      has_other_tenants: { redirect: "/select-tenant" }
-      no_other_tenants: { show_contact: true }
-
-  - code: ROLE_INSUFFICIENT
-    status: 403
-    message:
-      en: "You need a higher role to perform this action"
-      ja: "この操作には管理者権限が必要です"
-    recovery:
-      browser: { back_button: true, show_message: "Ask your admin for permission" }
-
-  - code: NOT_FOUND
-    status: 404
-    message:
-      en: "Resource not found"
-      ja: "見つかりませんでした"
-    recovery:
-      browser: { redirect: "/" }
-
-  - code: CONFLICT
-    status: 409
-    message:
-      en: "This resource already exists"
-      ja: "すでに存在します"
-
-  - code: INVITATION_EXPIRED
-    status: 410
-    message:
-      en: "This invitation has expired"
-      ja: "招待リンクの有効期限が切れました"
-    recovery:
-      browser: { show_message: "Ask the inviter to send a new invitation" }
-
-  - code: INVITATION_EXHAUSTED
-    status: 410
-    message:
-      en: "This invitation has already been used"
-      ja: "この招待リンクは使用済みです"
-    recovery:
-      browser: { redirect: "/login" }
-
-  - code: INVITATION_EMAIL_MISMATCH
-    status: 403
-    message:
-      en: "This invitation is for a different email address"
-      ja: "この招待は別のメールアドレス宛てです"
-    recovery:
-      browser: { show_message: "Log out and log in with the correct Google account" }
-
-  - code: RATE_LIMITED
-    status: 429
-    message:
-      en: "Too many requests. Please wait {retry_after} seconds"
-      ja: "リクエストが多すぎます。{retry_after}秒後にお試しください"
-    headers:
-      Retry-After: "{retry_after_seconds}"
-      X-RateLimit-Limit: "{limit}"
-      X-RateLimit-Remaining: "0"
-    recovery:
-      browser: { countdown_timer: true }
-      api: { retry_after_header: true }
-
-  - code: INTERNAL_ERROR
-    status: 500
-    message:
-      en: "An unexpected error occurred"
-      ja: "予期しないエラーが発生しました"
-    recovery:
-      browser: { reload_button: true, show_contact: true }
+# All error codes, messages, HTTP statuses, and recovery actions
+# are defined in dsl/errors.yaml. Do not duplicate here.
 
 # ────────────────────────────────
 # Internal API (App → Proxy)

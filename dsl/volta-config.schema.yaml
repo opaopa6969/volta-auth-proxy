@@ -1,0 +1,242 @@
+# volta-config.yaml JSON Schema (YAML format)
+# Validates the volta-auth-proxy configuration file
+# Version: 2 (extended with subdomain + routing)
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+title: "volta-config"
+description: "volta-auth-proxy configuration — single source of truth for apps, tenants, and defaults"
+type: object
+required: [domain, apps]
+
+properties:
+
+  # ── Domain ──
+  domain:
+    type: object
+    required: [base]
+    properties:
+      base:
+        type: string
+        description: "Base domain. Apps are {subdomain}.{base}"
+        examples: ["example.com", "mycompany.io"]
+      ssl:
+        type: object
+        properties:
+          mode:
+            type: string
+            enum: [traefik, cloudflare, manual]
+            default: traefik
+            description: "Who manages SSL certificates"
+
+  # ── Apps ──
+  apps:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [id, subdomain, upstream, allowed_roles]
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          description: "Unique app identifier. Lowercase, hyphens allowed."
+          examples: ["wiki", "admin-console", "api"]
+        name:
+          type: string
+          description: "Human-readable app name"
+          examples: ["Wiki", "Admin Console"]
+        subdomain:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          description: "Subdomain prefix. App will be available at {subdomain}.{domain.base}"
+          examples: ["wiki", "admin", "api"]
+        upstream:
+          type: string
+          format: uri
+          description: "Backend service URL. Docker service name or IP."
+          examples: ["http://wiki:8080", "http://192.168.1.10:3000"]
+        allowed_roles:
+          type: array
+          items:
+            type: string
+            enum: [OWNER, ADMIN, MEMBER, VIEWER]
+          minItems: 1
+          description: "Roles that can access this app. Enforced by ForwardAuth."
+        public_paths:
+          type: array
+          items:
+            type: string
+          description: "Paths that don't require authentication. Supports * wildcard."
+          examples: ["/public/*", "/api/v1/public/*", "/healthz"]
+          default: []
+        health_check:
+          type: string
+          description: "Path for health check endpoint"
+          examples: ["/healthz", "/health"]
+        cors:
+          type: object
+          description: "App-specific CORS configuration"
+          properties:
+            origins:
+              type: array
+              items:
+                type: string
+                format: uri
+              description: "Allowed origins"
+            methods:
+              type: array
+              items:
+                type: string
+                enum: [GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD]
+            headers:
+              type: array
+              items:
+                type: string
+              description: "Allowed headers"
+            credentials:
+              type: boolean
+              default: true
+        metadata:
+          type: object
+          description: "Arbitrary key-value pairs for app-specific config"
+          additionalProperties: true
+
+  # ── Tenant Resolution ──
+  tenant_resolution:
+    type: object
+    properties:
+      priority:
+        type: array
+        items:
+          type: string
+          enum: [session, subdomain, email_domain, invitation, manual]
+        default: [session, email_domain, invitation, manual]
+        description: "Order of tenant resolution strategies. First match wins."
+      free_email_domains:
+        type: array
+        items:
+          type: string
+        default:
+          - gmail.com
+          - googlemail.com
+          - outlook.com
+          - hotmail.com
+          - yahoo.com
+          - yahoo.co.jp
+          - icloud.com
+          - protonmail.com
+        description: "Domains excluded from email-based tenant resolution"
+      tenant_subdomains:
+        type: object
+        description: "Phase 2: tenant subdomain configuration"
+        properties:
+          enabled:
+            type: boolean
+            default: false
+          pattern:
+            type: string
+            enum: ["{tenant}.{base}", "{tenant}.{app}.{base}"]
+            default: "{tenant}.{base}"
+            description: "How tenant subdomains are structured"
+
+  # ── Defaults ──
+  defaults:
+    type: object
+    properties:
+      app:
+        type: string
+        description: "Default app ID to redirect after login (if no return_to)"
+        examples: ["wiki"]
+      role:
+        type: string
+        enum: [OWNER, ADMIN, MEMBER, VIEWER]
+        default: MEMBER
+        description: "Default role for new members (via invitation)"
+      session_hours:
+        type: integer
+        minimum: 1
+        maximum: 720
+        default: 8
+        description: "Session sliding window duration in hours"
+      jwt_minutes:
+        type: integer
+        minimum: 1
+        maximum: 60
+        default: 5
+        description: "JWT expiry in minutes"
+      max_concurrent_sessions:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 5
+      max_tenants_per_user:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      invitation_expiry_hours:
+        type: integer
+        minimum: 1
+        maximum: 720
+        default: 72
+      support_contact:
+        type: string
+        description: "Contact info shown on error pages"
+        examples: ["ops@example.com", "https://support.example.com"]
+
+  # ── Traefik Integration ──
+  traefik:
+    type: object
+    description: "Traefik dynamic config generation settings"
+    properties:
+      enabled:
+        type: boolean
+        default: true
+        description: "Generate Traefik dynamic config from apps list"
+      output_path:
+        type: string
+        default: "/etc/traefik/dynamic/volta.yaml"
+        description: "Where to write generated Traefik config"
+      middleware_name:
+        type: string
+        default: "volta-auth"
+        description: "Name of the ForwardAuth middleware in Traefik"
+      entrypoints:
+        type: array
+        items:
+          type: string
+        default: ["websecure"]
+        description: "Traefik entrypoints for generated routers"
+      tls:
+        type: object
+        properties:
+          cert_resolver:
+            type: string
+            default: "letsencrypt"
+            description: "Traefik certificate resolver name"
+
+  # ── Observability ──
+  observability:
+    type: object
+    properties:
+      audit:
+        type: object
+        properties:
+          sink:
+            type: string
+            enum: [postgres, kafka, elasticsearch]
+            default: postgres
+          retention_days:
+            type: integer
+            default: 365
+      health_check_interval:
+        type: integer
+        default: 30
+        description: "Seconds between upstream health checks"
+
+# ── Additional constraints ──
+# - Each app.id must be unique
+# - Each app.subdomain must be unique
+# - defaults.app must reference an existing app.id
+# - If tenant_resolution.priority includes "subdomain",
+#   tenant_subdomains.enabled must be true

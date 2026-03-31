@@ -1,0 +1,75 @@
+# volta-auth-proxy Configuration Example
+# Schema: dsl/volta-config.schema.yaml
+#
+# This is the single source of truth for your apps and settings.
+# .env is for secrets only. Everything else goes here.
+#
+# Add an app = add 4 lines. That's it.
+
+domain:
+  base: example.com
+  ssl:
+    mode: traefik                      # traefik auto-generates SSL via Let's Encrypt
+
+apps:
+  - id: wiki
+    name: "Wiki"
+    subdomain: wiki                    # → wiki.example.com
+    upstream: http://wiki:8080
+    allowed_roles: [MEMBER, ADMIN, OWNER]
+    health_check: /healthz
+    public_paths:
+      - /public/*
+
+  - id: chat
+    name: "Chat"
+    subdomain: chat                    # → chat.example.com
+    upstream: http://chat:3000
+    allowed_roles: [MEMBER, ADMIN, OWNER]
+
+  - id: admin
+    name: "Admin Console"
+    subdomain: admin                   # → admin.example.com
+    upstream: http://admin-ui:8080
+    allowed_roles: [ADMIN, OWNER]      # Members can't access
+
+  - id: api
+    name: "Public API"
+    subdomain: api                     # → api.example.com
+    upstream: http://api-server:8080
+    allowed_roles: [MEMBER, ADMIN, OWNER]
+    cors:
+      origins: ["https://wiki.example.com", "https://chat.example.com"]
+      methods: [GET, POST, PUT, DELETE]
+
+tenant_resolution:
+  priority: [session, email_domain, invitation, manual]
+  free_email_domains:
+    - gmail.com
+    - outlook.com
+    - yahoo.com
+    - yahoo.co.jp
+    - hotmail.com
+
+defaults:
+  app: wiki                            # Login → wiki.example.com by default
+  role: MEMBER
+  session_hours: 8
+  jwt_minutes: 5
+  max_concurrent_sessions: 5
+  max_tenants_per_user: 10
+  invitation_expiry_hours: 72
+  support_contact: ops@example.com
+
+traefik:
+  enabled: true
+  output_path: /etc/traefik/dynamic/volta.yaml
+  middleware_name: volta-auth
+  entrypoints: [websecure]
+  tls:
+    cert_resolver: letsencrypt
+
+observability:
+  audit:
+    sink: postgres
+    retention_days: 365

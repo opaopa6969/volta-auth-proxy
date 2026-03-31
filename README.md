@@ -3,19 +3,220 @@
 Multi-tenant identity gateway for SaaS.
 Handles auth, tenants, roles, invitations so downstream apps don't have to.
 
+**No Keycloak. No oauth2-proxy. Control is king.**
+
+---
+
+## Architecture
+
+### Overview
+
 ```
-Browser
-  |
-Traefik (ForwardAuth)
-  |
-volta-auth-proxy ---- Google OIDC (direct)
-  |                   JWT (self-issued, RS256)
-  |                   Session (signed cookie + Postgres)
-  |
-App A / App B / App C
+                    ┌─────────────────────────────────────────────┐
+                    │            volta-auth-proxy                  │
+                    │                                             │
+  Browser ──────── │  [UI]  login / signup / invite / admin       │
+       ↑           │  [Auth] Google OIDC / session / JWT          │
+       │           │  [ForwardAuth] GET /auth/verify              │ ◄── Traefik asks
+       │           │  [Internal API] /api/v1/*                    │ ◄── Apps call
+       │           │  [DB] Postgres (users/tenants/sessions/...)  │
+       │           └─────────────────────────────────────────────┘
+       │                              │
+       │                    ┌─────────┴─────────┐
+       │                    │                   │
+       │               ┌────▼────┐         ┌────▼────┐
+       └───────────────┤  App A  │         │  App B  │  ...
+                       └─────────┘         └─────────┘
 ```
 
-**No Keycloak. No oauth2-proxy. Control is king.**
+### How Requests Flow
+
+There are 3 types of traffic:
+
+#### Type 1: Browser -> App (normal page/API access)
+
+```
+Browser ─── GET /dashboard ───► Traefik
+                                   │
+                        ┌──────────▼──────────┐
+                        │  ForwardAuth check   │
+                        │  GET /auth/verify    │
+                        │  to volta-auth-proxy │
+                        └──────────┬──────────┘
+                                   │
+                    ┌──── 200 OK ──┴── 401 NG ────┐
+                    │                              │
+                    ▼                              ▼
+          Traefik forwards               Browser redirected
+          to App with headers:           to /login
+          X-Volta-User-Id
+          X-Volta-Tenant-Id
+          X-Volta-Roles
+          X-Volta-JWT
+                    │
+                    ▼
+               App renders
+               (reads headers)
+```
+
+**Key point:** volta-auth-proxy never sees the request body. Traefik only asks "is this user authenticated?" and gets headers back. The actual request goes directly from Traefik to the App.
+
+#### Type 2: App -> volta-auth-proxy (CRUD delegation)
+
+```
+App ─── GET /api/v1/tenants/{tid}/members ───► volta-auth-proxy
+        Authorization: Bearer <user-jwt>              │
+                                                      ▼
+                                              Validate JWT
+                                              Check tenant match
+                                              Check role
+                                                      │
+                                                      ▼
+                                              Return member list
+```
+
+Apps delegate user/tenant/member operations to the proxy. Apps never access the users/tenants DB directly.
+
+#### Type 3: Browser -> volta-auth-proxy (auth UI)
+
+```
+Browser ─── GET /login ──────────────────► volta-auth-proxy
+Browser ─── GET /invite/{code} ──────────► volta-auth-proxy
+Browser ─── GET /admin/members ──────────► volta-auth-proxy
+Browser ─── GET /settings/sessions ──────► volta-auth-proxy
+```
+
+All auth-related UI (login, invite, admin, sessions) is served directly by volta-auth-proxy using jte templates.
+
+### What Apps Need To Do
+
+Apps have exactly 2 responsibilities:
+
+```
+1. Read identity from headers (ForwardAuth)
+   ┌──────────────────────────────────────┐
+   │  X-Volta-User-Id: u_abc123           │
+   │  X-Volta-Tenant-Id: t_xyz789         │
+   │  X-Volta-Roles: ADMIN,MEMBER         │
+   │  X-Volta-JWT: eyJhbGci...            │
+   └──────────────────────────────────────┘
+   App reads these headers on every request.
+   For maximum security, verify X-Volta-JWT signature.
+
+2. Call Internal API for user/tenant data
+   ┌──────────────────────────────────────┐
+   │  GET  /api/v1/users/me               │
+   │  GET  /api/v1/tenants/{tid}/members   │
+   │  POST /api/v1/tenants/{tid}/invitations│
+   │  ...                                  │
+   └──────────────────────────────────────┘
+   App forwards the user's JWT as Authorization header.
+   volta-auth-proxy handles all auth logic.
+```
+
+Apps do NOT:
+- Handle login/logout
+- Manage users or tenants
+- Issue or verify JWTs (unless they want extra security)
+- Store auth state
+- Talk to Google OIDC
+
+### Connecting a New App
+
+**Step 1:** Register in `volta-config.yaml`
+
+```yaml
+apps:
+  - id: my-new-app
+    url: https://my-new-app.example.com
+    allowed_roles: [MEMBER, ADMIN, OWNER]
+```
+
+**Step 2:** Add Traefik route with ForwardAuth middleware
+
+```yaml
+# traefik dynamic config
+http:
+  routers:
+    my-new-app:
+      rule: "Host(`my-new-app.example.com`)"
+      middlewares: [volta-auth]
+      service: my-new-app
+  services:
+    my-new-app:
+      loadBalancer:
+        servers:
+          - url: "http://my-new-app:8080"
+```
+
+**Step 3:** Read headers in your app
+
+```java
+// Javalin example
+app.get("/api/data", ctx -> {
+    String userId = ctx.header("X-Volta-User-Id");
+    String tenantId = ctx.header("X-Volta-Tenant-Id");
+    String roles = ctx.header("X-Volta-Roles");
+    // ... your business logic
+});
+```
+
+Or use volta-sdk for JWT verification:
+
+```java
+VoltaAuth volta = VoltaAuth.builder()
+    .jwksUrl("http://volta-auth-proxy:7070/.well-known/jwks.json")
+    .expectedIssuer("volta-auth")
+    .expectedAudience("volta-apps")
+    .build();
+
+app.before("/api/*", volta.middleware());
+```
+
+**Step 4:** Add volta-sdk-js to your frontend
+
+```html
+<script src="http://volta-auth-proxy:7070/js/volta.js"></script>
+<script>
+  Volta.init({ gatewayUrl: "http://volta-auth-proxy:7070" });
+  // All fetch calls now auto-handle 401 -> refresh -> retry
+  const res = await Volta.fetch("/api/data");
+</script>
+```
+
+**That's it.** Your app now has multi-tenant auth with zero auth code.
+
+### Docker Compose Example (Full Stack)
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports: ["54329:5432"]
+    environment:
+      POSTGRES_DB: volta_auth
+      POSTGRES_USER: volta
+      POSTGRES_PASSWORD: volta
+
+  volta-auth-proxy:
+    build: .
+    ports: ["7070:7070"]
+    depends_on: [postgres]
+    env_file: .env
+
+  traefik:
+    image: traefik:v3.0
+    ports: ["80:80"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik.yaml:/etc/traefik/traefik.yaml
+
+  my-app:
+    image: my-app:latest
+    labels:
+      - "traefik.http.routers.my-app.rule=Host(`my-app.localhost`)"
+      - "traefik.http.routers.my-app.middlewares=volta-auth"
+```
 
 ---
 

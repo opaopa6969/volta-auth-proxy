@@ -6,7 +6,7 @@
 
 ---
 
-## 全体アーキテクチャ
+## 全体アーキテクチャ [📊 全画面遷移図](ui-flow.md#full-screen-transition-map) | [📊 ユーザー状態モデル](ui-flow.md#user-state-model)
 
 ```
 Browser
@@ -402,7 +402,7 @@ Claims:
   - JWKS キャッシュ: 1h TTL + stale-while-revalidate (最大 24h)
 ```
 
-## セッション仕様
+## セッション仕様 [📊 サイレントリフレッシュ](ui-flow.md#flow-5-session-expired---silent-refresh)
 
 ```
 Cookie: __volta_session; Secure; HttpOnly; SameSite=Lax; Path=/
@@ -413,7 +413,7 @@ Cookie: __volta_session; Secure; HttpOnly; SameSite=Lax; Path=/
 即時無効化: sessions.invalidated_at 更新 → 最大 5 分ラグ
 ```
 
-## Google OIDC 直接連携
+## Google OIDC 直接連携 [📊 招待→初回ログインフロー](ui-flow.md#flow-1-invite-link---first-login)
 
 ```
 認可リクエスト:
@@ -436,7 +436,7 @@ Cookie: __volta_session; Secure; HttpOnly; SameSite=Lax; Path=/
   → ユーザー検索/作成 → セッション作成 → return_to へリダイレクト
 ```
 
-## ForwardAuth (Proxy → App)
+## ForwardAuth (Proxy → App) [📊 フロー図](ui-flow.md#flow-2-returning-user---session-valid)
 
 ```
 Traefik 設定:
@@ -489,19 +489,19 @@ POST   /api/v1/tenants/{tid}/transfer-ownership  (OWNER のみ)
   エラー: { "error": { "code": "...", "message": "...", "status": N, "request_id": "uuid" } }
 ```
 
-## 画面一覧 (jte テンプレート)
+## 画面一覧 (jte テンプレート) [📊 全画面遷移図](ui-flow.md#full-screen-transition-map)
 
 | URL | 画面 | 説明 |
 |-----|------|------|
 | GET /login | ログイン | Google ボタン + テナントコンテキスト |
 | GET /callback | コールバック | server-side 処理 → リダイレクト |
-| GET /select-tenant | テナント選択 | 複数テナント所属時 |
-| GET /invite/{code} | 招待着地 | テナント名・招待者・ロール |
+| GET /select-tenant | テナント選択 | 複数テナント所属時 [📊](ui-flow.md#flow-3-tenant-selection) |
+| GET /invite/{code} | 招待着地 | テナント名・招待者・ロール [📊](ui-flow.md#flow-1-invite-link---first-login) |
 | POST /invite/{code}/accept | 招待同意 | [参加する] 確認 |
-| GET /settings/sessions | セッション管理 | 一覧・終了・全終了 |
-| GET /admin/members | メンバー管理 | 一覧・ロール変更 |
-| GET /admin/invitations | 招待管理 | コピー・QR・状態 |
-| (共通) | エラー | 人間向けメッセージ + 次のアクション |
+| GET /settings/sessions | セッション管理 | 一覧・終了・全終了 [📊](ui-flow.md#flow-9-session-management---user) |
+| GET /admin/members | メンバー管理 | 一覧・ロール変更 [📊](ui-flow.md#flow-8-member-management---admin) |
+| GET /admin/invitations | 招待管理 | コピー・QR・状態 [📊](ui-flow.md#flow-7-invitation-management---admin) |
+| (共通) | エラー | 人間向けメッセージ + 次のアクション [📊](ui-flow.md#error-recovery-flow) |
 
 ## Content Negotiation
 
@@ -512,7 +512,7 @@ X-Requested-With: XMLHttpRequest → JSON
 Authorization: Bearer → JSON
 ```
 
-## エラーコード
+## エラーコード (→ [エラー回復フロー図](ui-flow.md#error-recovery-flow))
 
 | HTTP | code | ユーザー向けメッセージ | 次のアクション |
 |------|------|----------------------|---------------|
@@ -539,7 +539,7 @@ MEMBER: 通常利用
 VIEWER: 読み取り専用 (App 側制御)
 ```
 
-## テナント解決優先順位
+## テナント解決優先順位 [📊 フロー図](ui-flow.md#flow-3-tenant-selection)
 
 ```
 1. Cookie/JWT の tenant_id → 使う
@@ -565,7 +565,7 @@ apps:
     allowed_roles: [ADMIN, OWNER]
 ```
 
-## volta-sdk-js (~150 行)
+## volta-sdk-js (~150 行) [📊 サイレントリフレッシュ](ui-flow.md#flow-5-session-expired---silent-refresh) | [📊 テナント切替](ui-flow.md#flow-4-tenant-switch-during-session)
 
 ```javascript
 class VoltaClient {

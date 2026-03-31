@@ -51,7 +51,7 @@ You're building a [SaaS](docs/glossary/saas.md). You need auth. Your options:
 | **[Multi-tenant](docs/glossary/multi-tenant.md)** | Core design | [Realm](docs/glossary/realm.md)-based (limited) | [Organizations](docs/glossary/organizations.md) (paid) | Native | [DIY](docs/glossary/native-implementation.md) |
 | **Login UI** | Full control ([jte](docs/glossary/jte.md)) | Theme hell | Limited | Theme | DIY |
 | **Cost at 100k [MAU](docs/glossary/mau.md)** | $0 | $0 (ops cost) | ~$2,400/mo | $0 (self-host) | $0 |
-| **[App integration](docs/glossary/app-integration.md)** | [ForwardAuth](docs/glossary/forwardauth.md) + [Internal API](docs/glossary/internal-api.md) | Generic [OIDC](docs/glossary/oidc.md) | [SDK](docs/glossary/sdk.md) | Generic OIDC | [Oathkeeper](docs/glossary/oathkeeper.md) |
+| **[App integration](docs/glossary/app-integration.md)** | [ForwardAuth](docs/glossary/forwardauth.md) ([📊](dge/specs/ui-flow.md#flow-2-returning-user---session-valid)) + [Internal API](docs/glossary/internal-api.md) | Generic [OIDC](docs/glossary/oidc.md) | [SDK](docs/glossary/sdk.md) | Generic OIDC | [Oathkeeper](docs/glossary/oathkeeper.md) |
 | **[Config complexity](docs/glossary/complexity-of-configuration.md)** | [.env](docs/glossary/environment-variable.md) + 1 [YAML](docs/glossary/yaml.md) | Hundreds of settings | [Dashboard](docs/glossary/dashboard.md) | Moderate | 4 services |
 | **[Dependencies](docs/glossary/external-dependency.md)** | [Postgres](docs/glossary/database.md) only | Postgres + [JVM](docs/glossary/jvm.md) | Cloud | Postgres/[CRDB](docs/glossary/crdb.md) | Postgres + multiple |
 
@@ -70,17 +70,17 @@ volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tr
 | [JWT](docs/glossary/jwt.md) issuance | [RS256](docs/glossary/rs256.md) self-signed. 5-min expiry. Auto key generation on first boot |
 | [JWKS](docs/glossary/jwks.md) endpoint | `/.well-known/jwks.json`. Serves active + rotated keys |
 | [Key rotation](docs/glossary/key-rotation.md) | Admin [API](docs/glossary/api.md) to rotate/revoke. Graceful transition with overlap period |
-| Silent refresh | volta-sdk-js auto-refreshes [JWT](docs/glossary/jwt.md) on [HTTP status code](docs/glossary/http-status-codes.md) 401. User never sees login during normal use |
-| Logout | Single-device and all-device. [Session](docs/glossary/session.md) invalidation propagates via [JWT](docs/glossary/jwt.md) expiry (max 5 min lag) |
+| Silent refresh | volta-sdk-js auto-refreshes [JWT](docs/glossary/jwt.md) on [HTTP status code](docs/glossary/http-status-codes.md) 401. User never sees login during normal use (→ [see flow](dge/specs/ui-flow.md#flow-5-session-expired---silent-refresh)) |
+| Logout | Single-device and all-device. [Session](docs/glossary/session.md) invalidation propagates via [JWT](docs/glossary/jwt.md) expiry (max 5 min lag) (→ [see flow](dge/specs/ui-flow.md#flow-6-logout)) |
 
 ### Multi-tenancy
 
 | Feature | Detail |
 |---------|--------|
-| [Tenant](docs/glossary/tenant.md) resolution | 4-level priority: [session](docs/glossary/session.md) > subdomain > email domain > [invitation](docs/glossary/invitation-flow.md)/manual |
+| [Tenant](docs/glossary/tenant.md) resolution | 4-level priority: [session](docs/glossary/session.md) > subdomain > email domain > [invitation](docs/glossary/invitation-flow.md)/manual (→ [see flow](dge/specs/ui-flow.md#flow-3-tenant-selection)) |
 | Free email handling | gmail.com, outlook.com etc automatically excluded from domain matching |
 | Multiple membership | One user can belong to multiple [tenants](docs/glossary/tenant.md) with different [roles](docs/glossary/role.md) |
-| [Tenant](docs/glossary/tenant.md) switching | In-session switch via [API](docs/glossary/api.md). Page reload for clean state |
+| [Tenant](docs/glossary/tenant.md) switching | In-session switch via [API](docs/glossary/api.md). Page reload for clean state (→ [see flow](dge/specs/ui-flow.md#flow-4-tenant-switch-during-session)) |
 | [Tenant](docs/glossary/tenant.md) suspension | Suspended tenant blocks all member access. Other tenant access preserved |
 | [Tenant](docs/glossary/tenant.md) isolation | [API](docs/glossary/api.md) path tenantId must match [JWT](docs/glossary/jwt.md) claim. Cross-tenant access structurally prevented |
 
@@ -92,7 +92,7 @@ volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tr
 | Expiry | Configurable per [invitation](docs/glossary/invitation-flow.md). Default 72h |
 | Usage limits | Single-use or multi-use (max configurable) |
 | Email restriction | Optional: lock [invitation](docs/glossary/invitation-flow.md) to specific email address |
-| Consent screen | Explicit "Join this workspace?" confirmation before membership creation |
+| Consent screen | Explicit "Join this workspace?" confirmation before membership creation (→ [see flow](dge/specs/ui-flow.md#flow-1-invite-link---first-login)) |
 | Status tracking | Pending / Used / Expired. Admin can see who used what |
 | Link sharing | Copy button + QR code (no email sending in [Phase](docs/glossary/phase-based-development.md) 1) |
 
@@ -101,7 +101,7 @@ volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tr
 | Feature | Detail |
 |---------|--------|
 | 4-level hierarchy | OWNER > ADMIN > MEMBER > VIEWER |
-| Per-app enforcement | volta-config.yaml defines allowed_roles per [App](docs/glossary/downstream-app.md). Enforced at [ForwardAuth](docs/glossary/forwardauth.md) |
+| Per-app enforcement | volta-config.yaml defines allowed_roles per [App](docs/glossary/downstream-app.md). Enforced at [ForwardAuth](docs/glossary/forwardauth.md) ([📊](dge/specs/ui-flow.md#flow-2-returning-user---session-valid)) |
 | [Tenant](docs/glossary/tenant.md)-scoped | [Roles](docs/glossary/role.md) are per [tenant](docs/glossary/tenant.md). User can be ADMIN in tenant A and VIEWER in tenant B |
 | OWNER protection | Last OWNER cannot be demoted or removed |
 | [Role](docs/glossary/role.md) management UI | Admin page for changing member roles. Drag-down with confirmation |
@@ -124,7 +124,7 @@ volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tr
 
 | Feature | Detail |
 |---------|--------|
-| [ForwardAuth](docs/glossary/forwardauth.md) | [Apps](docs/glossary/downstream-app.md) get identity via [HTTP](docs/glossary/http.md) [headers](docs/glossary/header.md). Zero auth code needed |
+| [ForwardAuth](docs/glossary/forwardauth.md) | [Apps](docs/glossary/downstream-app.md) get identity via [HTTP](docs/glossary/http.md) [headers](docs/glossary/header.md). Zero auth code needed [📊](dge/specs/ui-flow.md#flow-2-returning-user---session-valid) |
 | [Internal API](docs/glossary/internal-api.md) | REST [API](docs/glossary/api.md) for user/[tenant](docs/glossary/tenant.md)/member CRUD delegation |
 | volta-sdk-js | Browser [SDK](docs/glossary/sdk.md) (~150 lines). Auto 401 refresh, [tenant](docs/glossary/tenant.md) switch, logout |
 | volta-sdk ([Java](docs/glossary/java.md)) | Javalin middleware for [JWT](docs/glossary/jwt.md) verification |
@@ -138,8 +138,8 @@ volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tr
 | Feature | Detail |
 |---------|--------|
 | Member management | List, [role](docs/glossary/role.md) change, remove. Per-[tenant](docs/glossary/tenant.md) |
-| [Invitation](docs/glossary/invitation-flow.md) management | Create, list, cancel. Copy link, QR code |
-| [Session](docs/glossary/session.md) management | User can view all active [sessions](docs/glossary/session.md), revoke individually or all |
+| [Invitation](docs/glossary/invitation-flow.md) management | Create, list, cancel. Copy link, QR code [📊](dge/specs/ui-flow.md#flow-7-invitation-management---admin) |
+| [Session](docs/glossary/session.md) management | User can view all active [sessions](docs/glossary/session.md), revoke individually or all [📊](dge/specs/ui-flow.md#flow-9-session-management---user) |
 
 ---
 
@@ -378,7 +378,7 @@ app.get("/app/team", ctx -> {
                        └─────────┘         └─────────┘
 ```
 
-### How Requests Flow
+### How Requests Flow [📊 full screen transition map](dge/specs/ui-flow.md#full-screen-transition-map)
 
 There are 3 types of traffic:
 
@@ -408,7 +408,7 @@ Browser ─── GET /dashboard ───► Traefik
                (reads headers)
 ```
 
-**Key point:** volta-auth-proxy never sees the request body. [Traefik](docs/glossary/reverse-proxy.md) only asks "is this user [authenticated](docs/glossary/authentication-vs-authorization.md)?" and gets [headers](docs/glossary/header.md) back. The actual request goes directly from Traefik to the [App](docs/glossary/downstream-app.md).
+**Key point:** volta-auth-proxy never sees the request body. [Traefik](docs/glossary/reverse-proxy.md) only asks "is this user [authenticated](docs/glossary/authentication-vs-authorization.md)?" and gets [headers](docs/glossary/header.md) back. The actual request goes directly from Traefik to the [App](docs/glossary/downstream-app.md). (→ [see ForwardAuth flow diagram](dge/specs/ui-flow.md#flow-2-returning-user---session-valid))
 
 #### Type 2: [App](docs/glossary/downstream-app.md) -> volta-auth-proxy (CRUD delegation)
 
@@ -574,7 +574,7 @@ services:
 - **Control is king** -- Minimize [external server](docs/glossary/external-vs-internal.md) [dependencies](docs/glossary/external-dependency.md)
 - **Choose the hell you understand** -- Both [Keycloak](docs/glossary/keycloak.md) [config hell](docs/glossary/config-hell.md) and DIY auth hell are hell. At least with DIY you can read the stack trace. Auth stays in-house. Never trust a system you don't understand with your users' [authentication](docs/glossary/authentication-vs-authorization.md)
 - **Tight coupling, no apologies** -- Single process. Microservice-style loose coupling brings [configuration](docs/glossary/complexity-of-configuration.md) and network complexity, not correctness. Auth is latency-sensitive and failure-propagating. Fewer network hops, debug in one place
-- **[ForwardAuth](docs/glossary/forwardauth.md) pattern** -- Proxy never relays request bodies. Auth check only
+- **[ForwardAuth](docs/glossary/forwardauth.md) pattern** -- Proxy never relays request bodies. Auth check only [📊](dge/specs/ui-flow.md#flow-2-returning-user---session-valid)
 - **[Apps](docs/glossary/downstream-app.md) do only 2 things** -- Read [headers](docs/glossary/header.md) or call [APIs](docs/glossary/api.md)
 - **[Phase](docs/glossary/phase-based-development.md)-minimal** -- Build only what's needed now. Leave [Interface](docs/glossary/interface-extension-point.md) extension points for later. Never leak [App](docs/glossary/downstream-app.md)-specific logic into the proxy
 
@@ -587,10 +587,10 @@ services:
 | **Google [OIDC](docs/glossary/oidc.md)** | Direct integration. No intermediate [IdP](docs/glossary/idp.md). [PKCE](docs/glossary/pkce.md) + [state](docs/glossary/state.md) + [nonce](docs/glossary/nonce.md) |
 | **[JWT](docs/glossary/jwt.md) Issuance** | [RS256](docs/glossary/rs256.md) self-signed. 5-min expiry. [JWKS](docs/glossary/jwks.md) endpoint at `/.well-known/jwks.json` |
 | **[Session](docs/glossary/session.md)** | Signed [cookie](docs/glossary/cookie.md) (`__volta_session`). 8h [sliding](docs/glossary/sliding-window-expiry.md). Max 5 concurrent |
-| **[Tenant](docs/glossary/tenant.md) Resolution** | [Cookie](docs/glossary/cookie.md)/[JWT](docs/glossary/jwt.md) > subdomain > email domain > invite code > manual selection |
+| **[Tenant](docs/glossary/tenant.md) Resolution** | [Cookie](docs/glossary/cookie.md)/[JWT](docs/glossary/jwt.md) > subdomain > email domain > invite code > manual selection [📊](dge/specs/ui-flow.md#flow-3-tenant-selection) |
 | **[Role](docs/glossary/role.md) Hierarchy** | OWNER > ADMIN > MEMBER > VIEWER |
-| **[Invitations](docs/glossary/invitation-flow.md)** | Crypto-random codes. Expiry. Usage limits. Consent screen |
-| **[ForwardAuth](docs/glossary/forwardauth.md)** | `GET /auth/verify` returns `X-Volta-*` [headers](docs/glossary/header.md) to [Traefik](docs/glossary/reverse-proxy.md) |
+| **[Invitations](docs/glossary/invitation-flow.md)** | Crypto-random codes. Expiry. Usage limits. Consent screen [📊](dge/specs/ui-flow.md#flow-1-invite-link---first-login) |
+| **[ForwardAuth](docs/glossary/forwardauth.md)** | `GET /auth/verify` returns `X-Volta-*` [headers](docs/glossary/header.md) to [Traefik](docs/glossary/reverse-proxy.md) [📊](dge/specs/ui-flow.md#flow-2-returning-user---session-valid) |
 | **[Internal API](docs/glossary/internal-api.md)** | `/api/v1/*` for [apps](docs/glossary/downstream-app.md) to delegate user/[tenant](docs/glossary/tenant.md)/member CRUD |
 | **Audit Log** | All auth events logged to `audit_logs` table |
 | **[CSRF](docs/glossary/csrf.md)** | Token-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) [API](docs/glossary/api.md) exempt ([SameSite](docs/glossary/samesite.md) + Content-Type) |
@@ -746,7 +746,7 @@ Migration runs automatically on startup via [Flyway](docs/glossary/flyway.md).
 | GET | `/admin/members` | Member management page |
 | GET | `/admin/invitations` | [Invitation](docs/glossary/invitation-flow.md) management page |
 
-### [ForwardAuth](docs/glossary/forwardauth.md) ([Traefik](docs/glossary/reverse-proxy.md) Integration)
+### [ForwardAuth](docs/glossary/forwardauth.md) ([Traefik](docs/glossary/reverse-proxy.md) Integration) [📊 flow diagram](dge/specs/ui-flow.md#flow-2-returning-user---session-valid)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -821,7 +821,7 @@ All list endpoints support `?offset=0&limit=20` (max 100).
 }
 ```
 
-### Error Format
+### Error Format (→ [see error recovery flow](dge/specs/ui-flow.md#error-recovery-flow))
 
 ```json
 {
@@ -845,7 +845,7 @@ All list endpoints support `?offset=0&limit=20` (max 100).
 | 403 | `ROLE_INSUFFICIENT` | [Role](docs/glossary/role.md) too low for this action |
 | 404 | `NOT_FOUND` | Resource not found |
 | 409 | `CONFLICT` | Already exists |
-| 410 | `INVITATION_EXPIRED` | [Invitation](docs/glossary/invitation-flow.md) expired |
+| 410 | `INVITATION_EXPIRED` | [Invitation](docs/glossary/invitation-flow.md) expired (→ [see flow](dge/specs/ui-flow.md#flow-1-invite-link---first-login)) |
 | 410 | `INVITATION_EXHAUSTED` | [Invitation](docs/glossary/invitation-flow.md) fully used |
 | 429 | `RATE_LIMITED` | Too many requests |
 
@@ -887,7 +887,7 @@ JWKS:       GET /.well-known/jwks.json
 
 ---
 
-## Tenant Resolution
+## Tenant Resolution [📊 flow diagram](dge/specs/ui-flow.md#flow-3-tenant-selection)
 
 Priority order:
 
@@ -955,7 +955,7 @@ http:
 
 ## volta-sdk-js
 
-Browser [SDK](docs/glossary/sdk.md) (~150 lines, vanilla [JavaScript](docs/glossary/javascript.md)). Handles [session](docs/glossary/session.md) refresh, [tenant](docs/glossary/tenant.md) switching, and 401 recovery.
+Browser [SDK](docs/glossary/sdk.md) (~150 lines, vanilla [JavaScript](docs/glossary/javascript.md)). Handles [session](docs/glossary/session.md) refresh ([📊](dge/specs/ui-flow.md#flow-5-session-expired---silent-refresh)), [tenant](docs/glossary/tenant.md) switching ([📊](dge/specs/ui-flow.md#flow-4-tenant-switch-during-session)), and 401 recovery.
 
 ```html
 <script src="/js/volta.js"></script>
@@ -1106,7 +1106,7 @@ This project was designed using DGE (Dialogue-driven Gap Extraction) -- 106 desi
 |----------|-------------|
 | [`dge/specs/implementation-all-phases.md`](dge/specs/implementation-all-phases.md) | Full implementation spec (all phases) |
 | [`dge/specs/ux-specs-phase1.md`](dge/specs/ux-specs-phase1.md) | UI/UX specifications |
-| [`dge/specs/ui-flow.md`](dge/specs/ui-flow.md) | Screen transition flows (mermaid diagrams) |
+| [`dge/specs/ui-flow.md`](dge/specs/ui-flow.md) | Screen transition flows (mermaid diagrams) -- [📊 user states](dge/specs/ui-flow.md#user-state-model), [ForwardAuth](dge/specs/ui-flow.md#flow-2-returning-user---session-valid), [invite](dge/specs/ui-flow.md#flow-1-invite-link---first-login), [tenant](dge/specs/ui-flow.md#flow-3-tenant-selection), [logout](dge/specs/ui-flow.md#flow-6-logout), [errors](dge/specs/ui-flow.md#error-recovery-flow) |
 | [`dge/feedback/2026-03-31-volta-auth-proxy.md`](dge/feedback/2026-03-31-volta-auth-proxy.md) | DGE method feedback |
 | [`tasks/001-fix-critical-bugs-and-implement-templates.md`](tasks/001-fix-critical-bugs-and-implement-templates.md) | Current implementation task |
 | [`backlog/001-form-state-recovery.md`](backlog/001-form-state-recovery.md) | [Phase](docs/glossary/phase-based-development.md) 2: Form auto-save on [session](docs/glossary/session.md) expiry |

@@ -8,10 +8,10 @@
 > 認証って「分かっている感」をみんな出しているけど、そんなことない。
 > 恥ずかしがらずに全部調べよう。AI 時代は教育が大事！
 
-**71 articles** covering authentication, security, and architecture concepts
+**86 articles** covering authentication, security, and architecture concepts
 used in volta-auth-proxy. Each article is available in English and Japanese.
 
-**71 記事** -- volta-auth-proxy で使われる認証・セキュリティ・アーキテクチャ用語を
+**86 記事** -- volta-auth-proxy で使われる認証・セキュリティ・アーキテクチャ用語を
 英語・日本語の両方で解説します。
 
 ---
@@ -104,10 +104,14 @@ used in volta-auth-proxy. Each article is available in English and Japanese.
 |------|----|----|-------------|
 | ForwardAuth | [EN](forwardauth.md) | [JA](forwardauth.ja.md) | Reverse proxy delegates "is this user OK?" to volta |
 | IdP | [EN](idp.md) | [JA](idp.ja.md) | Identity Provider -- Google, Okta, Keycloak, etc. |
+| OIDC Provider | [EN](oidc-provider.md) | [JA](oidc-provider.ja.md) | Google, Okta, Keycloak as identity "certifiers" |
 | Tenant | [EN](tenant.md) | [JA](tenant.ja.md) | Customer partition in a SaaS multi-tenant system |
 | RBAC | [EN](rbac.md) | [JA](rbac.ja.md) | Role-Based Access Control |
 | Client Credentials | [EN](client-credentials.md) | [JA](client-credentials.ja.md) | Machine-to-machine (M2M) OAuth 2.0 grant |
 | Backchannel Logout | [EN](backchannel-logout.md) | [JA](backchannel-logout.ja.md) | Server-to-server "this user logged out" notification |
+| Zero Trust | [EN](zero-trust.md) | [JA](zero-trust.ja.md) | "Never trust, always verify" security model |
+| IAM | [EN](iam.md) | [JA](iam.ja.md) | Identity and Access Management -- the umbrella term |
+| IDaaS | [EN](idaas.md) | [JA](idaas.ja.md) | Identity as a Service -- cloud-hosted auth (Auth0, Clerk, Okta) |
 
 ### Multi-tenancy / マルチテナント
 
@@ -147,6 +151,27 @@ used in volta-auth-proxy. Each article is available in English and Japanese.
 | Pagination | [EN](pagination.md) | [JA](pagination.ja.md) | Splitting large result sets across pages |
 | Idempotency | [EN](idempotency.md) | [JA](idempotency.ja.md) | Same request, same result -- safe to retry |
 | API Versioning | [EN](api-versioning.md) | [JA](api-versioning.ja.md) | Evolving APIs without breaking clients |
+
+### Business & Industry / ビジネス・業界用語
+
+| Term | EN | JA | Description |
+|------|----|----|-------------|
+| MAU | [EN](mau.md) | [JA](mau.ja.md) | Monthly Active Users -- how SaaS companies count users and charge |
+| Vendor Lock-in | [EN](vendor-lock-in.md) | [JA](vendor-lock-in.ja.md) | When switching providers becomes impractical |
+| Self-Hosting | [EN](self-hosting.md) | [JA](self-hosting.ja.md) | Running software on your own servers |
+| Auth0 | [EN](auth0.md) | [JA](auth0.ja.md) | Popular IDaaS provider (and why volta is different) |
+| Keycloak | [EN](keycloak.md) | [JA](keycloak.ja.md) | Open-source IAM server by Red Hat |
+| Configuration Hell | [EN](config-hell.md) | [JA](config-hell.ja.md) | When software has too many settings |
+
+### volta Internals / volta 内部技術
+
+| Term | EN | JA | Description |
+|------|----|----|-------------|
+| Fat JAR | [EN](fat-jar.md) | [JA](fat-jar.ja.md) | Single executable Java file with all dependencies |
+| Flyway | [EN](flyway.md) | [JA](flyway.ja.md) | Database migration tool -- auto-migrates on startup |
+| HikariCP | [EN](hikaricp.md) | [JA](hikaricp.ja.md) | Database connection pool ("phone lines" for the DB) |
+| Caffeine | [EN](caffeine-cache.md) | [JA](caffeine-cache.ja.md) | In-memory cache for rate limiting and session caching |
+| jte | [EN](jte.md) | [JA](jte.ja.md) | Java Template Engine -- type-safe HTML generation |
 
 ---
 
@@ -253,10 +278,14 @@ used in volta-auth-proxy. Each article is available in English and Japanese.
 |------|----|----|------|
 | ForwardAuth | [EN](forwardauth.md) | [JA](forwardauth.ja.md) | リバースプロキシが「この人 OK？」と volta に聞く仕組み |
 | IdP | [EN](idp.md) | [JA](idp.ja.md) | Identity Provider -- Google, Okta, Keycloak 等 |
+| OIDC プロバイダ | [EN](oidc-provider.md) | [JA](oidc-provider.ja.md) | Google、Okta、Keycloak 等の ID 「認証者」 |
 | Tenant | [EN](tenant.md) | [JA](tenant.ja.md) | SaaS での「お客さんの区画」 |
 | RBAC | [EN](rbac.md) | [JA](rbac.ja.md) | ロール（役割）で権限を制御 |
 | Client Credentials | [EN](client-credentials.md) | [JA](client-credentials.ja.md) | サーバー同士の M2M 認証 (Phase 2) |
 | Backchannel Logout | [EN](backchannel-logout.md) | [JA](backchannel-logout.ja.md) | サーバー間で「この人ログアウトした」を伝える |
+| ゼロトラスト | [EN](zero-trust.md) | [JA](zero-trust.ja.md) | 「決して信頼せず、常に検証」セキュリティモデル |
+| IAM | [EN](iam.md) | [JA](iam.ja.md) | ID・アクセス管理 -- 包括的な用語 |
+| IDaaS | [EN](idaas.md) | [JA](idaas.ja.md) | クラウドホスト型認証サービス（Auth0、Clerk、Okta） |
 
 ### マルチテナント
 
@@ -296,6 +325,27 @@ used in volta-auth-proxy. Each article is available in English and Japanese.
 | Pagination | [EN](pagination.md) | [JA](pagination.ja.md) | 大量の結果をページに分割する方法 |
 | Idempotency | [EN](idempotency.md) | [JA](idempotency.ja.md) | 同じリクエストで同じ結果 -- 安全にリトライ可能 |
 | API Versioning | [EN](api-versioning.md) | [JA](api-versioning.ja.md) | クライアントを壊さずに API を進化させる方法 |
+
+### ビジネス・業界用語
+
+| 用語 | EN | JA | 一言 |
+|------|----|----|------|
+| MAU | [EN](mau.md) | [JA](mau.ja.md) | 月間アクティブユーザー -- SaaS のユーザー数と課金の仕組み |
+| ベンダーロックイン | [EN](vendor-lock-in.md) | [JA](vendor-lock-in.ja.md) | プロバイダの乗り換えが非現実的になること |
+| セルフホスティング | [EN](self-hosting.md) | [JA](self-hosting.ja.md) | 自分のサーバーでソフトウェアを実行すること |
+| Auth0 | [EN](auth0.md) | [JA](auth0.ja.md) | 人気の IDaaS プロバイダ（volta との違い） |
+| Keycloak | [EN](keycloak.md) | [JA](keycloak.ja.md) | Red Hat のオープンソース IAM サーバー |
+| 設定地獄 | [EN](config-hell.md) | [JA](config-hell.ja.md) | ソフトウェアの設定が多すぎる問題 |
+
+### volta 内部技術
+
+| 用語 | EN | JA | 一言 |
+|------|----|----|------|
+| Fat JAR | [EN](fat-jar.md) | [JA](fat-jar.ja.md) | 全依存関係を含む単一実行可能 Java ファイル |
+| Flyway | [EN](flyway.md) | [JA](flyway.ja.md) | DB マイグレーションツール -- 起動時に自動実行 |
+| HikariCP | [EN](hikaricp.md) | [JA](hikaricp.ja.md) | DB コネクションプール（DB への「電話回線」） |
+| Caffeine | [EN](caffeine-cache.md) | [JA](caffeine-cache.ja.md) | レート制限とセッションキャッシュ用インメモリキャッシュ |
+| jte | [EN](jte.md) | [JA](jte.ja.md) | Java テンプレートエンジン -- 型安全な HTML 生成 |
 
 ---
 

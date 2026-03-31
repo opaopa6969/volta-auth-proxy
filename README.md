@@ -1,9 +1,338 @@
 # volta-auth-proxy
 
+[English](README.md) | [Japanese (日本語)](README.ja.md)
+
 Multi-tenant identity gateway for SaaS.
 Handles auth, tenants, roles, invitations so downstream apps don't have to.
 
 **No Keycloak. No oauth2-proxy. Control is king.**
+
+---
+
+## Why volta-auth-proxy?
+
+You're building a SaaS. You need auth. Your options:
+
+| Option | What happens |
+|--------|-------------|
+| Auth0 / Clerk | Works fast. Then $2,400/month at 100k MAU. Vendor lock-in. Can't self-host |
+| Keycloak | Free. Then 500+ line realm.json config hell. 512MB RAM. 30s startup. Theme customization with FreeMarker |
+| Build from scratch | Full control. But you have to get OIDC, JWT, sessions, CSRF, tenant isolation all right |
+
+**volta-auth-proxy is option 3, done right.** The hard parts (OIDC flow, JWT signing, session management, tenant resolution) are already built. Your apps just read headers.
+
+### Compared to Alternatives
+
+| | volta-auth-proxy | Keycloak | Auth0 | ZITADEL | Ory Stack |
+|---|---|---|---|---|---|
+| **Self-hosted** | Yes (only) | Yes | No | Yes | Yes |
+| **Startup** | ~200ms | ~30s | N/A | ~3-5s | ~seconds |
+| **Memory** | ~30MB | ~512MB+ | N/A | ~150-300MB | ~200-400MB |
+| **Multi-tenant** | Core design | Realm-based (limited) | Organizations (paid) | Native | DIY |
+| **Login UI** | Full control (jte) | Theme hell | Limited | Theme | DIY |
+| **Cost at 100k MAU** | $0 | $0 (ops cost) | ~$2,400/mo | $0 (self-host) | $0 |
+| **App integration** | ForwardAuth + Internal API | Generic OIDC | SDK | Generic OIDC | Oathkeeper |
+| **Config complexity** | .env + 1 YAML | Hundreds of settings | Dashboard | Moderate | 4 services |
+| **Dependencies** | Postgres only | Postgres + JVM | Cloud | Postgres/CRDB | Postgres + multiple |
+
+volta is the lightest, most controllable option. The tradeoff: you own the security responsibility.
+
+---
+
+## Features
+
+### Authentication
+
+| Feature | Detail |
+|---------|--------|
+| Google OIDC | Direct integration with PKCE + state + nonce. No middleware |
+| Session management | Signed cookie. 8h sliding window. Max 5 concurrent sessions per user |
+| JWT issuance | RS256 self-signed. 5-min expiry. Auto key generation on first boot |
+| JWKS endpoint | `/.well-known/jwks.json`. Serves active + rotated keys |
+| Key rotation | Admin API to rotate/revoke. Graceful transition with overlap period |
+| Silent refresh | volta-sdk-js auto-refreshes JWT on 401. User never sees login during normal use |
+| Logout | Single-device and all-device. Session invalidation propagates via JWT expiry (max 5 min lag) |
+
+### Multi-tenancy
+
+| Feature | Detail |
+|---------|--------|
+| Tenant resolution | 4-level priority: session > subdomain > email domain > invite/manual |
+| Free email handling | gmail.com, outlook.com etc automatically excluded from domain matching |
+| Multiple membership | One user can belong to multiple tenants with different roles |
+| Tenant switching | In-session switch via API. Page reload for clean state |
+| Tenant suspension | Suspended tenant blocks all member access. Other tenant access preserved |
+| Tenant isolation | API path tenantId must match JWT claim. Cross-tenant access structurally prevented |
+
+### Invitation System
+
+| Feature | Detail |
+|---------|--------|
+| Invite codes | Crypto-random 32 bytes (base64url, 43 chars). Unpredictable |
+| Expiry | Configurable per invitation. Default 72h |
+| Usage limits | Single-use or multi-use (max configurable) |
+| Email restriction | Optional: lock invitation to specific email address |
+| Consent screen | Explicit "Join this workspace?" confirmation before membership creation |
+| Status tracking | Pending / Used / Expired. Admin can see who used what |
+| Link sharing | Copy button + QR code (no email sending in Phase 1) |
+
+### Role-Based Access Control
+
+| Feature | Detail |
+|---------|--------|
+| 4-level hierarchy | OWNER > ADMIN > MEMBER > VIEWER |
+| Per-app enforcement | volta-config.yaml defines allowed_roles per app. Enforced at ForwardAuth |
+| Tenant-scoped | Roles are per tenant. User can be ADMIN in tenant A and VIEWER in tenant B |
+| OWNER protection | Last OWNER cannot be demoted or removed |
+| Role management UI | Admin page for changing member roles. Drag-down with confirmation |
+
+### Security
+
+| Feature | Detail |
+|---------|--------|
+| OIDC security | state (CSRF) + nonce (replay prevention) + PKCE (S256) |
+| JWT security | RS256 only. HS256/none rejected. alg whitelist enforced |
+| Key encryption | Private keys AES-256-GCM encrypted at rest in DB |
+| CSRF protection | Token-based for HTML forms. JSON API exempt via SameSite + Content-Type |
+| Rate limiting | Per-IP for login (10/min). Per-user for API (200/min) |
+| Session fixation | Session ID regenerated on every login |
+| Content negotiation | JSON requests never get 302 redirects. Prevents SPA fetch confusion |
+| Audit logging | Every auth event: login, logout, role change, invitation, session revoke |
+| Cache control | `no-store, private` on all auth endpoints. Prevents back-button data leaks |
+
+### Developer Experience
+
+| Feature | Detail |
+|---------|--------|
+| ForwardAuth | Apps get identity via HTTP headers. Zero auth code needed |
+| Internal API | REST API for user/tenant/member CRUD delegation |
+| volta-sdk-js | Browser SDK (~150 lines). Auto 401 refresh, tenant switch, logout |
+| volta-sdk (Java) | Javalin middleware for JWT verification |
+| Dev mode | `POST /dev/token` generates test JWTs for local development |
+| Health check | `GET /healthz` for monitoring |
+| Fast startup | ~200ms. Local dev cycle is instant |
+| Minimal deps | Gateway + Postgres. That's it |
+
+### Admin UI
+
+| Feature | Detail |
+|---------|--------|
+| Member management | List, role change, remove. Per-tenant |
+| Invitation management | Create, list, cancel. Copy link, QR code |
+| Session management | User can view all active sessions, revoke individually or all |
+
+---
+
+## Installation
+
+### Option 1: Local Development (Recommended for first try)
+
+```bash
+# Clone
+git clone git@github.com:opaopa6969/volta-auth-proxy.git
+cd volta-auth-proxy
+
+# Start Postgres
+docker compose up -d postgres
+
+# Configure
+cp .env.example .env
+# Edit .env:
+#   GOOGLE_CLIENT_ID=your-google-client-id
+#   GOOGLE_CLIENT_SECRET=your-google-client-secret
+#   JWT_KEY_ENCRYPTION_SECRET=some-random-32-byte-string
+#   VOLTA_SERVICE_TOKEN=some-random-64-byte-string
+
+# Build and run
+mvn compile exec:java
+
+# Verify
+curl http://localhost:7070/healthz
+# {"status":"ok"}
+```
+
+### Option 2: Docker Compose (Full Stack)
+
+```bash
+# Clone and configure
+git clone git@github.com:opaopa6969/volta-auth-proxy.git
+cd volta-auth-proxy
+cp .env.example .env
+# Edit .env (same as above)
+
+# Start everything
+docker compose up -d
+
+# Verify
+curl http://localhost:7070/healthz
+```
+
+### Option 3: Production Deployment
+
+```bash
+# Build fat JAR
+mvn package -DskipTests
+
+# Run
+java -jar target/volta-auth-proxy-0.1.0-SNAPSHOT.jar
+
+# Environment variables must be set (see .env.example)
+# Postgres must be accessible
+# Flyway runs migrations automatically on startup
+```
+
+### Google OAuth Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create or select a project
+3. Navigate to APIs & Services > Credentials
+4. Create OAuth 2.0 Client ID (Web application)
+5. Add authorized redirect URI: `http://localhost:7070/callback`
+6. Copy Client ID and Client Secret to `.env`
+
+### Prerequisites
+
+| Requirement | Version | Notes |
+|------------|---------|-------|
+| Java | 21+ | LTS recommended |
+| Maven | 3.9+ | Build tool |
+| Postgres | 16+ | Via Docker or local install |
+| Docker | 24+ | For Postgres (optional if you have local Postgres) |
+
+---
+
+## Usage Guide
+
+### As a Platform Operator
+
+#### 1. Create Your First Tenant
+
+```bash
+# Start the proxy, then use the admin API:
+# (You'll need to create the first user + tenant via direct DB insert
+#  or use DEV_MODE=true to bootstrap)
+
+# With DEV_MODE=true:
+curl -X POST http://localhost:7070/dev/token \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"admin-001","tenantId":"tenant-001","roles":["OWNER"]}'
+```
+
+#### 2. Invite Team Members
+
+Open `http://localhost:7070/admin/invitations` and create an invitation.
+Copy the link and share via Slack/email.
+
+#### 3. Register Apps
+
+Edit `volta-config.yaml`:
+
+```yaml
+apps:
+  - id: my-wiki
+    url: https://wiki.mycompany.com
+    allowed_roles: [MEMBER, ADMIN, OWNER]
+```
+
+Configure Traefik to use ForwardAuth middleware (see Architecture section).
+
+### As an App Developer
+
+#### Minimal Integration (Headers Only)
+
+```java
+// Read identity from Traefik-forwarded headers
+app.get("/api/data", ctx -> {
+    String userId = ctx.header("X-Volta-User-Id");
+    String tenantId = ctx.header("X-Volta-Tenant-Id");
+
+    // Use tenantId in your DB queries
+    var data = db.query("SELECT * FROM items WHERE tenant_id = ?", tenantId);
+    ctx.json(data);
+});
+```
+
+#### Full Integration (JWT Verification + SDK)
+
+```java
+// Server-side: verify JWT
+VoltaAuth volta = VoltaAuth.builder()
+    .jwksUrl("http://volta-auth-proxy:7070/.well-known/jwks.json")
+    .expectedIssuer("volta-auth")
+    .expectedAudience("volta-apps")
+    .build();
+
+app.before("/api/*", volta.middleware());
+
+app.get("/api/data", ctx -> {
+    VoltaUser user = VoltaAuth.getUser(ctx);
+
+    // Tenant-scoped query
+    var data = db.query(
+        "SELECT * FROM items WHERE tenant_id = ?",
+        user.getTenantId()
+    );
+
+    // Role check
+    if (user.hasRole("ADMIN")) {
+        // admin-only logic
+    }
+
+    ctx.json(data);
+});
+```
+
+```html
+<!-- Client-side: volta-sdk-js -->
+<script src="http://volta-auth-proxy:7070/js/volta.js"></script>
+<script>
+  Volta.init({ gatewayUrl: "http://volta-auth-proxy:7070" });
+
+  // Fetch with auto 401 recovery
+  async function loadData() {
+    const res = await Volta.fetch("/api/data");
+    const data = await res.json();
+    renderTable(data);
+  }
+
+  // Form submit with auto 401 recovery
+  document.querySelector("#my-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await Volta.fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
+    });
+    alert("Saved!");
+  });
+
+  // Tenant switch
+  document.querySelector("#switch-btn").addEventListener("click", () => {
+    Volta.switchTenant("other-tenant-id"); // triggers reload
+  });
+</script>
+```
+
+#### Delegating User/Tenant Operations
+
+```java
+// App calls proxy's Internal API to list tenant members
+app.get("/app/team", ctx -> {
+    String jwt = ctx.header("X-Volta-JWT");
+    String tenantId = ctx.header("X-Volta-Tenant-Id");
+
+    // Forward user's JWT to proxy
+    var response = httpClient.send(
+        HttpRequest.newBuilder()
+            .uri(URI.create("http://volta-auth-proxy:7070/api/v1/tenants/" + tenantId + "/members"))
+            .header("Authorization", "Bearer " + jwt)
+            .build(),
+        HttpResponse.BodyHandlers.ofString()
+    );
+
+    ctx.json(response.body());
+});
+```
 
 ---
 
@@ -728,9 +1057,22 @@ Authorization: Bearer ...  -->  Treated as JSON
 | Phase | Status | What |
 |-------|--------|------|
 | **Phase 1: Core** | In progress | Google OIDC, tenants, roles, invitations, ForwardAuth, Internal API |
-| Phase 2: Scale | Planned | Multiple IdPs (GitHub, Microsoft), M2M (Client Credentials), Redis sessions, Webhooks |
-| Phase 3: Enterprise | Planned | SAML, email notifications, MFA (TOTP), i18n, admin UI expansion |
-| Phase 4: Platform | Planned | SCIM, Policy Engine, Billing (Stripe), GDPR data export/deletion |
+| Phase 2: Scale | Planned | Multiple IdPs (GitHub, Microsoft), M2M (Client Credentials), Redis sessions, Webhooks, **Passkeys (WebAuthn/FIDO2)** |
+| Phase 3: Enterprise | Planned | SAML, email notifications, **MFA/2FA (TOTP, WebAuthn)**, i18n, admin UI expansion, **Conditional access (risk-based auth)**, **Fraud alert integration** |
+| Phase 4: Platform | Planned | SCIM, Policy Engine, Billing (Stripe), GDPR data export/deletion, **Device trust**, **Mobile SDK (iOS/Android)** |
+
+### Auth Trend Roadmap
+
+| Trend | Phase | Approach |
+|-------|-------|----------|
+| **Passkeys (WebAuthn/FIDO2)** | Phase 2 | Passwordless auth mainstream. Add as 2nd auth method alongside Google |
+| **MFA/2FA (TOTP)** | Phase 3 | Google Authenticator etc. Tenant admins can enforce "MFA required" |
+| **Risk-based auth** | Phase 3 | Extra verification on new device/IP. `amr` claim reflects auth strength in JWT |
+| **Fraud detection/alerting** | Phase 3 | Suspicious login detection (impossible travel, credential stuffing). Webhook alerts to admin. Integration with threat intelligence feeds |
+| **Device trust** | Phase 4 | Remember known devices. Challenge unknown devices |
+| **Mobile SDK** | Phase 4 | Native iOS/Android SDK. Deep link support for invite flows. Biometric auth integration |
+| **SAML SSO** | Phase 3 | Enterprise customer IdP integration (Active Directory etc.) |
+| **SCIM** | Phase 4 | Automated user provisioning from Okta, Azure AD etc. |
 
 Full specification: [`dge/specs/implementation-all-phases.md`](dge/specs/implementation-all-phases.md)
 

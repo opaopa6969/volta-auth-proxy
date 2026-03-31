@@ -423,6 +423,37 @@ DELETE /api/v1/tenants/{tid}/members/{uid}
 設計では sessions テーブルに `return_to VARCHAR(2048)` を追加済み。
 V1__init.sql を確認し、含まれていることを確認。（確認済み: 含まれている）
 
+### Func 6: フォーム submit は fetch 推奨（ドキュメント対応）
+
+volta-sdk-js のコメントと README に以下を明記:
+
+```
+フォーム submit には Volta.fetch() を使ってください。
+
+理由:
+  - セッション切れ時に SDK が自動 refresh → retry するため、
+    submit が途切れずに成功します
+  - HTML form POST を使うと、セッション切れ時に 401 で失敗し、
+    再ログイン後にフォーム入力内容が消えます
+
+例:
+  // NG: HTML form POST（セッション切れで入力が消える）
+  <form method="POST" action="/api/data">
+
+  // OK: Volta.fetch（セッション切れでも自動復帰）
+  document.querySelector("form").addEventListener("submit", function(e) {
+    e.preventDefault();
+    Volta.fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
+    });
+  });
+
+Phase 2 で sessionStorage によるフォーム自動保存を SDK に追加予定。
+→ backlog/001-form-state-recovery.md 参照
+```
+
 ---
 
 ## 実装順序（推奨）

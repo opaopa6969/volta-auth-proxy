@@ -1,407 +1,399 @@
-# volta-auth-proxy UI フロー定義書
+# volta-auth-proxy UI Flow
 
-> ⚠️ DGE 生成 — 人間レビュー必須
+> DGE generated -- human review required
 > status: draft
 > source: DGE UI Flow Design Review, 2026-04-01
 
 ---
 
-## ユーザー状態モデル
+## User State Model
 
 ```mermaid
 stateDiagram-v2
-    [*] --> 未認証_未登録 : 初回アクセス
-    [*] --> 未認証_登録済 : セッション切れ
+    [*] --> Unauthenticated_New : First access
+    [*] --> Unauthenticated_Existing : Session expired
 
-    未認証_未登録 --> 認証済_テナント未選択 : Google ログイン + ユーザー作成
-    未認証_登録済 --> 認証済_テナント未選択 : Google ログイン
+    Unauthenticated_New --> Authenticated_NoTenant : Google login + user created
+    Unauthenticated_Existing --> Authenticated_NoTenant : Google login
 
-    認証済_テナント未選択 --> 認証済_テナント確定 : テナント選択 (or 自動選択)
-    認証済_テナント確定 --> 認証済_テナント未選択 : テナント切替
-    認証済_テナント確定 --> 未認証_登録済 : ログアウト / セッション切れ
+    Authenticated_NoTenant --> Authenticated_Ready : Tenant selected
+    Authenticated_Ready --> Authenticated_NoTenant : Tenant switch
+    Authenticated_Ready --> Unauthenticated_Existing : Logout or session expired
 
-    認証済_テナント確定 --> 認証済_テナント確定 : JWT リフレッシュ (サイレント)
+    Authenticated_Ready --> Authenticated_Ready : Silent JWT refresh
 ```
 
 ---
 
-## フロー 1: 招待リンクからの初回ログイン
+## Flow 1: Invite Link - First Login
 
-最も重要なフロー。ユーザーが volta に初めて触れる瞬間。
+Most important flow. User touches volta for the first time.
 
 ```mermaid
 flowchart TD
-    A[Slack で招待リンクをタップ] --> B[GET /invite/code]
+    A["Tap invite link in Slack"] --> B["GET /invite/code"]
 
-    B --> C{code の状態}
-    C -->|有効| D[招待着地ページ<br>テナント名・招待者・ロール]
-    C -->|期限切れ| E[期限切れページ<br>招待者に連絡してください]
-    C -->|使用済み| F[使用済みページ<br>ログインはこちら → /login]
-    C -->|不正| G[404 エラー]
+    B --> C{"Code status?"}
+    C -->|Valid| D["Invite landing page"]
+    C -->|Expired| E["Expired page"]
+    C -->|Used| F["Already used page"]
+    C -->|Invalid| G["404 Error"]
 
-    D --> H[Google でログインして参加 ボタン]
-    H --> I[GET /login?invite_code=X&return_to=/invite/X/accept]
-    I --> J[302 → Google OIDC]
-    J --> K[Google ログイン画面]
-    K --> L[GET /callback?code=Y&state=Z]
+    D --> H["Click: Login with Google"]
+    H --> I["GET /login?invite_code=X"]
+    I --> J["302 to Google OIDC"]
+    J --> K["Google login screen"]
+    K --> L["GET /callback?code=Y&state=Z"]
 
-    L --> M{callback 検証}
-    M -->|state 不一致| N[エラー: 認証失敗<br>もう一度ログイン ボタン]
-    M -->|email 未検証| O[エラー: メール未検証]
-    M -->|成功| P{ユーザー存在?}
+    L --> M{"Callback validation"}
+    M -->|State mismatch| N["Error: Auth failed"]
+    M -->|Email not verified| O["Error: Email unverified"]
+    M -->|Success| P{"User exists?"}
 
-    P -->|新規| Q[users INSERT]
-    P -->|既存| R[users SELECT]
-    Q --> S[セッション作成 + Cookie]
+    P -->|New| Q["INSERT user"]
+    P -->|Existing| R["SELECT user"]
+    Q --> S["Create session + Cookie"]
     R --> S
 
-    S --> T[302 → /invite/code/accept]
-    T --> U[招待同意画面<br>ACME Corp に参加しますか?<br>参加する / キャンセル]
+    S --> T["302 to /invite/code/accept"]
+    T --> U["Consent screen: Join tenant?"]
 
-    U -->|参加する| V[POST /invite/code/accept]
-    U -->|キャンセル| W[/ にリダイレクト]
+    U -->|Accept| V["POST /invite/code/accept"]
+    U -->|Cancel| W["Redirect to /"]
 
-    V --> X{結果}
-    X -->|成功| Y[302 → App URL]
-    X -->|既にメンバー| Z[409: すでにメンバーです<br>App を開く リンク]
+    V --> X{"Result"}
+    X -->|Success| Y["302 to App URL"]
+    X -->|Already member| Z["409: Already a member"]
 ```
 
-### ポイント
-- **画面数**: 最短 4 画面（着地 → Google → 同意 → App）
-- **戻るボタン**: /callback に戻ると state 不一致 → 「もう一度ログイン」で復帰
-- **モバイル**: 全画面レスポンシブ。Google ログインはモバイルブラウザ対応済み
+### Notes
+- **Screens**: Minimum 4 (landing, Google, consent, App)
+- **Back button**: Going back to /callback causes state mismatch error. Recovery: "Login again" button
+- **Mobile**: All screens responsive. Google login works on mobile browsers
 
 ---
 
-## フロー 2: リピーター — セッション有効
+## Flow 2: Returning User - Session Valid
 
-最も頻繁なフロー。ユーザーは何も見ない。
+Most frequent flow. User sees nothing.
 
 ```mermaid
 flowchart TD
-    A[App の URL にアクセス] --> B[Traefik → ForwardAuth]
-    B --> C[GET /auth/verify]
+    A["Access App URL"] --> B["Traefik ForwardAuth"]
+    B --> C["GET /auth/verify"]
 
-    C --> D{セッション?}
-    D -->|有効 + テナント active| E[200 + X-Volta-* ヘッダ]
-    D -->|有効 + テナント 1つ + 未選択| F[自動選択 → 200]
-    D -->|有効 + テナント複数 + 未選択| G[302 → /select-tenant]
-    D -->|有効 + テナント suspended| H[403 TENANT_SUSPENDED]
-    D -->|無効 / 期限切れ| I[401]
+    C --> D{"Session?"}
+    D -->|"Valid + Tenant active"| E["200 + X-Volta headers"]
+    D -->|"Valid + 1 tenant + not selected"| F["Auto-select tenant"]
+    D -->|"Valid + multi tenant + not selected"| G["302 to /select-tenant"]
+    D -->|"Valid + Tenant suspended"| H["403 TENANT_SUSPENDED"]
+    D -->|"Invalid or expired"| I["401"]
 
-    E --> J[App 表示 — ログイン画面を見ない]
+    E --> J["App renders - no login screen"]
     F --> J
 
-    G --> K[テナント選択画面]
-    K --> L[テナント選択]
-    L --> M[POST /auth/switch-tenant]
+    G --> K["Tenant selection screen"]
+    K --> L["Select tenant"]
+    L --> M["POST /auth/switch-tenant"]
     M --> J
 
-    H --> N{他テナントあり?}
-    N -->|あり| O[ワークスペース切替ボタン → /select-tenant]
-    N -->|なし| P[管理者にお問い合わせ]
+    H --> N{"Other tenants?"}
+    N -->|Yes| O["Switch workspace button"]
+    N -->|No| P["Contact admin"]
 
-    I --> Q[/login?return_to=App URL]
+    I --> Q["Redirect to /login"]
 ```
 
-### ポイント
-- **テナント 1 つ**: 選択画面スキップ（ゼロクリック）
-- **テナント suspended**: エラーページで切替導線を出す
-- **リピーターの 9 割**: 上の E に到達。ログイン画面を一切見ない
+### Notes
+- **Single tenant**: Selection screen skipped (zero clicks)
+- **Tenant suspended**: Error page with switch option
+- **90% of returning users**: Reach E directly. Never see login screen
 
 ---
 
-## フロー 3: テナント選択
+## Flow 3: Tenant Selection
 
 ```mermaid
 flowchart TD
-    A[GET /select-tenant] --> B{テナント数}
+    A["GET /select-tenant"] --> B{"Tenant count"}
 
-    B -->|1| C[自動選択 — 画面スキップ<br>→ App にリダイレクト]
-    B -->|2-5| D[カード一覧<br>前回テナントがハイライト]
-    B -->|6+| E[検索バー + スクロール一覧<br>前回テナントが先頭]
+    B -->|1| C["Auto-select, skip screen"]
+    B -->|"2-5"| D["Card list with last-used highlight"]
+    B -->|"6+"| E["Search bar + scroll list"]
 
-    D --> F[テナントをクリック]
+    D --> F["Click tenant"]
     E --> F
 
-    F --> G[POST /auth/switch-tenant]
-    G --> H{結果}
-    H -->|成功| I[セッション更新 → App へ]
-    H -->|suspended| J[403 → エラーページ]
-    H -->|未所属| K[403 → エラーページ]
-```
-
-### 表示内容
-```
-各テナントカード:
-  [カラーアイコン] テナント名
-                   ロール (ADMIN, MEMBER 等)
-                   [前回] バッジ (最終アクセステナント)
+    F --> G["POST /auth/switch-tenant"]
+    G --> H{"Result"}
+    H -->|Success| I["Session updated, go to App"]
+    H -->|Suspended| J["403 Error page"]
+    H -->|Not a member| K["403 Error page"]
 ```
 
 ---
 
-## フロー 4: テナント切替（セッション中）
+## Flow 4: Tenant Switch During Session
 
 ```mermaid
 sequenceDiagram
-    participant User as ユーザー
-    participant App as App (ブラウザ)
+    participant User
+    participant App as App Browser
     participant SDK as volta-sdk-js
     participant GW as Gateway
     participant DB as Postgres
 
-    User->>App: テナント切替 UI をクリック
-    App->>SDK: volta.switchTenant("t_new")
-    SDK->>GW: POST /auth/switch-tenant<br>{"tenantId": "t_new"}
-    GW->>DB: sessions UPDATE tenant_id
+    User->>App: Click tenant switch UI
+    App->>SDK: volta.switchTenant t_new
+    SDK->>GW: POST /auth/switch-tenant
+    GW->>DB: UPDATE sessions SET tenant_id
     GW-->>SDK: 200 OK
-    SDK->>App: window.location.reload()
-    App->>GW: GET /auth/verify (ForwardAuth)
-    GW-->>App: 200 + X-Volta-* (新テナント)
-    App->>User: 新テナントのデータで再レンダリング
+    SDK->>App: window.location.reload
+    App->>GW: GET /auth/verify ForwardAuth
+    GW-->>App: 200 + X-Volta headers new tenant
+    App->>User: Re-render with new tenant data
 ```
 
 ---
 
-## フロー 5: セッション切れ → サイレントリフレッシュ
+## Flow 5: Session Expired - Silent Refresh
 
 ```mermaid
 sequenceDiagram
-    participant User as ユーザー
-    participant App as App (SPA)
+    participant User
+    participant App as App SPA
     participant SDK as volta-sdk-js
     participant GW as Gateway
 
-    User->>App: ボタンクリック（API 呼び出し）
-    App->>SDK: volta.fetch("/api/data")
-    SDK->>GW: GET /api/data (ForwardAuth)
-    GW-->>SDK: 401 (JWT 期限切れ)
+    User->>App: Click button triggers API call
+    App->>SDK: volta.fetch /api/data
+    SDK->>GW: GET /api/data ForwardAuth
+    GW-->>SDK: 401 JWT expired
 
-    Note over SDK: 401 インターセプト
+    Note over SDK: 401 intercepted
 
-    SDK->>GW: POST /auth/refresh (Cookie)
-    alt セッション有効
-        GW-->>SDK: 200 + 新 JWT
-        SDK->>GW: GET /api/data (リトライ)
-        GW-->>SDK: 200 + データ
-        SDK-->>App: データ返却
-        App-->>User: 画面更新（ユーザーは気づかない）
-    else セッション無効
+    SDK->>GW: POST /auth/refresh with Cookie
+    alt Session valid
+        GW-->>SDK: 200 + new JWT
+        SDK->>GW: GET /api/data retry
+        GW-->>SDK: 200 + data
+        SDK-->>App: Return data
+        App-->>User: Update screen silently
+    else Session invalid
         GW-->>SDK: 401 SESSION_EXPIRED
-        SDK->>App: window.location = /login?return_to={current}
-        App-->>User: ログイン画面へ
+        SDK->>App: Redirect to /login
+        App-->>User: Show login screen
     end
 ```
 
 ---
 
-## フロー 6: ログアウト
+## Flow 6: Logout
 
 ```mermaid
 flowchart TD
-    A[ログアウトボタン] --> B[POST /auth/logout]
-    B --> C[Cookie 削除 + sessions.invalidated_at 更新]
-    C --> D[302 → /login]
-    D --> E[ログインページ表示]
+    A["Logout button"] --> B["POST /auth/logout"]
+    B --> C["Delete cookie + invalidate session"]
+    C --> D["302 to /login"]
+    D --> E["Login page"]
 
-    F[ブラウザ戻るボタン] --> G[キャッシュされた App ページが表示]
-    G --> H[次の API 呼び出しで 401]
-    H --> I[volta-sdk-js → /login にリダイレクト]
+    F["Browser back button"] --> G["Cached App page shown"]
+    G --> H["Next API call returns 401"]
+    H --> I["volta-sdk-js redirects to /login"]
 ```
 
-### 対策
-- ForwardAuth で `Cache-Control: no-store, private` ヘッダを返す
-- App 側にも `Cache-Control: no-store` を SDK ドキュメントで推奨
+### Mitigation
+- ForwardAuth returns `Cache-Control: no-store, private`
+- SDK docs recommend `Cache-Control: no-store` for App pages
 
 ---
 
-## フロー 7: 招待管理（Admin）
+## Flow 7: Invitation Management - Admin
 
 ```mermaid
 flowchart TD
-    A[GET /admin/invitations] --> B[招待一覧]
-    B --> C{アクション}
+    A["GET /admin/invitations"] --> B["Invitation list"]
+    B --> C{"Action"}
 
-    C -->|新規作成| D[メール入力 + ロール選択]
-    D --> E[POST /api/v1/tenants/tid/invitations]
-    E --> F[招待リンク表示<br>コピー / QR ボタン]
+    C -->|Create| D["Enter email + select role"]
+    D --> E["POST /api/v1/tenants/tid/invitations"]
+    E --> F["Show invite link + Copy + QR"]
 
-    C -->|取消| G[DELETE /api/v1/tenants/tid/invitations/iid]
-    G --> H[一覧から削除]
+    C -->|Cancel| G["DELETE invitation"]
+    G --> H["Remove from list"]
 
-    B --> I[招待ステータス表示]
-    I --> J[⏳ 未使用]
-    I --> K[✅ 使用済み — 使用者名表示]
-    I --> L[❌ 期限切れ]
+    B --> I["Status display"]
+    I --> J["Pending"]
+    I --> K["Used - show who"]
+    I --> L["Expired"]
 ```
 
 ---
 
-## フロー 8: メンバー管理（Admin）
+## Flow 8: Member Management - Admin
 
 ```mermaid
 flowchart TD
-    A[GET /admin/members] --> B[メンバー一覧]
-    B --> C{アクション}
+    A["GET /admin/members"] --> B["Member list"]
+    B --> C{"Action"}
 
-    C -->|ロール変更| D[ドロップダウン: VIEWER/MEMBER/ADMIN]
-    D --> E[PATCH /api/v1/tenants/tid/members/uid]
-    E --> F{結果}
-    F -->|成功| G[一覧リフレッシュ]
-    F -->|OWNER 変更| H[OWNER 譲渡確認画面<br>POST .../transfer-ownership]
-    F -->|自分の降格| I[確認ダイアログ<br>権限が下がります。よろしいですか？]
+    C -->|"Change role"| D["Dropdown: VIEWER/MEMBER/ADMIN"]
+    D --> E["PATCH member role"]
+    E --> F{"Result"}
+    F -->|Success| G["Refresh list"]
+    F -->|"OWNER transfer"| H["Confirm ownership transfer"]
+    F -->|"Self demotion"| I["Confirm: Your role will change"]
 
-    C -->|メンバー削除| J[確認ダイアログ]
-    J --> K[DELETE /api/v1/tenants/tid/members/uid]
+    C -->|"Remove member"| J["Confirm dialog"]
+    J --> K["DELETE member"]
     K --> G
 ```
 
 ---
 
-## フロー 9: セッション管理（User）
+## Flow 9: Session Management - User
 
 ```mermaid
 flowchart TD
-    A[GET /settings/sessions] --> B[セッション一覧]
+    A["GET /settings/sessions"] --> B["Session list"]
 
-    B --> C[現在のセッション — このデバイス バッジ]
-    B --> D[他のセッション — ログアウト ボタン]
+    B --> C["Current session - This Device badge"]
+    B --> D["Other sessions - Logout button each"]
 
-    D --> E[DELETE /auth/sessions/id]
-    E --> F[一覧からアイテム削除]
+    D --> E["DELETE /auth/sessions/id"]
+    E --> F["Remove item from list"]
 
-    B --> G[他の全デバイスからログアウト ボタン]
-    G --> H[確認ダイアログ]
-    H --> I[POST /auth/sessions/revoke-all]
-    I --> J[一覧リフレッシュ — 現在のセッションだけ残る]
+    B --> G["Logout all other devices button"]
+    G --> H["Confirm dialog"]
+    H --> I["POST /auth/sessions/revoke-all"]
+    I --> J["Refresh - only current remains"]
 ```
 
 ---
 
-## エラーリカバリーフロー
+## Error Recovery Flow
 
 ```mermaid
 flowchart TD
-    ERR[エラー発生] --> TYPE{エラーコード}
+    ERR["Error occurred"] --> TYPE{"Error code"}
 
-    TYPE -->|AUTHENTICATION_REQUIRED| A1[ログイン ボタン<br>→ /login?return_to=current]
-    TYPE -->|SESSION_EXPIRED| A2[再ログイン ボタン<br>→ /login?return_to=current]
-    TYPE -->|SESSION_REVOKED| A3[再ログイン ボタン<br>+ 管理者連絡先]
+    TYPE -->|AUTH_REQUIRED| A1["Login button"]
+    TYPE -->|SESSION_EXPIRED| A2["Re-login button"]
+    TYPE -->|SESSION_REVOKED| A3["Re-login + admin contact"]
 
-    TYPE -->|FORBIDDEN| B1[戻る ボタン<br>→ history.back]
-    TYPE -->|TENANT_ACCESS_DENIED| B2{他テナント?}
-    B2 -->|あり| B2a[ワークスペース切替<br>→ /select-tenant]
-    B2 -->|なし| B2b[招待をリクエストしてください]
+    TYPE -->|FORBIDDEN| B1["Back button"]
+    TYPE -->|TENANT_ACCESS_DENIED| B2{"Other tenants?"}
+    B2 -->|Yes| B2a["Switch workspace"]
+    B2 -->|No| B2b["Request invitation"]
 
-    TYPE -->|TENANT_SUSPENDED| B3{他テナント?}
-    B3 -->|あり| B3a[別のワークスペースに切替<br>→ /select-tenant]
-    B3 -->|なし| B3b[管理者にお問い合わせ]
+    TYPE -->|TENANT_SUSPENDED| B3{"Other tenants?"}
+    B3 -->|Yes| B3a["Switch to another workspace"]
+    B3 -->|No| B3b["Contact admin"]
 
-    TYPE -->|ROLE_INSUFFICIENT| C1[戻る + 管理者に権限リクエスト]
+    TYPE -->|ROLE_INSUFFICIENT| C1["Back + request permission"]
 
-    TYPE -->|INVITATION_EXPIRED| D1[招待者に再送信を依頼]
-    TYPE -->|INVITATION_EXHAUSTED| D2[ログインはこちら → /login]
+    TYPE -->|INVITE_EXPIRED| D1["Ask inviter to resend"]
+    TYPE -->|INVITE_EXHAUSTED| D2["Login link"]
 
-    TYPE -->|RATE_LIMITED| E1[カウントダウンタイマー<br>→ 自動リトライ]
+    TYPE -->|RATE_LIMITED| E1["Countdown timer + auto retry"]
 
-    TYPE -->|NOT_FOUND| F1[トップへ → /]
-    TYPE -->|INTERNAL_ERROR| F2[もう一度試す → reload<br>+ 管理者連絡先]
+    TYPE -->|NOT_FOUND| F1["Go to top"]
+    TYPE -->|INTERNAL_ERROR| F2["Try again + admin contact"]
 ```
 
 ---
 
-## ブラウザ戻るボタンの挙動
-
-| 現在の画面 | 戻るボタンで行く先 | 挙動 | 対策 |
-|-----------|-------------------|------|------|
-| /login | 前のページ | 問題なし | - |
-| Google ログイン | /login | 問題なし | - |
-| /callback | Google ログイン | state 不一致エラー | 「もう一度ログイン」で復帰 |
-| /invite/{code}/accept | /callback | state 不一致エラー | 同上 |
-| /select-tenant | 前のページ | 問題なし | - |
-| App ページ (ログアウト後) | キャッシュ表示 | API 呼出で 401 | Cache-Control: no-store |
-| エラーページ | 前のページ | 問題なし | - |
-
----
-
-## 全画面遷移図（統合）
+## Full Screen Transition Map
 
 ```mermaid
 flowchart TD
-    START[ブラウザアクセス] --> FA{ForwardAuth}
+    START["Browser access"] --> FA{"ForwardAuth"}
 
-    FA -->|セッション有効 + テナント OK| APP[App 表示]
-    FA -->|セッション有効 + テナント未選択| SEL[/select-tenant]
-    FA -->|セッション有効 + テナント suspended| SUSP[テナント停止エラー]
-    FA -->|セッション無効| LOGIN[/login]
+    FA -->|"Session OK + Tenant OK"| APP["App display"]
+    FA -->|"Session OK + No tenant"| SEL["/select-tenant"]
+    FA -->|"Session OK + Suspended"| SUSP["Tenant suspended error"]
+    FA -->|"Session invalid"| LOGIN["/login"]
 
-    LOGIN --> GOOGLE[Google OIDC]
-    GOOGLE --> CB[/callback]
-    CB -->|成功 + 招待あり| ACCEPT[/invite/code/accept]
-    CB -->|成功 + テナント1つ| APP
-    CB -->|成功 + テナント複数| SEL
-    CB -->|失敗| ERR_AUTH[認証エラー]
+    LOGIN --> GOOGLE["Google OIDC"]
+    GOOGLE --> CB["/callback"]
+    CB -->|"OK + invite"| ACCEPT["/invite/code/accept"]
+    CB -->|"OK + 1 tenant"| APP
+    CB -->|"OK + multi tenant"| SEL
+    CB -->|"Failed"| ERR_AUTH["Auth error"]
 
     SEL --> APP
     ACCEPT --> APP
 
-    APP -->|JWT 期限切れ| REFRESH{/auth/refresh}
-    REFRESH -->|成功| APP
-    REFRESH -->|失敗| LOGIN
+    APP -->|"JWT expired"| REFRESH{"/auth/refresh"}
+    REFRESH -->|"OK"| APP
+    REFRESH -->|"Failed"| LOGIN
 
-    APP -->|ログアウト| LOGOUT[POST /auth/logout]
+    APP -->|"Logout"| LOGOUT["POST /auth/logout"]
     LOGOUT --> LOGIN
 
-    APP -->|テナント切替| SWITCH[POST /auth/switch-tenant]
+    APP -->|"Switch tenant"| SWITCH["POST /auth/switch-tenant"]
     SWITCH --> APP
 
-    APP -->|セッション管理| SESSIONS[/settings/sessions]
-    APP -->|メンバー管理| MEMBERS[/admin/members]
-    APP -->|招待管理| INVITES[/admin/invitations]
+    APP --> SESSIONS["/settings/sessions"]
+    APP --> MEMBERS["/admin/members"]
+    APP --> INVITES["/admin/invitations"]
 
-    SUSP -->|他テナントあり| SEL
-    SUSP -->|なし| CONTACT[管理者連絡先]
+    SUSP -->|"Other tenants"| SEL
+    SUSP -->|"None"| CONTACT["Contact admin"]
 
     ERR_AUTH --> LOGIN
 
-    INVITE_LINK[招待リンク] --> INVITE[/invite/code]
-    INVITE -->|有効 + 未認証| LOGIN
-    INVITE -->|有効 + 認証済| ACCEPT
-    INVITE -->|期限切れ| ERR_EXP[期限切れエラー]
-    INVITE -->|使用済み| ERR_USED[使用済みエラー]
+    INVITE_LINK["Invite link"] --> INVITE["/invite/code"]
+    INVITE -->|"Valid + not logged in"| LOGIN
+    INVITE -->|"Valid + logged in"| ACCEPT
+    INVITE -->|"Expired"| ERR_EXP["Expired error"]
+    INVITE -->|"Used"| ERR_USED["Already used error"]
 ```
 
 ---
 
-## Gap 一覧
+## Browser Back Button Behavior
 
-### DGE で発見
+| Current Screen | Back goes to | Behavior | Mitigation |
+|---------------|-------------|----------|------------|
+| /login | Previous page | OK | - |
+| Google login | /login | OK | - |
+| /callback | Google login | State mismatch error | "Login again" button |
+| /invite/code/accept | /callback | State mismatch error | Same as above |
+| /select-tenant | Previous page | OK | - |
+| App after logout | Cached page | API call returns 401 | Cache-Control: no-store |
+| Error page | Previous page | OK | - |
 
-| # | Gap | Severity | 対策 |
-|---|-----|----------|------|
-| FL-1 | /callback でブラウザ戻る → state 不一致 | 🟠 High | エラーページに「もう一度ログイン」ボタン。return_to はセッションに保存済み |
-| FL-2 | テナント suspended 時の /auth/verify フロー | 🟠 High | 403 + 他テナント切替導線 or 管理者連絡先 |
-| FL-3 | テナント切替の原子性 | 🟡 Medium | POST 成功後に即 reload。失敗ならリロードしない |
-| FL-4 | ログアウト後のブラウザキャッシュ | 🟡 Medium | Cache-Control: no-store, private を ForwardAuth で返す |
-| FL-5 | フォーム入力中のセッション切れ | 🟡 Medium | SDK ドキュメントで「フォーム自動保存推奨」と明記 |
+---
 
-### LLM コードレビューで発見（実装バグ）
+## Gap List
 
-| # | Gap | Severity | 対策 |
-|---|-----|----------|------|
-| FL-6 | 招待フローの membership 競合 — /callback で findMembership が初回ユーザーで必ず失敗 | 🔴 **致命的** | 招待コード付きの場合は /callback で membership チェックをスキップ。/invite/{code}/accept で membership 作成 |
-| FL-7 | テンプレート全部スキャフォールド — login/tenant-select/invite-consent/sessions が空 | 🔴 **致命的** | 全テンプレートを本実装に差し替え |
-| FL-8 | /admin/members, /admin/invitations のルートハンドラが Main.java にない | 🔴 **致命的** | ハンドラ追加 |
-| FL-9 | volta.js が空 — SDK クライアント側ロジック全未実装 | 🔴 **致命的** | volta-sdk-js 実装 |
-| FL-10 | CSRF 保護なし — POST エンドポイントに CSRF トークン検証なし | 🟠 High | jte テンプレートに CSRF token hidden field + before handler で検証 |
-| FL-11 | 招待一覧 API に ADMIN/OWNER 権限チェックなし | 🟠 High | enforceTenantMatch に加えて role チェック追加 |
-| FL-12 | 最後の OWNER 降格防御なし | 🟠 High | updateMemberRole で OWNER 数チェック |
-| FL-13 | テナント一覧取得 API なし — /select-tenant で一覧表示できない | 🟠 High | GET /api/v1/users/me/tenants 追加 |
-| FL-14 | /callback に Cache-Control: no-store 未設定 | 🟠 High | レスポンスヘッダ追加 |
-| FL-15 | デフォルト遷移先が /settings/sessions — App URL であるべき | 🟠 High | volta-config.yaml のデフォルト App URL を使う |
-| FL-16 | 招待取消 API (DELETE) なし | 🟠 High | DELETE /api/v1/tenants/{tid}/invitations/{iid} 追加 |
-| FL-17 | セッション切替時に旧セッションが無効化されない（累積する） | 🟡 Medium | switch-tenant で旧セッションを invalidate |
-| FL-18 | Google 側セッションが残存（ログアウト時） | 🟡 Medium | Phase 1 は許容。prompt=select_account で緩和 |
-| FL-19 | 429 に Retry-After ヘッダ未設定 | 🟡 Medium | レスポンスヘッダ追加 |
-| FL-20 | 招待承諾後のフラッシュメッセージなし | 🟡 Medium | セッションにフラッシュ値を保存して次画面で表示 |
+### Found by DGE
+
+| # | Gap | Severity | Mitigation |
+|---|-----|----------|------------|
+| FL-1 | Back button on /callback causes state mismatch | High | "Login again" button. return_to saved in session |
+| FL-2 | Tenant suspended in /auth/verify flow | High | 403 + switch option or admin contact |
+| FL-3 | Tenant switch atomicity | Medium | reload after POST success, no reload on failure |
+| FL-4 | Browser cache after logout | Medium | Cache-Control: no-store, private on ForwardAuth |
+| FL-5 | Session expiry during form input | Medium | SDK docs: recommend form auto-save |
+
+### Found by LLM Code Review (Implementation Bugs)
+
+| # | Gap | Severity | Mitigation |
+|---|-----|----------|------------|
+| FL-6 | Invite flow membership race: /callback findMembership fails for new users | **Critical** | Skip membership check when invite_code present. Create membership in /invite/code/accept |
+| FL-7 | All templates are scaffolds: login/tenant-select/invite-consent/sessions are empty | **Critical** | Replace with full implementations |
+| FL-8 | /admin/members and /admin/invitations routes missing from Main.java | **Critical** | Add route handlers |
+| FL-9 | volta.js is empty: no client-side SDK logic | **Critical** | Implement volta-sdk-js |
+| FL-10 | No CSRF protection on POST endpoints | High | CSRF token in jte forms + before handler validation |
+| FL-11 | Invitation list API lacks ADMIN/OWNER role check | High | Add role enforcement |
+| FL-12 | No protection against demoting last OWNER | High | Check OWNER count in updateMemberRole |
+| FL-13 | No tenant list API for /select-tenant screen | High | Add GET /api/v1/users/me/tenants |
+| FL-14 | /callback missing Cache-Control: no-store | High | Add response header |
+| FL-15 | Default redirect after login is /settings/sessions instead of App URL | High | Use default App URL from volta-config.yaml |
+| FL-16 | No invitation cancel API DELETE | High | Add DELETE /api/v1/tenants/tid/invitations/iid |
+| FL-17 | Old session not invalidated on tenant switch | Medium | Invalidate old session in switch-tenant |
+| FL-18 | Google session persists after logout | Medium | Acceptable in Phase 1. prompt=select_account mitigates |
+| FL-19 | 429 response missing Retry-After header | Medium | Add response header |
+| FL-20 | No flash message after invitation acceptance | Medium | Store flash in session, display on next page |

@@ -1,0 +1,1216 @@
+# volta-auth-proxy Auth State Machine — Phase 2-4 Additions
+# Purpose: New states + transitions to MERGE into auth-machine.yaml v3
+# Covers: MFA/TOTP, SAML SSO, Multiple IdP, M2M Client Credentials, Webhook Events
+# Version: 1
+#
+# Merge instructions:
+#   1. Add context entries under `context:`
+#   2. Add states under `states:`
+#   3. Splice transitions into existing states where noted
+#   4. Append audit_events
+#   5. Add new error codes to dsl/errors.yaml
+#
+# Guard expressions use CEL-like syntax per auth-machine.yaml v3.
+# Error codes reference dsl/errors.yaml (existing + new codes listed below).
+
+errors_ref: "dsl/errors.yaml"
+
+# ────────────────────────────────
+# New error codes (add to errors.yaml)
+# ────────────────────────────────
+new_errors:
+  MFA_REQUIRED:
+    status: 403
+    message:
+      en: "Multi-factor authentication is required"
+      ja: "多要素認証が必要です"
+    recovery:
+      browser: { redirect: "/mfa/verify" }
+      api: { json: true }
+
+  MFA_INVALID_CODE:
+    status: 401
+    message:
+      en: "Invalid verification code. Please try again."
+      ja: "認証コードが無効です。もう一度お試しください。"
+    recovery:
+      browser: { retry: true }
+
+  MFA_SETUP_REQUIRED:
+    status: 403
+    message:
+      en: "You must set up multi-factor authentication before proceeding"
+      ja: "続行するには多要素認証の設定が必要です"
+    recovery:
+      browser: { redirect: "/mfa/setup" }
+
+  MFA_ALREADY_ENABLED:
+    status: 409
+    message:
+      en: "Multi-factor authentication is already enabled for this account"
+      ja: "多要素認証はすでに有効です"
+
+  MFA_RECOVERY_EXHAUSTED:
+    status: 401
+    message:
+      en: "All recovery codes have been used. Contact your administrator."
+      ja: "すべてのリカバリーコードが使用済みです。管理者にお問い合わせください。"
+    recovery:
+      browser: { show_contact: true }
+
+  SAML_RESPONSE_INVALID:
+    status: 401
+    message:
+      en: "SSO authentication failed. The identity provider response was invalid."
+      ja: "SSO認証に失敗しました。IDプロバイダーの応答が無効です。"
+    recovery:
+      browser: { redirect: "/login", retry: true }
+
+  SAML_IDP_NOT_CONFIGURED:
+    status: 404
+    message:
+      en: "No SSO provider is configured for this workspace"
+      ja: "このワークスペースにはSSOプロバイダーが設定されていません"
+    recovery:
+      browser: { redirect: "/login" }
+
+  SAML_ASSERTION_EXPIRED:
+    status: 401
+    message:
+      en: "SSO assertion has expired. Please try again."
+      ja: "SSOアサーションの有効期限が切れました。もう一度お試しください。"
+    recovery:
+      browser: { redirect: "/login", retry: true }
+
+  PROVIDER_ACCOUNT_CONFLICT:
+    status: 409
+    message:
+      en: "This provider account is already linked to a different user"
+      ja: "このプロバイダーアカウントは既に別のユーザーに紐付けられています"
+
+  PROVIDER_LINK_FAILED:
+    status: 400
+    message:
+      en: "Failed to link provider account. Email address does not match."
+      ja: "プロバイダーアカウントの紐付けに失敗しました。メールアドレスが一致しません。"
+
+  CLIENT_CREDENTIALS_INVALID:
+    status: 401
+    message:
+      en: "Invalid client credentials"
+      ja: "クライアント認証情報が無効です"
+    recovery:
+      api: { json: true }
+
+  CLIENT_DISABLED:
+    status: 403
+    message:
+      en: "This API client has been disabled"
+      ja: "このAPIクライアントは無効化されています"
+
+  CLIENT_SCOPE_DENIED:
+    status: 403
+    message:
+      en: "The requested scope is not permitted for this client"
+      ja: "このクライアントには要求されたスコープが許可されていません"
+
+  WEBHOOK_ENDPOINT_INVALID:
+    status: 400
+    message:
+      en: "Invalid webhook endpoint URL"
+      ja: "無効なWebhookエンドポイントURLです"
+
+  WEBHOOK_SIGNATURE_FAILED:
+    status: 400
+    message:
+      en: "Webhook signature verification failed"
+      ja: "Webhook署名の検証に失敗しました"
+
+# ────────────────────────────────
+# Additional context variables
+# ────────────────────────────────
+context_additions:
+  mfa:
+    enabled: bool              # user has MFA configured
+    totp_valid: bool           # submitted TOTP code is correct
+    recovery_code_valid: bool  # submitted recovery code is valid
+    recovery_codes_remaining: int
+    setup_secret: string?      # TOTP secret during setup
+    setup_verified: bool       # first code verified during setup
+    tenant_enforced: bool      # tenant requires MFA for all members
+  saml:
+    idp_configured: bool       # tenant has SAML IdP configured
+    response_valid: bool       # SAML response signature + status valid
+    assertion_expired: bool    # SAML assertion NotOnOrAfter exceeded
+    name_id: string?           # NameID from assertion
+    email: string?             # email attribute from assertion
+    relay_state: string?       # RelayState for redirect after SSO
+    idp_initiated: bool        # true if flow started from IdP
+  provider:
+    name: enum[google, github, microsoft]
+    account_linked: bool       # identity already linked to current user
+    email_matches: bool        # provider email matches user email
+    identity_exists: bool      # user_identities row exists for this provider+sub
+    identity_owned_by_other: bool  # identity linked to a different user
+  client:
+    authenticated: bool        # client_id + client_secret valid
+    active: bool               # api_clients.active = true
+    scope_permitted: bool      # requested scopes within allowed set
+    client_id: string?
+    tenant_id: uuid?
+    rate_limit_remaining: int
+  webhook:
+    endpoint_valid: bool       # URL is reachable and https
+    signature_valid: bool      # X-Volta-Signature matches computed HMAC
+    delivery_attempts: int     # current retry count
+    max_attempts: int          # default 5
+
+# ────────────────────────────────
+# New global transitions
+# ────────────────────────────────
+global_transitions_additions:
+  session_timeout_mfa:
+    trigger: automatic
+    guard: "session.expired"
+    from_except: [UNAUTHENTICATED, MFA_REQUIRED, MFA_SETUP]
+    next: UNAUTHENTICATED
+
+  webhook_emit:
+    trigger: automatic
+    phase: 2
+    description: "On every state transition, emit webhook event if endpoints are registered."
+    guard: "true"
+    from_except: [UNAUTHENTICATED]
+    actions:
+      - { type: side_effect, action: enqueue_webhook_event, params: { event: "{audit.last_event}", state_from: "{transition.from}", state_to: "{transition.to}" } }
+
+# ────────────────────────────────
+# New states
+# ────────────────────────────────
+states:
+
+  # ══════════════════════════════
+  # MFA / TOTP Flow (Phase 3)
+  # ══════════════════════════════
+
+  MFA_REQUIRED:
+    phase: 3
+    description: "User authenticated via IdP but MFA verification is pending. Must complete TOTP or recovery code."
+    timeout:
+      duration_seconds: 300
+      cleanup: invalidate_session
+      next: UNAUTHENTICATED
+
+    transitions:
+      show_mfa_prompt:
+        trigger: "GET /mfa/verify"
+        actions:
+          - { type: http, action: render_html, template: mfa/verify }
+        next: MFA_REQUIRED
+
+      verify_totp_success:
+        trigger: "POST /mfa/verify"
+        guard: "mfa.totp_valid"
+        priority: 1
+        actions:
+          - { type: guard_check, check: csrf_token_valid }
+          - { type: side_effect, action: mark_mfa_verified }
+          - { type: side_effect, action: issue_jwt }
+          - { type: audit, event: MFA_VERIFY_SUCCESS }
+        next_if:
+          - guard: "user.tenant_count == 1"
+            next: AUTHENTICATED
+            actions:
+              - { type: side_effect, action: auto_select_tenant }
+              - { type: http, action: redirect, target: "{request.return_to || config.default_app_url}" }
+          - guard: "user.tenant_count > 1"
+            next: TENANT_SELECT
+            actions:
+              - { type: http, action: redirect, target: "/select-tenant" }
+          - guard: "user.tenant_count == 0"
+            next: NO_TENANT
+            actions:
+              - { type: http, action: redirect, target: "/no-tenant" }
+
+      verify_totp_fail:
+        trigger: "POST /mfa/verify"
+        guard: "!mfa.totp_valid && !mfa.recovery_code_valid"
+        priority: 3
+        actions:
+          - { type: guard_check, check: csrf_token_valid }
+          - { type: audit, event: MFA_VERIFY_FAILURE }
+          - { type: http, action: render_html, template: mfa/verify, error_ref: MFA_INVALID_CODE }
+        next: MFA_REQUIRED
+
+      verify_recovery_code_success:
+        trigger: "POST /mfa/verify"
+        guard: "mfa.recovery_code_valid && mfa.recovery_codes_remaining > 0"
+        priority: 2
+        actions:
+          - { type: guard_check, check: csrf_token_valid }
+          - { type: side_effect, action: consume_recovery_code }
+          - { type: side_effect, action: mark_mfa_verified }
+          - { type: side_effect, action: issue_jwt }
+          - { type: audit, event: MFA_RECOVERY_CODE_USED }
+        next_if:
+          - guard: "user.tenant_count == 1"
+            next: AUTHENTICATED
+            actions:
+              - { type: side_effect, action: auto_select_tenant }
+              - { type: http, action: redirect, target: "{request.return_to || config.default_app_url}" }
+          - guard: "user.tenant_count > 1"
+            next: TENANT_SELECT
+            actions:
+              - { type: http, action: redirect, target: "/select-tenant" }
+          - guard: "user.tenant_count == 0"
+            next: NO_TENANT
+            actions:
+              - { type: http, action: redirect, target: "/no-tenant" }
+
+      verify_recovery_exhausted:
+        trigger: "POST /mfa/verify"
+        guard: "mfa.recovery_code_valid && mfa.recovery_codes_remaining == 0"
+        priority: 4
+        actions:
+          - { type: side_effect, action: consume_recovery_code }
+          - { type: audit, event: MFA_RECOVERY_CODES_EXHAUSTED }
+          - { type: http, action: render_html, template: mfa/recovery-exhausted, error_ref: MFA_RECOVERY_EXHAUSTED }
+        next: MFA_REQUIRED
+
+      cancel_mfa:
+        trigger: "POST /auth/logout"
+        actions:
+          - { type: side_effect, action: invalidate_session }
+          - { type: side_effect, action: clear_cookie }
+          - { type: audit, event: LOGOUT }
+          - { type: http, action: redirect, target: "/login" }
+        next: UNAUTHENTICATED
+
+  MFA_SETUP:
+    phase: 3
+    description: "User must configure TOTP before first use. Tenant policy requires MFA."
+    timeout:
+      duration_seconds: 600
+      cleanup: invalidate_session
+      next: UNAUTHENTICATED
+
+    transitions:
+      show_setup:
+        trigger: "GET /mfa/setup"
+        actions:
+          - { type: side_effect, action: generate_totp_secret }
+          - { type: http, action: render_html, template: mfa/setup, params: { qr_uri: totp_provisioning_uri, secret: mfa.setup_secret } }
+        next: MFA_SETUP
+
+      verify_setup_code_success:
+        trigger: "POST /mfa/setup/verify"
+        guard: "mfa.totp_valid"
+        priority: 1
+        actions:
+          - { type: guard_check, check: csrf_token_valid }
+          - { type: side_effect, action: enable_totp, params: { secret: mfa.setup_secret } }
+          - { type: side_effect, action: generate_recovery_codes, params: { count: 10 } }
+          - { type: side_effect, action: mark_mfa_verified }
+          - { type: side_effect, action: issue_jwt }
+          - { type: audit, event: MFA_ENABLED }
+          - { type: http, action: render_html, template: mfa/recovery-codes }
+        next: MFA_SETUP_COMPLETE
+
+      verify_setup_code_fail:
+        trigger: "POST /mfa/setup/verify"
+        guard: "!mfa.totp_valid"
+        priority: 2
+        actions:
+          - { type: guard_check, check: csrf_token_valid }
+          - { type: http, action: render_html, template: mfa/setup, error_ref: MFA_INVALID_CODE }
+        next: MFA_SETUP
+
+      cancel_setup:
+        trigger: "POST /auth/logout"
+        actions:
+          - { type: side_effect, action: invalidate_session }
+          - { type: side_effect, action: clear_cookie }
+          - { type: audit, event: LOGOUT }
+          - { type: http, action: redirect, target: "/login" }
+        next: UNAUTHENTICATED
+
+  MFA_SETUP_COMPLETE:
+    phase: 3
+    description: "TOTP setup done. Recovery codes shown. User must acknowledge before proceeding."
+    transitions:
+      acknowledge_recovery_codes:
+        trigger: "POST /mfa/setup/acknowledge"
+        actions:
+          - { type: guard_check, check: csrf_token_valid }
+          - { type: audit, event: MFA_SETUP_ACKNOWLEDGED }
+        next_if:
+          - guard: "user.tenant_count == 1"
+            next: AUTHENTICATED
+            actions:
+              - { type: side_effect, action: auto_select_tenant }
+              - { type: http, action: redirect, target: "{request.return_to || config.default_app_url}" }
+          - guard: "user.tenant_count > 1"
+            next: TENANT_SELECT
+            actions:
+              - { type: http, action: redirect, target: "/select-tenant" }
+          - guard: "user.tenant_count == 0"
+            next: NO_TENANT
+            actions:
+              - { type: http, action: redirect, target: "/no-tenant" }
+
+  # ══════════════════════════════
+  # SAML SSO Flow (Phase 3)
+  # ══════════════════════════════
+
+  SAML_PENDING:
+    phase: 3
+    description: "SAML AuthnRequest sent to IdP. Waiting for SAMLResponse at ACS endpoint."
+    timeout:
+      duration_seconds: 600
+      cleanup: delete_saml_flow
+      next: UNAUTHENTICATED
+
+    transitions:
+      # SP-initiated: ACS receives POST with SAMLResponse
+      acs_response_invalid:
+        trigger: "POST /auth/saml/acs"
+        guard: "!saml.response_valid"
+        priority: 1
+        actions:
+          - { type: side_effect, action: delete_saml_flow }
+          - { type: audit, event: SAML_LOGIN_FAILURE, params: { reason: response_invalid } }
+          - { type: http, action: render_html, template: error, error_ref: SAML_RESPONSE_INVALID }
+        next: UNAUTHENTICATED
+
+      acs_assertion_expired:
+        trigger: "POST /auth/saml/acs"
+        guard: "saml.response_valid && saml.assertion_expired"
+        priority: 2
+        actions:
+          - { type: side_effect, action: delete_saml_flow }
+          - { type: audit, event: SAML_LOGIN_FAILURE, params: { reason: assertion_expired } }
+          - { type: http, action: render_html, template: error, error_ref: SAML_ASSERTION_EXPIRED }
+        next: UNAUTHENTICATED
+
+      acs_success:
+        trigger: "POST /auth/saml/acs"
+        guard: "saml.response_valid && !saml.assertion_expired"
+        priority: 3
+        actions:
+          - { type: side_effect, action: upsert_user, params: { email: saml.email, provider: saml } }
+          - { type: side_effect, action: upsert_user_identity, params: { provider: saml, subject: saml.name_id } }
+          - { type: side_effect, action: delete_saml_flow }
+          - { type: side_effect, action: create_session }
+          - { type: audit, event: SAML_LOGIN_SUCCESS }
+        next_if:
+          - guard: "mfa.tenant_enforced && mfa.enabled"
+            next: MFA_REQUIRED
+            actions:
+              - { type: http, action: redirect, target: "/mfa/verify" }
+          - guard: "mfa.tenant_enforced && !mfa.enabled"
+            next: MFA_SETUP
+            actions:
+              - { type: http, action: redirect, target: "/mfa/setup" }
+          - guard: "invite.present && invite.valid"
+            next: INVITE_CONSENT
+            actions:
+              - { type: http, action: redirect, target: "/invite/{invite.code}/accept" }
+          - guard: "user.tenant_count == 1"
+            next: AUTHENTICATED
+            actions:
+              - { type: side_effect, action: auto_select_tenant }
+              - { type: side_effect, action: issue_jwt }
+              - { type: http, action: redirect, target: "{saml.relay_state || config.default_app_url}" }
+          - guard: "user.tenant_count > 1"
+            next: TENANT_SELECT
+            actions:
+              - { type: http, action: redirect, target: "/select-tenant" }
+          - guard: "user.tenant_count == 0 && !invite.present"
+            next: NO_TENANT
+            actions:
+              - { type: http, action: redirect, target: "/no-tenant" }
+
+  # ══════════════════════════════
+  # M2M / Client Credentials (Phase 2)
+  # ══════════════════════════════
+
+  M2M_AUTHENTICATED:
+    phase: 2
+    description: "Machine-to-machine client authenticated via client_credentials grant. No user context."
+    # M2M is stateless (JWT-only), so this is a logical state for the token's lifetime.
+    transitions:
+      forward_auth_m2m:
+        trigger: "GET /auth/verify"
+        guard: "client.authenticated && client.active && client.scope_permitted"
+        priority: 1
+        actions:
+          - { type: side_effect, action: touch_client_last_used }
+          - { type: http, action: return_volta_headers, params: { mode: m2m, client_id: client.client_id, tenant_id: client.tenant_id } }
+        next: M2M_AUTHENTICATED
+
+      forward_auth_m2m_disabled:
+        trigger: "GET /auth/verify"
+        guard: "client.authenticated && !client.active"
+        priority: 2
+        actions:
+          - { type: http, action: json_error, error_ref: CLIENT_DISABLED }
+        next: UNAUTHENTICATED
+
+      forward_auth_m2m_rate_limited:
+        trigger: "GET /auth/verify"
+        guard: "client.authenticated && client.rate_limit_remaining <= 0"
+        priority: 3
+        actions:
+          - { type: http, action: json_error, error_ref: RATE_LIMITED }
+        next: M2M_AUTHENTICATED
+
+# ────────────────────────────────
+# Transitions to SPLICE into existing states
+# ────────────────────────────────
+splice_transitions:
+
+  # ── UNAUTHENTICATED: add multi-provider + SAML login triggers ──
+  UNAUTHENTICATED:
+
+    login_provider_github:
+      phase: 2
+      trigger: "GET /login/github"
+      guard: "!request.accept_json"
+      priority: 10
+      actions:
+        - { type: side_effect, action: create_oidc_flow, params: { provider: github } }
+        - { type: http, action: redirect, target: github_authorize_url }
+      next: AUTH_PENDING
+
+    login_provider_microsoft:
+      phase: 2
+      trigger: "GET /login/microsoft"
+      guard: "!request.accept_json"
+      priority: 11
+      actions:
+        - { type: side_effect, action: create_oidc_flow, params: { provider: microsoft } }
+        - { type: http, action: redirect, target: microsoft_authorize_url }
+      next: AUTH_PENDING
+
+    login_provider_selection:
+      phase: 2
+      trigger: "GET /login"
+      guard: "!request.accept_json"
+      description: "When multiple IdPs are configured, show provider selection page instead of direct redirect."
+      priority: 0  # lower than existing login_browser (overrides when multi-provider enabled)
+      actions:
+        - { type: http, action: render_html, template: login-provider-select }
+      next: UNAUTHENTICATED
+
+    login_saml_sp_initiated:
+      phase: 3
+      trigger: "GET /auth/saml/login"
+      guard: "saml.idp_configured"
+      priority: 1
+      actions:
+        - { type: side_effect, action: create_saml_authn_request }
+        - { type: http, action: redirect, target: saml_idp_sso_url }
+      next: SAML_PENDING
+
+    login_saml_no_idp:
+      phase: 3
+      trigger: "GET /auth/saml/login"
+      guard: "!saml.idp_configured"
+      priority: 2
+      actions:
+        - { type: http, action: json_error, error_ref: SAML_IDP_NOT_CONFIGURED }
+      next: UNAUTHENTICATED
+
+    login_saml_idp_initiated:
+      phase: 3
+      trigger: "POST /auth/saml/acs"
+      guard: "saml.idp_initiated && saml.response_valid && !saml.assertion_expired"
+      description: "IdP-initiated SSO: user comes directly from Okta/Azure AD portal."
+      priority: 1
+      actions:
+        - { type: side_effect, action: upsert_user, params: { email: saml.email, provider: saml } }
+        - { type: side_effect, action: upsert_user_identity, params: { provider: saml, subject: saml.name_id } }
+        - { type: side_effect, action: create_session }
+        - { type: audit, event: SAML_LOGIN_SUCCESS }
+      next_if:
+        - guard: "mfa.tenant_enforced && mfa.enabled"
+          next: MFA_REQUIRED
+          actions:
+            - { type: http, action: redirect, target: "/mfa/verify" }
+        - guard: "mfa.tenant_enforced && !mfa.enabled"
+          next: MFA_SETUP
+          actions:
+            - { type: http, action: redirect, target: "/mfa/setup" }
+        - guard: "user.tenant_count == 1"
+          next: AUTHENTICATED
+          actions:
+            - { type: side_effect, action: auto_select_tenant }
+            - { type: side_effect, action: issue_jwt }
+            - { type: http, action: redirect, target: "{saml.relay_state || config.default_app_url}" }
+        - guard: "user.tenant_count > 1"
+          next: TENANT_SELECT
+          actions:
+            - { type: http, action: redirect, target: "/select-tenant" }
+        - guard: "user.tenant_count == 0"
+          next: NO_TENANT
+          actions:
+            - { type: http, action: redirect, target: "/no-tenant" }
+
+    login_saml_idp_initiated_invalid:
+      phase: 3
+      trigger: "POST /auth/saml/acs"
+      guard: "saml.idp_initiated && !saml.response_valid"
+      priority: 2
+      actions:
+        - { type: audit, event: SAML_LOGIN_FAILURE, params: { reason: idp_initiated_invalid } }
+        - { type: http, action: render_html, template: error, error_ref: SAML_RESPONSE_INVALID }
+      next: UNAUTHENTICATED
+
+    # M2M client_credentials token endpoint
+    m2m_token_grant:
+      phase: 2
+      trigger: "POST /oauth/token"
+      guard: "client.authenticated && client.active && client.scope_permitted"
+      priority: 1
+      actions:
+        - { type: side_effect, action: issue_m2m_jwt, params: { client_id: client.client_id, tenant_id: client.tenant_id, scopes: request.scopes } }
+        - { type: side_effect, action: touch_client_last_used }
+        - { type: audit, event: M2M_TOKEN_ISSUED }
+        - { type: http, action: json_ok, params: { access_token: jwt, token_type: bearer, expires_in: 3600 } }
+      next: M2M_AUTHENTICATED
+
+    m2m_token_invalid_creds:
+      phase: 2
+      trigger: "POST /oauth/token"
+      guard: "!client.authenticated"
+      priority: 2
+      actions:
+        - { type: audit, event: M2M_TOKEN_FAILURE, params: { reason: invalid_credentials } }
+        - { type: http, action: json_error, error_ref: CLIENT_CREDENTIALS_INVALID }
+      next: UNAUTHENTICATED
+
+    m2m_token_client_disabled:
+      phase: 2
+      trigger: "POST /oauth/token"
+      guard: "client.authenticated && !client.active"
+      priority: 3
+      actions:
+        - { type: audit, event: M2M_TOKEN_FAILURE, params: { reason: client_disabled } }
+        - { type: http, action: json_error, error_ref: CLIENT_DISABLED }
+      next: UNAUTHENTICATED
+
+    m2m_token_scope_denied:
+      phase: 2
+      trigger: "POST /oauth/token"
+      guard: "client.authenticated && client.active && !client.scope_permitted"
+      priority: 4
+      actions:
+        - { type: audit, event: M2M_TOKEN_FAILURE, params: { reason: scope_denied } }
+        - { type: http, action: json_error, error_ref: CLIENT_SCOPE_DENIED }
+      next: UNAUTHENTICATED
+
+    m2m_token_rate_limited:
+      phase: 2
+      trigger: "POST /oauth/token"
+      guard: "client.authenticated && client.active && client.rate_limit_remaining <= 0"
+      priority: 5
+      actions:
+        - { type: http, action: json_error, error_ref: RATE_LIMITED }
+      next: UNAUTHENTICATED
+
+  # ── AUTH_PENDING: add MFA branching to callback_success ──
+  AUTH_PENDING:
+    # These transitions replace/extend the callback_success next_if branches.
+    # Original callback_success actions remain; these are ADDITIONAL next_if entries
+    # inserted BEFORE the existing tenant-routing branches (highest priority first).
+
+    callback_success_mfa_required:
+      phase: 3
+      description: "After OIDC callback success, redirect to MFA if user has TOTP enabled."
+      trigger: "GET /callback"
+      guard: "oidc_flow.state_valid && oidc_flow.nonce_valid && oidc_flow.email_verified && mfa.enabled"
+      priority: 4  # between email_not_verified (4) and existing callback_success (5)
+      # Actually needs higher priority than callback_success — use 4.1 conceptually;
+      # in practice, insert as priority 5 and bump existing callback_success to 6.
+      actions:
+        - { type: side_effect, action: upsert_user }
+        - { type: side_effect, action: upsert_user_identity, params: { provider: provider.name } }
+        - { type: side_effect, action: delete_oidc_flow }
+        - { type: side_effect, action: create_session }
+        - { type: audit, event: LOGIN_SUCCESS }
+        - { type: http, action: redirect, target: "/mfa/verify" }
+      next: MFA_REQUIRED
+
+    callback_success_mfa_setup_required:
+      phase: 3
+      description: "After OIDC callback, tenant enforces MFA but user has not set it up yet."
+      trigger: "GET /callback"
+      guard: "oidc_flow.state_valid && oidc_flow.nonce_valid && oidc_flow.email_verified && !mfa.enabled && mfa.tenant_enforced"
+      priority: 5
+      actions:
+        - { type: side_effect, action: upsert_user }
+        - { type: side_effect, action: upsert_user_identity, params: { provider: provider.name } }
+        - { type: side_effect, action: delete_oidc_flow }
+        - { type: side_effect, action: create_session }
+        - { type: audit, event: LOGIN_SUCCESS }
+        - { type: http, action: redirect, target: "/mfa/setup" }
+      next: MFA_SETUP
+
+    # Account linking: upsert identity row on every OIDC callback
+    callback_success_link_identity:
+      phase: 2
+      description: "On every successful OIDC callback, upsert user_identities row for account linking."
+      trigger: "GET /callback"
+      guard: "oidc_flow.state_valid && oidc_flow.nonce_valid && oidc_flow.email_verified && !provider.identity_owned_by_other"
+      priority: 6  # after MFA checks, replaces original callback_success (which becomes 7)
+      actions:
+        - { type: side_effect, action: upsert_user }
+        - { type: side_effect, action: upsert_user_identity, params: { provider: provider.name } }
+        - { type: side_effect, action: delete_oidc_flow }
+        - { type: side_effect, action: create_session }
+        - { type: audit, event: LOGIN_SUCCESS }
+      next_if:
+        - guard: "invite.present && invite.valid"
+          next: INVITE_CONSENT
+          actions:
+            - { type: http, action: redirect, target: "/invite/{invite.code}/accept" }
+        - guard: "user.tenant_count == 1"
+          next: AUTHENTICATED
+          actions:
+            - { type: side_effect, action: auto_select_tenant }
+            - { type: http, action: redirect, target: "{request.return_to || config.default_app_url}" }
+        - guard: "user.tenant_count > 1"
+          next: TENANT_SELECT
+          actions:
+            - { type: http, action: redirect, target: "/select-tenant" }
+        - guard: "user.tenant_count == 0 && !invite.present"
+          next: NO_TENANT
+          actions:
+            - { type: http, action: redirect, target: "/no-tenant" }
+
+    callback_identity_conflict:
+      phase: 2
+      description: "Provider identity (e.g. GitHub sub) already linked to a different user."
+      trigger: "GET /callback"
+      guard: "oidc_flow.state_valid && oidc_flow.nonce_valid && oidc_flow.email_verified && provider.identity_owned_by_other"
+      priority: 7
+      actions:
+        - { type: side_effect, action: delete_oidc_flow }
+        - { type: audit, event: LOGIN_FAILURE, params: { reason: provider_account_conflict } }
+        - { type: http, action: render_html, template: error, error_ref: PROVIDER_ACCOUNT_CONFLICT }
+      next: UNAUTHENTICATED
+
+  # ── AUTHENTICATED: add MFA management + provider linking + webhook admin ──
+  AUTHENTICATED:
+
+    # MFA management (Phase 3)
+    mfa_enable_start:
+      phase: 3
+      trigger: "GET /settings/mfa/setup"
+      guard: "!mfa.enabled"
+      actions:
+        - { type: side_effect, action: generate_totp_secret }
+        - { type: http, action: render_html, template: mfa/setup, params: { qr_uri: totp_provisioning_uri, secret: mfa.setup_secret } }
+      next: AUTHENTICATED
+
+    mfa_enable_verify:
+      phase: 3
+      trigger: "POST /settings/mfa/setup/verify"
+      guard: "!mfa.enabled && mfa.totp_valid"
+      priority: 1
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: enable_totp, params: { secret: mfa.setup_secret } }
+        - { type: side_effect, action: generate_recovery_codes, params: { count: 10 } }
+        - { type: audit, event: MFA_ENABLED }
+        - { type: http, action: json_ok, params: { recovery_codes: recovery_codes } }
+      next: AUTHENTICATED
+
+    mfa_enable_verify_fail:
+      phase: 3
+      trigger: "POST /settings/mfa/setup/verify"
+      guard: "!mfa.enabled && !mfa.totp_valid"
+      priority: 2
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: http, action: json_error, error_ref: MFA_INVALID_CODE }
+      next: AUTHENTICATED
+
+    mfa_disable:
+      phase: 3
+      trigger: "POST /settings/mfa/disable"
+      guard: "mfa.enabled && !mfa.tenant_enforced"
+      priority: 1
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: disable_totp }
+        - { type: side_effect, action: revoke_recovery_codes }
+        - { type: audit, event: MFA_DISABLED }
+        - { type: http, action: json_ok }
+      next: AUTHENTICATED
+
+    mfa_disable_enforced:
+      phase: 3
+      trigger: "POST /settings/mfa/disable"
+      guard: "mfa.enabled && mfa.tenant_enforced"
+      priority: 2
+      actions:
+        - { type: http, action: json_error, error_ref: MFA_REQUIRED }
+      next: AUTHENTICATED
+
+    mfa_regenerate_recovery_codes:
+      phase: 3
+      trigger: "POST /settings/mfa/recovery-codes"
+      guard: "mfa.enabled"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: revoke_recovery_codes }
+        - { type: side_effect, action: generate_recovery_codes, params: { count: 10 } }
+        - { type: audit, event: MFA_RECOVERY_CODES_REGENERATED }
+        - { type: http, action: json_ok, params: { recovery_codes: recovery_codes } }
+      next: AUTHENTICATED
+
+    # Admin: MFA tenant enforcement (Phase 3)
+    mfa_enforce_tenant:
+      phase: 3
+      trigger: "POST /admin/settings/mfa"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: set_tenant_mfa_policy, params: { required: true } }
+        - { type: audit, event: TENANT_MFA_POLICY_CHANGED, params: { required: true } }
+        - { type: http, action: json_ok }
+      next: AUTHENTICATED
+
+    mfa_unenforce_tenant:
+      phase: 3
+      trigger: "DELETE /admin/settings/mfa"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: set_tenant_mfa_policy, params: { required: false } }
+        - { type: audit, event: TENANT_MFA_POLICY_CHANGED, params: { required: false } }
+        - { type: http, action: json_ok }
+      next: AUTHENTICATED
+
+    # Provider account linking (Phase 2)
+    link_provider_start:
+      phase: 2
+      trigger: "GET /settings/identities/link/{provider}"
+      guard: "provider.name in ['google', 'github', 'microsoft']"
+      actions:
+        - { type: side_effect, action: create_oidc_flow, params: { provider: provider.name, link_mode: true } }
+        - { type: http, action: redirect, target: "{provider.name}_authorize_url" }
+      next: AUTHENTICATED
+
+    link_provider_callback_success:
+      phase: 2
+      trigger: "GET /settings/identities/link/callback"
+      guard: "oidc_flow.state_valid && oidc_flow.nonce_valid && provider.email_matches && !provider.identity_owned_by_other"
+      priority: 1
+      actions:
+        - { type: side_effect, action: upsert_user_identity, params: { provider: provider.name } }
+        - { type: side_effect, action: delete_oidc_flow }
+        - { type: audit, event: PROVIDER_LINKED }
+        - { type: http, action: json_ok }
+      next: AUTHENTICATED
+
+    link_provider_callback_email_mismatch:
+      phase: 2
+      trigger: "GET /settings/identities/link/callback"
+      guard: "oidc_flow.state_valid && oidc_flow.nonce_valid && !provider.email_matches"
+      priority: 2
+      actions:
+        - { type: side_effect, action: delete_oidc_flow }
+        - { type: http, action: json_error, error_ref: PROVIDER_LINK_FAILED }
+      next: AUTHENTICATED
+
+    link_provider_callback_conflict:
+      phase: 2
+      trigger: "GET /settings/identities/link/callback"
+      guard: "oidc_flow.state_valid && oidc_flow.nonce_valid && provider.identity_owned_by_other"
+      priority: 3
+      actions:
+        - { type: side_effect, action: delete_oidc_flow }
+        - { type: http, action: json_error, error_ref: PROVIDER_ACCOUNT_CONFLICT }
+      next: AUTHENTICATED
+
+    unlink_provider:
+      phase: 2
+      trigger: "DELETE /settings/identities/{provider}"
+      guard: "provider.account_linked && user.tenant_count > 0"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: delete_user_identity, params: { provider: provider.name } }
+        - { type: audit, event: PROVIDER_UNLINKED }
+        - { type: http, action: json_ok }
+      next: AUTHENTICATED
+
+    show_identities:
+      phase: 2
+      trigger: "GET /settings/identities"
+      actions:
+        - { type: http, action: render_html, template: settings/identities }
+      next: AUTHENTICATED
+
+    # Admin: SAML IdP configuration (Phase 3)
+    saml_configure_idp:
+      phase: 3
+      trigger: "POST /admin/settings/saml"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: save_saml_idp_config, params: { entity_id: request.entity_id, sso_url: request.sso_url, certificate: request.certificate } }
+        - { type: audit, event: SAML_IDP_CONFIGURED }
+        - { type: http, action: json_ok }
+      next: AUTHENTICATED
+
+    saml_delete_idp:
+      phase: 3
+      trigger: "DELETE /admin/settings/saml"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: delete_saml_idp_config }
+        - { type: audit, event: SAML_IDP_REMOVED }
+        - { type: http, action: json_ok }
+      next: AUTHENTICATED
+
+    saml_show_sp_metadata:
+      phase: 3
+      trigger: "GET /auth/saml/metadata"
+      description: "Serve SP metadata XML for IdP configuration."
+      actions:
+        - { type: http, action: xml, template: saml/sp-metadata }
+      next: AUTHENTICATED
+
+    # Admin: M2M API client management (Phase 2)
+    m2m_create_client:
+      phase: 2
+      trigger: "POST /admin/api-clients"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: create_api_client, params: { name: request.name, scopes: request.scopes } }
+        - { type: audit, event: M2M_CLIENT_CREATED }
+        - { type: http, action: json_ok, params: { client_id: api_client.id, client_secret: api_client.secret } }
+      next: AUTHENTICATED
+
+    m2m_list_clients:
+      phase: 2
+      trigger: "GET /admin/api-clients"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: http, action: render_html, template: admin/api-clients }
+      next: AUTHENTICATED
+
+    m2m_revoke_client:
+      phase: 2
+      trigger: "DELETE /admin/api-clients/{id}"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: deactivate_api_client }
+        - { type: audit, event: M2M_CLIENT_REVOKED }
+        - { type: http, action: json_ok }
+      next: AUTHENTICATED
+
+    m2m_rotate_secret:
+      phase: 2
+      trigger: "POST /admin/api-clients/{id}/rotate"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: rotate_api_client_secret }
+        - { type: audit, event: M2M_CLIENT_SECRET_ROTATED }
+        - { type: http, action: json_ok, params: { client_secret: api_client.secret } }
+      next: AUTHENTICATED
+
+    # Admin: Webhook management (Phase 2)
+    webhook_create:
+      phase: 2
+      trigger: "POST /admin/webhooks"
+      guard: "membership.role in ['ADMIN', 'OWNER'] && webhook.endpoint_valid"
+      priority: 1
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: create_webhook_endpoint, params: { url: request.url, events: request.events, secret: generated_hmac_secret } }
+        - { type: audit, event: WEBHOOK_CREATED }
+        - { type: http, action: json_ok, params: { id: webhook_endpoint.id, secret: webhook_endpoint.secret } }
+      next: AUTHENTICATED
+
+    webhook_create_invalid:
+      phase: 2
+      trigger: "POST /admin/webhooks"
+      guard: "membership.role in ['ADMIN', 'OWNER'] && !webhook.endpoint_valid"
+      priority: 2
+      actions:
+        - { type: http, action: json_error, error_ref: WEBHOOK_ENDPOINT_INVALID }
+      next: AUTHENTICATED
+
+    webhook_list:
+      phase: 2
+      trigger: "GET /admin/webhooks"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: http, action: render_html, template: admin/webhooks }
+      next: AUTHENTICATED
+
+    webhook_delete:
+      phase: 2
+      trigger: "DELETE /admin/webhooks/{id}"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: delete_webhook_endpoint }
+        - { type: audit, event: WEBHOOK_DELETED }
+        - { type: http, action: json_ok }
+      next: AUTHENTICATED
+
+    webhook_test:
+      phase: 2
+      trigger: "POST /admin/webhooks/{id}/test"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: guard_check, check: csrf_token_valid }
+        - { type: side_effect, action: enqueue_webhook_event, params: { event: test, endpoint_id: request.id } }
+        - { type: http, action: json_ok }
+      next: AUTHENTICATED
+
+    webhook_deliveries:
+      phase: 2
+      trigger: "GET /admin/webhooks/{id}/deliveries"
+      guard: "membership.role in ['ADMIN', 'OWNER']"
+      actions:
+        - { type: http, action: json_ok, params: { deliveries: webhook_deliveries_list } }
+      next: AUTHENTICATED
+
+# ────────────────────────────────
+# Webhook delivery process (background, not user-facing)
+# ────────────────────────────────
+webhook_delivery:
+  phase: 2
+  description: >
+    Background process for delivering webhook events.
+    Triggered by enqueue_webhook_event side_effect.
+    Not a user-facing state transition.
+
+  process:
+    - step: build_payload
+      action: >
+        Construct JSON payload: { id, event, timestamp, data, tenant_id }.
+        Compute HMAC-SHA256 of payload body using endpoint secret.
+        Set X-Volta-Signature header to "sha256={hmac_hex}".
+        Set X-Volta-Event header to event name.
+        Set X-Volta-Delivery header to delivery UUID.
+
+    - step: deliver
+      action: "POST to webhook_endpoint.url with payload + headers."
+      timeout_seconds: 30
+
+    - step: record_result
+      action: >
+        Insert into webhook_deliveries:
+          { endpoint_id, event, request_body, response_status, response_body, duration_ms, attempt, success }.
+
+    - step: retry_on_failure
+      guard: "!delivery.success && webhook.delivery_attempts < webhook.max_attempts"
+      action: >
+        Retry with exponential backoff:
+          delay = min(2^attempt * 10, 3600) seconds.
+        Backoff schedule: 10s, 20s, 40s, 80s, 160s (5 attempts default).
+      next: deliver
+
+    - step: mark_failed
+      guard: "!delivery.success && webhook.delivery_attempts >= webhook.max_attempts"
+      action: >
+        Mark delivery as permanently failed.
+        If endpoint has >10 consecutive failures, set endpoint.disabled = true.
+        Emit audit event WEBHOOK_ENDPOINT_DISABLED.
+
+# ────────────────────────────────
+# Database tables (new, Phase 2-3)
+# ────────────────────────────────
+tables:
+  user_identities:
+    phase: 2
+    description: "Links users to external identity providers for multi-IdP + account linking."
+    columns:
+      - { name: id, type: uuid, pk: true }
+      - { name: user_id, type: uuid, fk: users.id, not_null: true }
+      - { name: provider, type: text, not_null: true }  # google, github, microsoft, saml
+      - { name: provider_subject, type: text, not_null: true }  # sub claim or NameID
+      - { name: provider_email, type: text }
+      - { name: provider_metadata, type: jsonb }  # raw claims / attributes
+      - { name: created_at, type: timestamptz, not_null: true }
+      - { name: updated_at, type: timestamptz, not_null: true }
+    unique_constraints:
+      - [provider, provider_subject]  # one identity per provider+sub
+    indexes:
+      - { columns: [user_id, provider], unique: true }  # one row per user+provider
+
+  api_clients:
+    phase: 2
+    description: "M2M API clients for client_credentials grant."
+    columns:
+      - { name: id, type: uuid, pk: true }  # also used as client_id
+      - { name: tenant_id, type: uuid, fk: tenants.id, not_null: true }
+      - { name: name, type: text, not_null: true }
+      - { name: secret_hash, type: text, not_null: true }  # bcrypt hash of client_secret
+      - { name: scopes, type: "text[]", not_null: true }
+      - { name: active, type: boolean, not_null: true, default: true }
+      - { name: last_used_at, type: timestamptz }
+      - { name: created_by, type: uuid, fk: users.id, not_null: true }
+      - { name: created_at, type: timestamptz, not_null: true }
+      - { name: updated_at, type: timestamptz, not_null: true }
+    indexes:
+      - { columns: [tenant_id, active] }
+
+  totp_credentials:
+    phase: 3
+    description: "TOTP secrets for MFA."
+    columns:
+      - { name: id, type: uuid, pk: true }
+      - { name: user_id, type: uuid, fk: users.id, not_null: true, unique: true }
+      - { name: secret_encrypted, type: bytea, not_null: true }  # AES-256-GCM encrypted
+      - { name: verified, type: boolean, not_null: true, default: false }
+      - { name: enabled_at, type: timestamptz }
+      - { name: created_at, type: timestamptz, not_null: true }
+
+  recovery_codes:
+    phase: 3
+    description: "One-time-use recovery codes for MFA bypass."
+    columns:
+      - { name: id, type: uuid, pk: true }
+      - { name: user_id, type: uuid, fk: users.id, not_null: true }
+      - { name: code_hash, type: text, not_null: true }  # bcrypt hash
+      - { name: used, type: boolean, not_null: true, default: false }
+      - { name: used_at, type: timestamptz }
+      - { name: created_at, type: timestamptz, not_null: true }
+    indexes:
+      - { columns: [user_id, used] }
+
+  saml_idp_configs:
+    phase: 3
+    description: "Per-tenant SAML IdP configuration."
+    columns:
+      - { name: id, type: uuid, pk: true }
+      - { name: tenant_id, type: uuid, fk: tenants.id, not_null: true, unique: true }
+      - { name: entity_id, type: text, not_null: true }
+      - { name: sso_url, type: text, not_null: true }
+      - { name: slo_url, type: text }
+      - { name: certificate, type: text, not_null: true }  # PEM-encoded X.509
+      - { name: name_id_format, type: text, default: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress" }
+      - { name: active, type: boolean, not_null: true, default: true }
+      - { name: created_at, type: timestamptz, not_null: true }
+      - { name: updated_at, type: timestamptz, not_null: true }
+
+  tenant_mfa_policies:
+    phase: 3
+    description: "Per-tenant MFA enforcement policy."
+    columns:
+      - { name: tenant_id, type: uuid, fk: tenants.id, pk: true }
+      - { name: mfa_required, type: boolean, not_null: true, default: false }
+      - { name: grace_period_days, type: integer, default: 7 }  # days before enforcement
+      - { name: updated_by, type: uuid, fk: users.id }
+      - { name: updated_at, type: timestamptz, not_null: true }
+
+  webhook_endpoints:
+    phase: 2
+    description: "Registered webhook endpoints per tenant."
+    columns:
+      - { name: id, type: uuid, pk: true }
+      - { name: tenant_id, type: uuid, fk: tenants.id, not_null: true }
+      - { name: url, type: text, not_null: true }
+      - { name: secret, type: text, not_null: true }  # HMAC signing secret
+      - { name: events, type: "text[]", not_null: true }  # subscribed event types, or ['*']
+      - { name: active, type: boolean, not_null: true, default: true }
+      - { name: disabled_reason, type: text }
+      - { name: consecutive_failures, type: integer, not_null: true, default: 0 }
+      - { name: created_by, type: uuid, fk: users.id, not_null: true }
+      - { name: created_at, type: timestamptz, not_null: true }
+      - { name: updated_at, type: timestamptz, not_null: true }
+    indexes:
+      - { columns: [tenant_id, active] }
+
+  webhook_deliveries:
+    phase: 2
+    description: "Log of webhook delivery attempts."
+    columns:
+      - { name: id, type: uuid, pk: true }
+      - { name: endpoint_id, type: uuid, fk: webhook_endpoints.id, not_null: true }
+      - { name: event, type: text, not_null: true }
+      - { name: payload, type: jsonb, not_null: true }
+      - { name: attempt, type: integer, not_null: true, default: 1 }
+      - { name: response_status, type: integer }
+      - { name: response_body, type: text }
+      - { name: duration_ms, type: integer }
+      - { name: success, type: boolean, not_null: true }
+      - { name: next_retry_at, type: timestamptz }
+      - { name: created_at, type: timestamptz, not_null: true }
+    indexes:
+      - { columns: [endpoint_id, created_at] }
+      - { columns: [success, next_retry_at], where: "NOT success" }  # partial index for retry queue
+
+# ────────────────────────────────
+# Additional audit events
+# ────────────────────────────────
+audit_events_additions:
+  # MFA (Phase 3)
+  - MFA_ENABLED
+  - MFA_DISABLED
+  - MFA_VERIFY_SUCCESS
+  - MFA_VERIFY_FAILURE
+  - MFA_RECOVERY_CODE_USED
+  - MFA_RECOVERY_CODES_EXHAUSTED
+  - MFA_RECOVERY_CODES_REGENERATED
+  - MFA_SETUP_ACKNOWLEDGED
+  - TENANT_MFA_POLICY_CHANGED
+
+  # SAML (Phase 3)
+  - SAML_LOGIN_SUCCESS
+  - SAML_LOGIN_FAILURE
+  - SAML_IDP_CONFIGURED
+  - SAML_IDP_REMOVED
+
+  # Multi-IdP (Phase 2)
+  - PROVIDER_LINKED
+  - PROVIDER_UNLINKED
+
+  # M2M (Phase 2)
+  - M2M_TOKEN_ISSUED
+  - M2M_TOKEN_FAILURE
+  - M2M_CLIENT_CREATED
+  - M2M_CLIENT_REVOKED
+  - M2M_CLIENT_SECRET_ROTATED
+
+  # Webhooks (Phase 2)
+  - WEBHOOK_CREATED
+  - WEBHOOK_DELETED
+  - WEBHOOK_ENDPOINT_DISABLED
+  - WEBHOOK_DELIVERY_SUCCESS
+  - WEBHOOK_DELIVERY_FAILED
+
+# ────────────────────────────────
+# Invariants (additions)
+# ────────────────────────────────
+invariants_additions:
+  - id: mfa_before_auth
+    phase: 3
+    rule: "If mfa.tenant_enforced, no path from AUTH_PENDING or SAML_PENDING may reach AUTHENTICATED without passing through MFA_REQUIRED or MFA_SETUP"
+
+  - id: m2m_no_user_context
+    phase: 2
+    rule: "M2M_AUTHENTICATED MUST NOT have session.user_id set; JWT MUST contain client_id and tenant_id only"
+
+  - id: saml_acs_always_reachable
+    phase: 3
+    rule: "SAML_PENDING MUST have a path to UNAUTHENTICATED (timeout or invalid response)"
+
+  - id: webhook_retry_bounded
+    phase: 2
+    rule: "Webhook delivery retries MUST NOT exceed webhook.max_attempts"
+
+  - id: recovery_codes_finite
+    phase: 3
+    rule: "Each recovery code MUST be usable exactly once; consumed codes cannot be reused"

@@ -4,6 +4,18 @@
 
 ---
 
+## Beginner start here
+
+If you are new to software engineering and the word "tenant" sounds like something from a rental agreement -- you are not far off! A tenant in software is basically a "renter" of your application. Just like tenants in an apartment building each have their own private space but share the same building, tenants in a SaaS application each have their own private workspace but share the same software.
+
+**The simplest way to think about it:** If your company uses Slack, your entire company is one "tenant" in Slack's system. Another company using Slack is a different tenant. You both use the same Slack software, but you cannot see each other's messages or channels.
+
+In volta-auth-proxy, a tenant is a workspace (usually a company or organization). When someone logs in, volta figures out which tenant they belong to and makes sure they can only see that tenant's data. If you want the full beginner-friendly explanation with analogies, see [multi-tenant.md](multi-tenant.md).
+
+The rest of this article goes deeper into the technical details.
+
+---
+
 ## What is it?
 
 A tenant is a group of users who share a workspace in a SaaS application. If you use Slack, your company's Slack workspace is a tenant. Each tenant has its own data, members, and settings, completely isolated from other tenants. Multi-tenancy means one application serves many tenants simultaneously.

@@ -1,0 +1,7 @@
+apps:
+  - id: app-wiki
+    url: https://wiki.example.com
+    allowed_roles: [MEMBER, ADMIN, OWNER]
+  - id: app-admin
+    url: https://admin.example.com
+    allowed_roles: [ADMIN, OWNER]

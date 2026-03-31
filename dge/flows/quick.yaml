@@ -1,0 +1,59 @@
+name: quick
+display_name: "⚡ クイック — 会話劇で Gap を見つける"
+auto_merge: true  # 素の LLM レビューを自動でバックグラウンド実行。false で無効化
+
+trigger_keywords: ["DGE して", "DGE", "壁打ち", "gap を探して"]
+
+workflow:
+  steps:
+    - id: init
+      display_name: "Kit 読み込み"
+    - id: theme
+      display_name: "テーマ確認"
+    - id: characters
+      display_name: "キャラ選択"
+      mode: display_only  # 表示のみ、確認しない
+    - id: dialogue
+      display_name: "会話劇生成"
+    - id: save
+      display_name: "保存"
+    - id: summary
+      display_name: "サマリー + 選択肢"
+
+must_rules:
+  - id: save
+    text: "会話劇は保存（無条件）"
+  - id: output_table
+    text: "Gap 一覧テーブルを出力"
+  - id: choices
+    text: "一覧の後に番号付き選択肢を提示（省略しない）"
+
+extract:
+  type: gap
+  marker: "→ Gap 発見:"
+  format: "Observe / Suggest / Act"
+  severity:
+    - id: Critical
+      display_name: "🔴 Critical"
+    - id: High
+      display_name: "🟠 High"
+    - id: Medium
+      display_name: "🟡 Medium"
+    - id: Low
+      display_name: "🟢 Low"
+
+generate: null  # quick は Spec 化なし
+
+output_dir: dge/sessions/
+
+post_actions:
+  - id: dge_again
+    display_name: "DGE を回す"
+  - id: auto_iterate
+    display_name: "実装できるまで回す"
+  - id: switch_full
+    display_name: "詳しくやる → design-review に切替"
+  - id: merge_plain
+    display_name: "素の LLM でも回してマージ"
+  - id: later
+    display_name: "後で"

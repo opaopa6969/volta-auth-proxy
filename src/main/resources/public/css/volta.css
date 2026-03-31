@@ -1,0 +1,114 @@
+:root {
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --text: #1d2430;
+    --accent: #0f766e;
+    --border: #dbe2ea;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", sans-serif;
+    background: radial-gradient(circle at top right, #e3f2fd, var(--bg) 45%);
+    color: var(--text);
+}
+
+.container {
+    width: min(720px, 92vw);
+    margin: 3rem auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+}
+
+.button {
+    display: inline-block;
+    min-height: 44px;
+    line-height: 44px;
+    padding: 0 1rem;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    border: 0;
+    cursor: pointer;
+}
+
+.button.danger {
+    background: #b42318;
+}
+
+.muted {
+    color: #667085;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+}
+
+.table th,
+.table td {
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    padding: 0.6rem 0.4rem;
+    font-size: 0.93rem;
+}
+
+.badge {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: #e0f2fe;
+    color: #075985;
+    font-size: 0.75rem;
+}
+
+.spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 3px solid #cbd5e1;
+    border-top-color: var(--accent);
+    animation: spin 0.9s linear infinite;
+    margin: 1rem 0;
+}
+
+.tenant-grid {
+    display: grid;
+    gap: 0.8rem;
+}
+
+.tenant-card {
+    text-align: left;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    padding: 0.8rem;
+    min-height: 44px;
+    cursor: pointer;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 640px) {
+    .container {
+        margin: 1.2rem auto;
+        padding: 1rem;
+    }
+    .table th,
+    .table td {
+        font-size: 0.84rem;
+    }
+}

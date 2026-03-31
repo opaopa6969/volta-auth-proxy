@@ -1,0 +1,118 @@
+name: tribunal
+display_name: "⚖ 査読劇 — 独立評価 → 反論対話 → 統合"
+auto_merge: false  # 構造自体がマルチフェーズのため auto_merge 不要
+
+trigger_keywords: ["査読して", "査読劇", "tribunal", "review play", "裁判型"]
+
+structure: tribunal  # 座談会型(roundtable)と区別
+
+description: |
+  査読劇構造: 複数の独立した評価者がそれぞれの軸で評価し、
+  その評価コンテキストを受けて先輩・後輩が反論・修正の対話を展開する。
+  通常の座談会型より深い Gap が出る。
+
+  成功の 3 要素:
+  1. 濃い入力（Phase 0 で自動収集）
+  2. フォーマット強制（各評価者に Summary/Strengths/Weaknesses/Questions を要求）
+  3. 応答義務（Phase 2 で全指摘に反論必須）
+
+workflow:
+  steps:
+    - id: phase0
+      display_name: "Phase 0: アーティファクト収集"
+      description: |
+        プロジェクトから以下を自動収集:
+        - README.md
+        - docs/ 配下の設計ドキュメント
+        - ディレクトリ構造
+        - package.json / go.mod 等
+        - git log --oneline -10
+        収集結果を「共有アーティファクト」としてまとめる。
+
+    - id: theme
+      display_name: "テーマ確認"
+
+    - id: evaluators
+      display_name: "評価者選択"
+      description: |
+        3 人の評価者を選択。各評価者は異なる axis を持つ。
+        推奨: テーマに応じて axis の重複がないように自動選択。
+        例: API設計 → 今泉(前提) + 千石(品質) + Red Team(攻撃)
+      mode: confirm  # ユーザーに確認を求める
+
+    - id: phase1
+      display_name: "Phase 1: 独立評価（非対話）"
+      description: |
+        各評価者が独立にアーティファクトを評価する。
+        フォーマット（各評価者に強制）:
+          ## Reviewer #N: [名前] (axis: [評価軸])
+          ### Summary — 対象の全体像を 2-3 文で
+          ### Strengths — 良い点を 2-3 個
+          ### Weaknesses — 問題点を 3-5 個（具体的に、証拠付き）
+          ### Questions — 著者に聞きたい質問を 2-3 個
+          ### Verdict — Accept / Major Revision / Reject + 理由 1 文
+        評価者間の会話は禁止。物語的独立性を保つ。
+
+    - id: phase2
+      display_name: "Phase 2: 反論対話"
+      description: |
+        先輩・後輩（またはユーザー指定のキャラ）が Phase 1 の評価に対して反論する。
+        ルール:
+        - Phase 1 の各 Weakness と Question に対して応答必須
+        - 応答は「賛成（修正する）」「反対（理由を述べる）」「保留（追加調査が必要）」のいずれか
+        - 反論の中で新たな Gap が発見されたら `→ Gap 発見:` でマーク
+
+    - id: phase3
+      display_name: "Phase 3: 統合"
+      description: |
+        Phase 1 の Weaknesses + Phase 2 で新たに発見された Gap を統合。
+        Category + Severity を付与して Gap 一覧を出力。
+
+    - id: save
+      display_name: "保存"
+
+    - id: summary
+      display_name: "サマリー + 選択肢"
+
+must_rules:
+  - id: phase1_format
+    text: "Phase 1 は必ず Summary/Strengths/Weaknesses/Questions/Verdict のフォーマットで"
+  - id: phase1_independence
+    text: "Phase 1 の評価者間の会話は禁止。各評価者は独立に評価する"
+  - id: phase2_response
+    text: "Phase 2 は Phase 1 の全 Weakness/Question に応答必須。未応答を残さない"
+  - id: save
+    text: "会話劇は保存（無条件）"
+  - id: output_table
+    text: "Gap 一覧テーブルを出力"
+  - id: choices
+    text: "一覧の後に番号付き選択肢を提示（省略しない）"
+
+extract:
+  type: gap
+  marker: "→ Gap 発見:"
+  format: "Observe / Suggest / Act"
+  severity:
+    - id: Critical
+      display_name: "🔴 Critical"
+    - id: High
+      display_name: "🟠 High"
+    - id: Medium
+      display_name: "🟡 Medium"
+    - id: Low
+      display_name: "🟢 Low"
+
+generate:
+  specs: true  # Phase 3 後に Spec 化可能
+
+output_dir: dge/sessions/
+
+post_actions:
+  - id: dge_again
+    display_name: "もう一回（評価者を変えて）"
+  - id: spec
+    display_name: "Gap から Spec を生成"
+  - id: switch_roundtable
+    display_name: "座談会型に切替"
+  - id: later
+    display_name: "後で"

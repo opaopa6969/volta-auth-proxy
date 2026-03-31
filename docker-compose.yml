@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: volta-auth-postgres
+    ports:
+      - "54329:5432"
+    environment:
+      POSTGRES_DB: volta_auth
+      POSTGRES_USER: volta
+      POSTGRES_PASSWORD: volta
+    volumes:
+      - volta_auth_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U volta -d volta_auth" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  volta_auth_pgdata:

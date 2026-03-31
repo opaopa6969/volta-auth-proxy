@@ -1,0 +1,98 @@
+name: pitch
+display_name: "💰 VC ピッチ — ピッチ → 質疑 → 投資判断"
+auto_merge: false
+
+trigger_keywords: ["ピッチして", "pitch", "投資判断", "Go/No-Go", "VC", "事業計画"]
+
+structure: pitch
+
+description: |
+  VC ピッチ構造: まず設計の強みを擁護するピッチを作り、
+  厳しい質問者が穴を突き、ピッチ側が反論する。
+  強みを認めた上で穴を突くため、的外れな指摘が減る。
+
+workflow:
+  steps:
+    - id: phase0
+      display_name: "Phase 0: アーティファクト収集"
+      description: |
+        事業計画、市場データ、財務モデル、設計ドキュメントを収集。
+
+    - id: theme
+      display_name: "テーマ確認"
+
+    - id: phase1
+      display_name: "Phase 1: ピッチ（設計の擁護）"
+      description: |
+        ユーザーの設計/事業を擁護する立場でピッチ資料を作成。フォーマット:
+          ## Pitch
+          ### Problem — 解決する課題
+          ### Solution — 提案する解決策
+          ### Why Now — なぜ今やるのか
+          ### Market — 市場規模と機会
+          ### Traction — 実績・進捗
+          ### Ask — 何が必要か
+        設計の強みを先に明確にする。
+
+    - id: phase2
+      display_name: "Phase 2: VC 質疑（応答義務）"
+      description: |
+        3 人の VC が独立に質疑。フォーマット:
+          ## VC #N: [名前] (axis: [評価軸])
+          ### 質問 — 3-5 個の鋭い質問
+          ### 懸念 — 2-3 個の主要リスク
+        ピッチ側は全質問に応答必須。
+
+    - id: phase3
+      display_name: "Phase 3: 投資判断"
+      description: |
+        各 VC が投資判断を下す:
+        - Invest（条件付き）
+        - Pass（理由を述べる）→ Pass の理由が Gap
+        未回答の懸念も Gap として抽出。
+
+    - id: save
+      display_name: "保存"
+    - id: summary
+      display_name: "サマリー + 選択肢"
+
+must_rules:
+  - id: pitch_strengths
+    text: "Phase 1 で必ず設計の強みを 3 つ以上挙げる"
+  - id: vc_response
+    text: "Phase 2 の全質問にピッチ側が応答必須"
+  - id: save
+    text: "会話劇は保存（無条件）"
+  - id: output_table
+    text: "Gap 一覧テーブルを出力"
+  - id: choices
+    text: "番号付き選択肢を提示"
+
+extract:
+  type: gap
+  marker: "→ Gap 発見:"
+  format: "Observe / Suggest / Act"
+  severity:
+    - id: Critical
+      display_name: "🔴 Critical"
+    - id: High
+      display_name: "🟠 High"
+    - id: Medium
+      display_name: "🟡 Medium"
+    - id: Low
+      display_name: "🟢 Low"
+
+generate:
+  specs: true
+
+output_dir: dge/sessions/
+
+post_actions:
+  - id: dge_again
+    display_name: "VC を変えて再ピッチ"
+  - id: spec
+    display_name: "Gap から Spec を生成"
+  - id: switch_roundtable
+    display_name: "座談会型に切替"
+  - id: later
+    display_name: "後で"

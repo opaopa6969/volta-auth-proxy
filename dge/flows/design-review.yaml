@@ -1,0 +1,126 @@
+name: design-review
+display_name: "🔍 設計レビュー — 仕様の穴を見つけて Spec に変換"
+auto_merge: true
+
+trigger_keywords: ["詳しく", "本格的に", "full", "設計レビュー", "Spec"]
+
+workflow:
+  steps:
+    - id: init
+      display_name: "Kit 読み込み"
+    - id: theme
+      display_name: "テーマ確認"
+    - id: template
+      display_name: "テンプレート選択"
+    - id: pattern
+      display_name: "パターン選択"
+    - id: characters
+      display_name: "キャラ選択"
+      mode: confirm
+    - id: dialogue
+      display_name: "会話劇生成"
+    - id: extract_gaps
+      display_name: "Gap 構造化"
+    - id: save
+      display_name: "保存 + プロジェクト更新"
+    - id: summary
+      display_name: "サマリー + 選択肢"
+    - id: spec
+      display_name: "Spec 化（実装選択時）"
+
+must_rules:
+  - id: save
+    text: "会話劇は保存（無条件）"
+  - id: output_table
+    text: "Gap 一覧テーブルを出力"
+  - id: choices
+    text: "一覧の後に番号付き選択肢を提示（省略しない）"
+  - id: character_confirm
+    text: "キャラ選択はユーザー確認"
+  - id: spec_before_impl
+    text: "実装前に Critical/High の Spec を生成"
+  - id: spec_header
+    text: "Spec に DGE 生成警告ヘッダ + status: draft"
+  - id: write_scope
+    text: "dge/ 内にのみ書き込む"
+
+extract:
+  type: gap
+  marker: "→ Gap 発見:"
+  format: "Observe / Suggest / Act"
+  severity:
+    - id: Critical
+      display_name: "🔴 Critical — 実装不能 / データ損失リスク"
+    - id: High
+      display_name: "🟠 High — 主要ユースケース / セキュリティに影響"
+    - id: Medium
+      display_name: "🟡 Medium — 品質・UX に影響、回避策あり"
+    - id: Low
+      display_name: "🟢 Low — 改善レベル / nice-to-have"
+  categories:
+    - id: missing_logic
+      display_name: "実装が足りない"
+    - id: spec_impl_mismatch
+      display_name: "仕様と実装のズレ"
+    - id: type_coercion_gap
+      display_name: "型変換の考慮漏れ"
+    - id: error_quality
+      display_name: "エラーメッセージが不親切"
+    - id: integration_gap
+      display_name: "連携部分の不整合"
+    - id: test_coverage
+      display_name: "テストの欠落"
+    - id: business_gap
+      display_name: "ビジネスモデルの穴"
+    - id: safety_gap
+      display_name: "安全性の欠陥"
+    - id: ops_gap
+      display_name: "運用の欠如"
+    - id: message_gap
+      display_name: "伝え方の問題"
+    - id: legal_gap
+      display_name: "法的リスク"
+
+generate:
+  types:
+    - id: UC
+      display_name: "📋 Use Case — ユーザーシナリオの手順書"
+      template: "Trigger / Actors / Flow / Exceptions / Acceptance Criteria"
+    - id: TECH
+      display_name: "🔧 Tech Spec — API・データベースの変更仕様"
+      template: "変更内容 / API / Data Model / 影響範囲"
+    - id: ADR
+      display_name: "📝 判断記録 — なぜこの方法を選んだか"
+      template: "Context / Options / Decision / Consequences"
+    - id: DQ
+      display_name: "❓ 未決事項 — まだ答えが出ていない問い"
+      template: "Context / Options / 決定期限"
+    - id: ACT
+      display_name: "✅ やること — 具体的な作業指示"
+      template: "内容 / 担当"
+  output_dir: dge/specs/
+
+post_actions:
+  - id: dge_again
+    display_name: "DGE を回す"
+  - id: auto_iterate
+    display_name: "実装できるまで回す"
+  - id: implement
+    display_name: "実装する → Spec 化"
+  - id: merge_plain
+    display_name: "素の LLM でも回してマージ"
+  - id: later
+    display_name: "後で"
+
+category_to_artifact:
+  missing_logic: [UC, TECH]
+  spec_impl_mismatch: [DQ, ADR]
+  type_coercion_gap: [TECH]
+  error_quality: [TECH]
+  integration_gap: [TECH]
+  test_coverage: [ACT]
+  business_gap: [ADR, DQ]
+  safety_gap: [TECH, ACT]
+  ops_gap: [ACT]
+  message_gap: [UC]
+  legal_gap: [ADR, ACT]

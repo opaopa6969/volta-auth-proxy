@@ -1,0 +1,104 @@
+name: consult
+display_name: "🏥 症例検討 — 主治医所見 → 各科コンサル → 統合カンファ"
+auto_merge: false
+
+trigger_keywords: ["診断して", "consult", "症例検討", "各科で見て", "専門家に聞いて"]
+
+structure: consult
+
+description: |
+  症例検討構造: 主治医が全体像を提示し、各専門科が独立に深掘りし、
+  統合カンファレンスで治療方針（＝Gap 一覧）を決定する。
+  API 設計や機能設計など、複数の専門領域にまたがるテーマに最適。
+
+workflow:
+  steps:
+    - id: phase0
+      display_name: "Phase 0: アーティファクト収集"
+      description: |
+        設計ドキュメント、コードベース概要、既存テスト、API 一覧を収集。
+
+    - id: theme
+      display_name: "テーマ確認"
+
+    - id: specialists
+      display_name: "専門科選択"
+      description: |
+        テーマに応じて 3-5 の専門科を自動選択。
+        例: API設計 → セキュリティ科 + パフォーマンス科 + UX 科 + 法務科
+        各科に対応するキャラを割り当て（axis ベースで選択）。
+      mode: confirm
+
+    - id: phase1
+      display_name: "Phase 1: 主治医の全体所見"
+      description: |
+        先輩（ナレーション）が全体像を提示。フォーマット:
+          ## 主治医所見
+          ### 患者 — 対象システム/設計の概要
+          ### 主訴 — 今回レビューする理由
+          ### 既往歴 — 過去の障害、技術的負債
+          ### 現在の状態 — 動いているもの、動いていないもの
+
+    - id: phase2
+      display_name: "Phase 2: 各専門科の独立コンサル"
+      description: |
+        各専門科が独立に深掘り。フォーマット:
+          ## [科名] コンサル: [キャラ名]
+          ### 所見 — この専門領域から見た評価
+          ### リスク — 2-3 個の具体的リスク
+          ### 推奨 — 対応すべきこと
+        科ごとに別 Scene。科同士の会話は禁止（物語的独立性）。
+
+    - id: phase3
+      display_name: "Phase 3: 統合カンファレンス"
+      description: |
+        全科の所見を持ち寄って対話。
+        - 科同士の所見が矛盾する場合は議論して解決
+        - 全科で一致するリスクは Severity を上げる
+        - 統合 Gap 一覧を出力
+
+    - id: save
+      display_name: "保存"
+    - id: summary
+      display_name: "サマリー + 選択肢"
+
+must_rules:
+  - id: specialist_independence
+    text: "Phase 2 の各科コンサルは独立。科同士の会話は禁止"
+  - id: conference_all
+    text: "Phase 3 で全科の所見に言及必須"
+  - id: save
+    text: "会話劇は保存（無条件）"
+  - id: output_table
+    text: "Gap 一覧テーブルを出力"
+  - id: choices
+    text: "番号付き選択肢を提示"
+
+extract:
+  type: gap
+  marker: "→ Gap 発見:"
+  format: "Observe / Suggest / Act"
+  severity:
+    - id: Critical
+      display_name: "🔴 Critical"
+    - id: High
+      display_name: "🟠 High"
+    - id: Medium
+      display_name: "🟡 Medium"
+    - id: Low
+      display_name: "🟢 Low"
+
+generate:
+  specs: true
+
+output_dir: dge/sessions/
+
+post_actions:
+  - id: dge_again
+    display_name: "専門科を追加して再診断"
+  - id: spec
+    display_name: "Gap から Spec を生成"
+  - id: switch_roundtable
+    display_name: "座談会型に切替"
+  - id: later
+    display_name: "後で"

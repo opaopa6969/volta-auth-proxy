@@ -1,0 +1,94 @@
+name: wargame
+display_name: "⚔ 兵棋演習 — 攻撃計画 → 防御計画 → 審判評価"
+auto_merge: false
+
+trigger_keywords: ["攻撃して", "兵棋演習", "wargame", "セキュリティ攻撃", "penetration", "red team exercise"]
+
+structure: wargame
+
+description: |
+  兵棋演習構造: Red Team が本気の攻撃計画を書き、Blue Team が防御計画で応答し、
+  審判が未対処の攻撃を Gap として抽出する。セキュリティレビューに最適。
+
+workflow:
+  steps:
+    - id: phase0
+      display_name: "Phase 0: アーティファクト収集"
+      description: |
+        システム構成図、API 一覧、認証フロー、インフラ構成を自動収集。
+
+    - id: theme
+      display_name: "テーマ確認"
+
+    - id: phase1
+      display_name: "Phase 1: Red Team 攻撃計画（非対話）"
+      description: |
+        Red Team が独立に攻撃計画を作成。フォーマット:
+          ## 攻撃計画 #N
+          ### 攻撃対象 — 何を狙うか
+          ### 手法 — どう攻撃するか（具体的なステップ）
+          ### 前提条件 — 攻撃が成立する条件
+          ### 成功時の影響 — 何が漏洩/破壊されるか
+          ### 成功確率 — High / Medium / Low + 理由
+        最低 3 つの攻撃計画を作成。
+
+    - id: phase2
+      display_name: "Phase 2: Blue Team 防御計画（応答義務）"
+      description: |
+        Blue Team が各攻撃計画に対して防御策を回答。
+        全攻撃に応答必須:
+        - 「防御済み（具体的な対策を示す）」
+        - 「未防御（対策が必要）」→ Gap
+        - 「許容リスク（理由を述べる）」
+
+    - id: phase3
+      display_name: "Phase 3: 審判評価"
+      description: |
+        審判が双方を評価。未防御 + 許容リスクの妥当性を検証。
+        未対処の攻撃を Gap として抽出。
+
+    - id: save
+      display_name: "保存"
+    - id: summary
+      display_name: "サマリー + 選択肢"
+
+must_rules:
+  - id: red_team_format
+    text: "Phase 1 は攻撃対象/手法/前提条件/影響/成功確率のフォーマットで"
+  - id: blue_team_response
+    text: "Phase 2 は全攻撃に応答必須"
+  - id: save
+    text: "会話劇は保存（無条件）"
+  - id: output_table
+    text: "Gap 一覧テーブルを出力"
+  - id: choices
+    text: "番号付き選択肢を提示"
+
+extract:
+  type: gap
+  marker: "→ Gap 発見:"
+  format: "Observe / Suggest / Act"
+  severity:
+    - id: Critical
+      display_name: "🔴 Critical"
+    - id: High
+      display_name: "🟠 High"
+    - id: Medium
+      display_name: "🟡 Medium"
+    - id: Low
+      display_name: "🟢 Low"
+
+generate:
+  specs: true
+
+output_dir: dge/sessions/
+
+post_actions:
+  - id: dge_again
+    display_name: "攻撃シナリオを追加"
+  - id: spec
+    display_name: "Gap から Spec を生成"
+  - id: switch_roundtable
+    display_name: "座談会型に切替"
+  - id: later
+    display_name: "後で"

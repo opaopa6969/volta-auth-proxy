@@ -1,0 +1,25 @@
+# Java
+/target/
+*.class
+*.jar
+
+# IDE
+/.idea/
+/.vscode/
+*.iml
+
+# Node (DGE toolkit)
+node_modules/
+package-lock.json
+
+# Environment
+.env
+
+# Generated
+jte-classes/
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store

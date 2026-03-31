@@ -1,0 +1,59 @@
+name: brainstorm
+display_name: "💡 ブレスト — アイデアを発散させる"
+auto_merge: false  # ブレストは素のレビュー不要
+
+trigger_keywords: ["ブレスト", "brainstorm", "アイデア", "発想"]
+
+workflow:
+  steps:
+    - id: init
+      display_name: "Kit 読み込み"
+    - id: theme
+      display_name: "テーマ確認"
+    - id: characters
+      display_name: "キャラ選択"
+      mode: confirm  # ブレストはキャラが命。確認する
+    - id: dialogue
+      display_name: "会話劇生成"
+      technique: yes_and  # Yes, and... 話法を使う
+    - id: save
+      display_name: "保存"
+    - id: summary
+      display_name: "アイデア一覧 + 選択肢"
+
+must_rules:
+  - id: save
+    text: "会話劇は保存（無条件）"
+  - id: output_table
+    text: "アイデア一覧を出力"
+  - id: choices
+    text: "一覧の後に番号付き選択肢を提示（省略しない）"
+  - id: character_confirm
+    text: "キャラ選択はユーザー確認"
+
+extract:
+  type: idea
+  marker: "→ アイデア:"
+  format: "アイデア名 / 概要 / 実現可能性"
+  severity: null  # ブレストに severity はない
+  categories:
+    - id: new_feature
+      display_name: "新機能"
+    - id: improvement
+      display_name: "改善"
+    - id: pivot
+      display_name: "方向転換"
+    - id: wild
+      display_name: "突飛なアイデア"
+
+generate: null  # ブレストは Spec 化なし
+
+output_dir: dge/sessions/
+
+post_actions:
+  - id: dge_again
+    display_name: "もう一回ブレスト"
+  - id: switch_review
+    display_name: "アイデアを設計レビューに持ち込む → design-review"
+  - id: later
+    display_name: "後で"

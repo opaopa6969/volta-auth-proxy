@@ -5,7 +5,7 @@
 [Multi-tenant](docs/glossary/multi-tenant.md) [identity gateway](docs/glossary/identity-gateway.md) for [SaaS](docs/glossary/saas.md).
 Handles [authentication](docs/glossary/authentication-vs-authorization.md), tenants, roles, [invitations](docs/glossary/invitation-flow.md) so [downstream](docs/glossary/downstream-app.md) apps don't have to.
 
-**No [Keycloak](docs/glossary/keycloak.md). No oauth2-proxy. Control is king.**
+**No [Keycloak](docs/glossary/keycloak.md). No [oauth2-proxy](docs/glossary/reverse-proxy.md). Control is king.**
 
 > **Auth terminology is hard. But pretending you understand is the most dangerous thing.**
 > Every technical term in this document links to a [glossary article](docs/glossary/).
@@ -39,23 +39,23 @@ You're building a [SaaS](docs/glossary/saas.md). You need auth. Your options:
 | [Keycloak](docs/glossary/keycloak.md) | Free. Then 500+ line [realm.json](docs/glossary/realm-json.md) [config hell](docs/glossary/config-hell.md). 512MB RAM. 30s startup. Theme customization with [FreeMarker](docs/glossary/freemarker.md) |
 | Build from scratch | Full control. But you have to get [OIDC](docs/glossary/oidc.md), [JWT](docs/glossary/jwt.md), [sessions](docs/glossary/session.md), [CSRF](docs/glossary/csrf.md), [tenant](docs/glossary/tenant.md) isolation all right |
 
-**volta-auth-proxy is option 3, done right.** The hard parts (OIDC flow, JWT signing, session management, tenant resolution) are already built. Your apps just read headers.
+**volta-auth-proxy is option 3, done right.** The hard parts ([OIDC](docs/glossary/oidc.md) flow, [JWT](docs/glossary/jwt.md) signing, [session](docs/glossary/session.md) management, [tenant](docs/glossary/tenant.md) resolution) are already built. Your apps just read [headers](docs/glossary/header.md).
 
 ### Compared to Alternatives
 
-| | volta-auth-proxy | Keycloak | Auth0 | ZITADEL | Ory Stack |
+| | volta-auth-proxy | [Keycloak](docs/glossary/keycloak.md) | [Auth0](docs/glossary/auth0.md) | ZITADEL | Ory Stack |
 |---|---|---|---|---|---|
 | **Self-hosted** | Yes (only) | Yes | No | Yes | Yes |
 | **Startup** | ~200ms | ~30s | N/A | ~3-5s | ~seconds |
 | **Memory** | ~30MB | ~512MB+ | N/A | ~150-300MB | ~200-400MB |
-| **Multi-tenant** | Core design | Realm-based (limited) | Organizations (paid) | Native | DIY |
+| **[Multi-tenant](docs/glossary/multi-tenant.md)** | Core design | [Realm](docs/glossary/realm.md)-based (limited) | [Organizations](docs/glossary/organizations.md) (paid) | Native | [DIY](docs/glossary/native-implementation.md) |
 | **Login UI** | Full control ([jte](docs/glossary/jte.md)) | Theme hell | Limited | Theme | DIY |
-| **Cost at 100k MAU** | $0 | $0 (ops cost) | ~$2,400/mo | $0 (self-host) | $0 |
-| **App integration** | [ForwardAuth](docs/glossary/forwardauth.md) + Internal [API](docs/glossary/api.md) | Generic OIDC | [SDK](docs/glossary/sdk.md) | Generic OIDC | Oathkeeper |
-| **Config complexity** | .env + 1 [YAML](docs/glossary/yaml.md) | Hundreds of settings | Dashboard | Moderate | 4 services |
-| **Dependencies** | [Postgres](docs/glossary/database.md) only | Postgres + JVM | Cloud | Postgres/CRDB | Postgres + multiple |
+| **Cost at 100k [MAU](docs/glossary/mau.md)** | $0 | $0 (ops cost) | ~$2,400/mo | $0 (self-host) | $0 |
+| **[App integration](docs/glossary/app-integration.md)** | [ForwardAuth](docs/glossary/forwardauth.md) + [Internal API](docs/glossary/internal-api.md) | Generic [OIDC](docs/glossary/oidc.md) | [SDK](docs/glossary/sdk.md) | Generic OIDC | [Oathkeeper](docs/glossary/oathkeeper.md) |
+| **[Config complexity](docs/glossary/complexity-of-configuration.md)** | [.env](docs/glossary/environment-variable.md) + 1 [YAML](docs/glossary/yaml.md) | Hundreds of settings | [Dashboard](docs/glossary/dashboard.md) | Moderate | 4 services |
+| **[Dependencies](docs/glossary/external-dependency.md)** | [Postgres](docs/glossary/database.md) only | Postgres + [JVM](docs/glossary/jvm.md) | Cloud | Postgres/[CRDB](docs/glossary/crdb.md) | Postgres + multiple |
 
-volta is the lightest, most controllable option. The tradeoff: you own the security responsibility.
+volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tradeoff.md): you own the [security responsibility](docs/glossary/security-responsibility.md).
 
 ---
 
@@ -66,12 +66,12 @@ volta is the lightest, most controllable option. The tradeoff: you own the secur
 | Feature | Detail |
 |---------|--------|
 | Google [OIDC](docs/glossary/oidc.md) | Direct integration with [PKCE](docs/glossary/pkce.md) + [state](docs/glossary/state.md) + [nonce](docs/glossary/nonce.md). No middleware |
-| [Session](docs/glossary/session.md) management | Signed [cookie](docs/glossary/cookie.md). 8h sliding window. Max 5 concurrent sessions per user |
+| [Session](docs/glossary/session.md) management | Signed [cookie](docs/glossary/cookie.md). 8h [sliding](docs/glossary/sliding-window-expiry.md) window. Max 5 concurrent sessions per user |
 | [JWT](docs/glossary/jwt.md) issuance | [RS256](docs/glossary/rs256.md) self-signed. 5-min expiry. Auto key generation on first boot |
 | [JWKS](docs/glossary/jwks.md) endpoint | `/.well-known/jwks.json`. Serves active + rotated keys |
 | [Key rotation](docs/glossary/key-rotation.md) | Admin [API](docs/glossary/api.md) to rotate/revoke. Graceful transition with overlap period |
-| Silent refresh | volta-sdk-js auto-refreshes JWT on [HTTP status code](docs/glossary/http-status-codes.md) 401. User never sees login during normal use |
-| Logout | Single-device and all-device. Session invalidation propagates via JWT expiry (max 5 min lag) |
+| Silent refresh | volta-sdk-js auto-refreshes [JWT](docs/glossary/jwt.md) on [HTTP status code](docs/glossary/http-status-codes.md) 401. User never sees login during normal use |
+| Logout | Single-device and all-device. [Session](docs/glossary/session.md) invalidation propagates via [JWT](docs/glossary/jwt.md) expiry (max 5 min lag) |
 
 ### Multi-tenancy
 
@@ -79,10 +79,10 @@ volta is the lightest, most controllable option. The tradeoff: you own the secur
 |---------|--------|
 | [Tenant](docs/glossary/tenant.md) resolution | 4-level priority: [session](docs/glossary/session.md) > subdomain > email domain > [invitation](docs/glossary/invitation-flow.md)/manual |
 | Free email handling | gmail.com, outlook.com etc automatically excluded from domain matching |
-| Multiple membership | One user can belong to multiple tenants with different [roles](docs/glossary/role.md) |
-| Tenant switching | In-session switch via [API](docs/glossary/api.md). Page reload for clean state |
-| Tenant suspension | Suspended tenant blocks all member access. Other tenant access preserved |
-| Tenant isolation | API path tenantId must match JWT claim. Cross-tenant access structurally prevented |
+| Multiple membership | One user can belong to multiple [tenants](docs/glossary/tenant.md) with different [roles](docs/glossary/role.md) |
+| [Tenant](docs/glossary/tenant.md) switching | In-session switch via [API](docs/glossary/api.md). Page reload for clean state |
+| [Tenant](docs/glossary/tenant.md) suspension | Suspended tenant blocks all member access. Other tenant access preserved |
+| [Tenant](docs/glossary/tenant.md) isolation | [API](docs/glossary/api.md) path tenantId must match [JWT](docs/glossary/jwt.md) claim. Cross-tenant access structurally prevented |
 
 ### Invitation System
 
@@ -91,18 +91,18 @@ volta is the lightest, most controllable option. The tradeoff: you own the secur
 | Invite codes | Crypto-random 32 bytes (base64url, 43 chars). Unpredictable |
 | Expiry | Configurable per [invitation](docs/glossary/invitation-flow.md). Default 72h |
 | Usage limits | Single-use or multi-use (max configurable) |
-| Email restriction | Optional: lock invitation to specific email address |
+| Email restriction | Optional: lock [invitation](docs/glossary/invitation-flow.md) to specific email address |
 | Consent screen | Explicit "Join this workspace?" confirmation before membership creation |
 | Status tracking | Pending / Used / Expired. Admin can see who used what |
-| Link sharing | Copy button + QR code (no email sending in Phase 1) |
+| Link sharing | Copy button + QR code (no email sending in [Phase](docs/glossary/phase-based-development.md) 1) |
 
 ### Role-Based Access Control
 
 | Feature | Detail |
 |---------|--------|
 | 4-level hierarchy | OWNER > ADMIN > MEMBER > VIEWER |
-| Per-app enforcement | volta-config.yaml defines allowed_roles per app. Enforced at [ForwardAuth](docs/glossary/forwardauth.md) |
-| Tenant-scoped | [Roles](docs/glossary/role.md) are per tenant. User can be ADMIN in tenant A and VIEWER in tenant B |
+| Per-app enforcement | volta-config.yaml defines allowed_roles per [App](docs/glossary/downstream-app.md). Enforced at [ForwardAuth](docs/glossary/forwardauth.md) |
+| [Tenant](docs/glossary/tenant.md)-scoped | [Roles](docs/glossary/role.md) are per [tenant](docs/glossary/tenant.md). User can be ADMIN in tenant A and VIEWER in tenant B |
 | OWNER protection | Last OWNER cannot be demoted or removed |
 | [Role](docs/glossary/role.md) management UI | Admin page for changing member roles. Drag-down with confirmation |
 
@@ -113,22 +113,22 @@ volta is the lightest, most controllable option. The tradeoff: you own the secur
 | [OIDC](docs/glossary/oidc.md) security | [state](docs/glossary/state.md) ([CSRF](docs/glossary/csrf.md)) + [nonce](docs/glossary/nonce.md) ([replay attack](docs/glossary/replay-attack.md) prevention) + [PKCE](docs/glossary/pkce.md) (S256) |
 | [JWT](docs/glossary/jwt.md) security | [RS256](docs/glossary/rs256.md) only. [HS256](docs/glossary/hs256.md)/none rejected. alg whitelist enforced |
 | Key [encryption at rest](docs/glossary/encryption-at-rest.md) | Private keys AES-256-GCM [encrypted](docs/glossary/encryption.md) at rest in DB |
-| CSRF protection | Token-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) API exempt via [SameSite](docs/glossary/samesite.md) + [Content Negotiation](docs/glossary/content-type.md) |
-| [Rate limiting](docs/glossary/rate-limiting.md) | Per-IP for login (10/min). Per-user for API (200/min) |
+| CSRF protection | Token-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) [API](docs/glossary/api.md) exempt via [SameSite](docs/glossary/samesite.md) + [Content Negotiation](docs/glossary/content-type.md) |
+| [Rate limiting](docs/glossary/rate-limiting.md) | Per-IP for login (10/min). Per-user for [API](docs/glossary/api.md) (200/min) |
 | [Session fixation](docs/glossary/session-fixation.md) | [Session](docs/glossary/session.md) ID regenerated on every login |
-| Content negotiation | JSON requests never get 302 redirects. Prevents SPA fetch confusion |
-| Audit logging | Every auth event: login, logout, [role](docs/glossary/role.md) change, invitation, session revoke |
+| Content negotiation | [JSON](docs/glossary/json.md) requests never get 302 redirects. Prevents SPA fetch confusion |
+| Audit logging | Every auth event: login, logout, [role](docs/glossary/role.md) change, [invitation](docs/glossary/invitation-flow.md), [session](docs/glossary/session.md) revoke |
 | [Cache-Control](docs/glossary/cache-control.md) | `no-store, private` on all auth endpoints. Prevents back-button data leaks |
 
 ### Developer Experience
 
 | Feature | Detail |
 |---------|--------|
-| [ForwardAuth](docs/glossary/forwardauth.md) | Apps get identity via [HTTP](docs/glossary/http.md) headers. Zero auth code needed |
-| Internal [API](docs/glossary/api.md) | REST API for user/tenant/member CRUD delegation |
-| volta-sdk-js | Browser [SDK](docs/glossary/sdk.md) (~150 lines). Auto 401 refresh, tenant switch, logout |
-| volta-sdk ([Java](docs/glossary/java.md)) | Javalin middleware for JWT verification |
-| Dev mode | `POST /dev/token` generates test JWTs for local development |
+| [ForwardAuth](docs/glossary/forwardauth.md) | [Apps](docs/glossary/downstream-app.md) get identity via [HTTP](docs/glossary/http.md) [headers](docs/glossary/header.md). Zero auth code needed |
+| [Internal API](docs/glossary/internal-api.md) | REST [API](docs/glossary/api.md) for user/[tenant](docs/glossary/tenant.md)/member CRUD delegation |
+| volta-sdk-js | Browser [SDK](docs/glossary/sdk.md) (~150 lines). Auto 401 refresh, [tenant](docs/glossary/tenant.md) switch, logout |
+| volta-sdk ([Java](docs/glossary/java.md)) | Javalin middleware for [JWT](docs/glossary/jwt.md) verification |
+| Dev mode | `POST /dev/token` generates test [JWTs](docs/glossary/jwt.md) for local development |
 | Health check | `GET /healthz` for monitoring |
 | Fast startup | ~200ms. Local dev cycle is instant |
 | Minimal deps | Gateway + [Postgres](docs/glossary/database.md). That's it |
@@ -137,9 +137,9 @@ volta is the lightest, most controllable option. The tradeoff: you own the secur
 
 | Feature | Detail |
 |---------|--------|
-| Member management | List, role change, remove. Per-tenant |
+| Member management | List, [role](docs/glossary/role.md) change, remove. Per-[tenant](docs/glossary/tenant.md) |
 | [Invitation](docs/glossary/invitation-flow.md) management | Create, list, cancel. Copy link, QR code |
-| Session management | User can view all active sessions, revoke individually or all |
+| [Session](docs/glossary/session.md) management | User can view all active [sessions](docs/glossary/session.md), revoke individually or all |
 
 ---
 
@@ -208,7 +208,7 @@ java -jar target/volta-auth-proxy-0.1.0-SNAPSHOT.jar
 3. Navigate to APIs & Services > Credentials
 4. Create [OAuth 2.0](docs/glossary/oauth2.md) Client ID (Web application)
 5. Add authorized redirect [URI](docs/glossary/url.md): `http://localhost:7070/callback`
-6. Copy Client ID and Client Secret to `.env`
+6. Copy Client ID and Client Secret to [`.env`](docs/glossary/environment-variable.md)
 
 ### Prerequisites
 
@@ -217,7 +217,7 @@ java -jar target/volta-auth-proxy-0.1.0-SNAPSHOT.jar
 | [Java](docs/glossary/java.md) | 21+ | LTS recommended |
 | [Maven](docs/glossary/maven.md) | 3.9+ | Build tool |
 | [Postgres](docs/glossary/database.md) | 16+ | Via [Docker](docs/glossary/docker.md) or local install |
-| Docker | 24+ | For Postgres (optional if you have local Postgres) |
+| [Docker](docs/glossary/docker.md) | 24+ | For [Postgres](docs/glossary/database.md) (optional if you have local Postgres) |
 
 ---
 
@@ -256,9 +256,9 @@ apps:
 
 Configure [Traefik](docs/glossary/reverse-proxy.md) to use [ForwardAuth](docs/glossary/forwardauth.md) middleware (see Architecture section).
 
-### As an App Developer
+### As an [App](docs/glossary/downstream-app.md) Developer
 
-#### Minimal Integration (Headers Only)
+#### Minimal Integration ([Headers](docs/glossary/header.md) Only)
 
 ```java
 // Read identity from Traefik-forwarded headers
@@ -272,7 +272,7 @@ app.get("/api/data", ctx -> {
 });
 ```
 
-#### Full Integration (JWT Verification + SDK)
+#### Full Integration ([JWT](docs/glossary/jwt.md) Verification + [SDK](docs/glossary/sdk.md))
 
 ```java
 // Server-side: verify JWT
@@ -382,7 +382,7 @@ app.get("/app/team", ctx -> {
 
 There are 3 types of traffic:
 
-#### Type 1: Browser -> App (normal page/[API](docs/glossary/api.md) access)
+#### Type 1: Browser -> [App](docs/glossary/downstream-app.md) (normal page/[API](docs/glossary/api.md) access)
 
 ```
 Browser ─── GET /dashboard ───► Traefik
@@ -408,9 +408,9 @@ Browser ─── GET /dashboard ───► Traefik
                (reads headers)
 ```
 
-**Key point:** volta-auth-proxy never sees the request body. [Traefik](docs/glossary/reverse-proxy.md) only asks "is this user [authenticated](docs/glossary/authentication-vs-authorization.md)?" and gets headers back. The actual request goes directly from Traefik to the App.
+**Key point:** volta-auth-proxy never sees the request body. [Traefik](docs/glossary/reverse-proxy.md) only asks "is this user [authenticated](docs/glossary/authentication-vs-authorization.md)?" and gets [headers](docs/glossary/header.md) back. The actual request goes directly from Traefik to the [App](docs/glossary/downstream-app.md).
 
-#### Type 2: App -> volta-auth-proxy (CRUD delegation)
+#### Type 2: [App](docs/glossary/downstream-app.md) -> volta-auth-proxy (CRUD delegation)
 
 ```
 App ─── GET /api/v1/tenants/{tid}/members ───► volta-auth-proxy
@@ -424,7 +424,7 @@ App ─── GET /api/v1/tenants/{tid}/members ───► volta-auth-proxy
                                               Return member list
 ```
 
-Apps delegate user/[tenant](docs/glossary/tenant.md)/member operations to the proxy. Apps never access the users/tenants DB directly.
+[Apps](docs/glossary/downstream-app.md) delegate user/[tenant](docs/glossary/tenant.md)/member operations to the proxy. Apps never access the users/tenants DB directly.
 
 #### Type 3: Browser -> volta-auth-proxy (auth UI)
 
@@ -435,11 +435,11 @@ Browser ─── GET /admin/members ──────────► volta-aut
 Browser ─── GET /settings/sessions ──────► volta-auth-proxy
 ```
 
-All auth-related UI (login, invite, admin, sessions) is served directly by volta-auth-proxy using [jte](docs/glossary/jte.md) templates.
+All auth-related UI (login, invite, admin, [sessions](docs/glossary/session.md)) is served directly by volta-auth-proxy using [jte](docs/glossary/jte.md) templates.
 
-### What Apps Need To Do
+### What [Apps](docs/glossary/downstream-app.md) Need To Do
 
-Apps have exactly 2 responsibilities:
+[Apps](docs/glossary/downstream-app.md) have exactly 2 responsibilities:
 
 ```
 1. Read identity from headers (ForwardAuth)
@@ -463,14 +463,14 @@ Apps have exactly 2 responsibilities:
    volta-auth-proxy handles all auth logic.
 ```
 
-Apps do NOT:
+[Apps](docs/glossary/downstream-app.md) do NOT:
 - Handle login/logout
-- Manage users or tenants
-- Issue or verify JWTs (unless they want extra security)
+- Manage users or [tenants](docs/glossary/tenant.md)
+- Issue or verify [JWTs](docs/glossary/jwt.md) (unless they want extra security)
 - Store auth state
 - Talk to Google [OIDC](docs/glossary/oidc.md)
 
-### Connecting a New App
+### Connecting a New [App](docs/glossary/downstream-app.md)
 
 **Step 1:** Register in `volta-config.yaml`
 
@@ -498,7 +498,7 @@ http:
           - url: "http://my-new-app:8080"
 ```
 
-**Step 3:** Read headers in your app
+**Step 3:** Read [headers](docs/glossary/header.md) in your [App](docs/glossary/downstream-app.md)
 
 ```java
 // Javalin example
@@ -533,7 +533,7 @@ app.before("/api/*", volta.middleware());
 </script>
 ```
 
-**That's it.** Your app now has [multi-tenant](docs/glossary/multi-tenant.md) auth with zero auth code.
+**That's it.** Your [App](docs/glossary/downstream-app.md) now has [multi-tenant](docs/glossary/multi-tenant.md) auth with zero auth code.
 
 ### [Docker Compose](docs/glossary/docker-compose.md) Example (Full Stack)
 
@@ -571,12 +571,12 @@ services:
 
 ## Design Philosophy
 
-- **Control is king** -- Minimize external [server](docs/glossary/server.md) dependencies
+- **Control is king** -- Minimize [external server](docs/glossary/external-vs-internal.md) [dependencies](docs/glossary/external-dependency.md)
 - **Choose the hell you understand** -- Both [Keycloak](docs/glossary/keycloak.md) [config hell](docs/glossary/config-hell.md) and DIY auth hell are hell. At least with DIY you can read the stack trace. Auth stays in-house. Never trust a system you don't understand with your users' [authentication](docs/glossary/authentication-vs-authorization.md)
-- **Tight coupling, no apologies** -- Single process. Microservice-style loose coupling brings configuration and network complexity, not correctness. Auth is latency-sensitive and failure-propagating. Fewer network hops, debug in one place
+- **Tight coupling, no apologies** -- Single process. Microservice-style loose coupling brings [configuration](docs/glossary/complexity-of-configuration.md) and network complexity, not correctness. Auth is latency-sensitive and failure-propagating. Fewer network hops, debug in one place
 - **[ForwardAuth](docs/glossary/forwardauth.md) pattern** -- Proxy never relays request bodies. Auth check only
-- **Apps do only 2 things** -- Read headers or call [APIs](docs/glossary/api.md)
-- **Phase-minimal** -- Build only what's needed now. Leave Interface extension points for later. Never leak app-specific logic into the proxy
+- **[Apps](docs/glossary/downstream-app.md) do only 2 things** -- Read [headers](docs/glossary/header.md) or call [APIs](docs/glossary/api.md)
+- **[Phase](docs/glossary/phase-based-development.md)-minimal** -- Build only what's needed now. Leave [Interface](docs/glossary/interface-extension-point.md) extension points for later. Never leak [App](docs/glossary/downstream-app.md)-specific logic into the proxy
 
 ---
 
@@ -586,15 +586,15 @@ services:
 |-----------|-------------|
 | **Google [OIDC](docs/glossary/oidc.md)** | Direct integration. No intermediate [IdP](docs/glossary/idp.md). [PKCE](docs/glossary/pkce.md) + [state](docs/glossary/state.md) + [nonce](docs/glossary/nonce.md) |
 | **[JWT](docs/glossary/jwt.md) Issuance** | [RS256](docs/glossary/rs256.md) self-signed. 5-min expiry. [JWKS](docs/glossary/jwks.md) endpoint at `/.well-known/jwks.json` |
-| **[Session](docs/glossary/session.md)** | Signed [cookie](docs/glossary/cookie.md) (`__volta_session`). 8h sliding. Max 5 concurrent |
-| **[Tenant](docs/glossary/tenant.md) Resolution** | Cookie/JWT > subdomain > email domain > invite code > manual selection |
+| **[Session](docs/glossary/session.md)** | Signed [cookie](docs/glossary/cookie.md) (`__volta_session`). 8h [sliding](docs/glossary/sliding-window-expiry.md). Max 5 concurrent |
+| **[Tenant](docs/glossary/tenant.md) Resolution** | [Cookie](docs/glossary/cookie.md)/[JWT](docs/glossary/jwt.md) > subdomain > email domain > invite code > manual selection |
 | **[Role](docs/glossary/role.md) Hierarchy** | OWNER > ADMIN > MEMBER > VIEWER |
 | **[Invitations](docs/glossary/invitation-flow.md)** | Crypto-random codes. Expiry. Usage limits. Consent screen |
-| **[ForwardAuth](docs/glossary/forwardauth.md)** | `GET /auth/verify` returns `X-Volta-*` headers to [Traefik](docs/glossary/reverse-proxy.md) |
-| **Internal [API](docs/glossary/api.md)** | `/api/v1/*` for apps to delegate user/tenant/member CRUD |
+| **[ForwardAuth](docs/glossary/forwardauth.md)** | `GET /auth/verify` returns `X-Volta-*` [headers](docs/glossary/header.md) to [Traefik](docs/glossary/reverse-proxy.md) |
+| **[Internal API](docs/glossary/internal-api.md)** | `/api/v1/*` for [apps](docs/glossary/downstream-app.md) to delegate user/[tenant](docs/glossary/tenant.md)/member CRUD |
 | **Audit Log** | All auth events logged to `audit_logs` table |
-| **[CSRF](docs/glossary/csrf.md)** | Token-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) API exempt ([SameSite](docs/glossary/samesite.md) + Content-Type) |
-| **[Rate Limiting](docs/glossary/rate-limiting.md)** | [Caffeine](docs/glossary/caffeine-cache.md)-based. Per-IP for login, per-user for API |
+| **[CSRF](docs/glossary/csrf.md)** | Token-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) [API](docs/glossary/api.md) exempt ([SameSite](docs/glossary/samesite.md) + Content-Type) |
+| **[Rate Limiting](docs/glossary/rate-limiting.md)** | [Caffeine](docs/glossary/caffeine-cache.md)-based. Per-IP for login, per-user for [API](docs/glossary/api.md) |
 | **Dev Mode** | `POST /dev/token` for local development (disabled in production) |
 
 ---
@@ -604,7 +604,7 @@ services:
 | Component | Choice | Why |
 |-----------|--------|-----|
 | Language | [Java](docs/glossary/java.md) 21 | LTS, mature ecosystem |
-| Build | **[Maven](docs/glossary/maven.md)** | Stable across Java version upgrades (not Gradle) |
+| Build | **[Maven](docs/glossary/maven.md)** | Stable across [Java](docs/glossary/java.md) version upgrades (not Gradle) |
 | Web | Javalin 6.x | Lightweight, ~200ms startup |
 | Template | [jte](docs/glossary/jte.md) 3.x | Type-safe, compile-time checked |
 | [JWT](docs/glossary/jwt.md) | nimbus-jose-jwt | [Java](docs/glossary/java.md) JOSE/JWT de facto standard |
@@ -716,8 +716,8 @@ oidc_flows (OIDC state/nonce tracking)
 | `users` | User accounts (email, display_name, google_sub) |
 | `tenants` | Workspaces (name, slug, email_domain, plan) |
 | `tenant_domains` | Multiple domains per [tenant](docs/glossary/tenant.md) |
-| `memberships` | User-tenant relationships ([role](docs/glossary/role.md), joined_at) |
-| `sessions` | Active [sessions](docs/glossary/session.md) ([cookie](docs/glossary/cookie.md)-based, sliding 8h) |
+| `memberships` | User-[tenant](docs/glossary/tenant.md) relationships ([role](docs/glossary/role.md), joined_at) |
+| `sessions` | Active [sessions](docs/glossary/session.md) ([cookie](docs/glossary/cookie.md)-based, [sliding](docs/glossary/sliding-window-expiry.md) 8h) |
 | `signing_keys` | [JWT](docs/glossary/jwt.md) RSA key pairs (AES-256-GCM [encrypted](docs/glossary/encryption.md)) |
 | `invitations` | Invite codes (expiry, usage limits, email restriction) |
 | `invitation_usages` | Track who used which [invitation](docs/glossary/invitation-flow.md) |
@@ -734,25 +734,25 @@ Migration runs automatically on startup via [Flyway](docs/glossary/flyway.md).
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/login` | Start Google [OIDC](docs/glossary/oidc.md) flow |
-| GET | `/callback` | OIDC callback (interstitial) |
-| POST | `/auth/callback/complete` | Complete OIDC verification |
+| GET | `/callback` | [OIDC](docs/glossary/oidc.md) callback (interstitial) |
+| POST | `/auth/callback/complete` | Complete [OIDC](docs/glossary/oidc.md) verification |
 | POST | `/auth/refresh` | Refresh [JWT](docs/glossary/jwt.md) from [session](docs/glossary/session.md) [cookie](docs/glossary/cookie.md) |
-| POST | `/auth/logout` | Logout, clear session |
+| POST | `/auth/logout` | Logout, clear [session](docs/glossary/session.md) |
 | GET | `/select-tenant` | [Tenant](docs/glossary/tenant.md) selection page |
-| POST | `/auth/switch-tenant` | Switch active tenant |
+| POST | `/auth/switch-tenant` | Switch active [tenant](docs/glossary/tenant.md) |
 | GET | `/invite/{code}` | [Invitation](docs/glossary/invitation-flow.md) landing page |
-| POST | `/invite/{code}/accept` | Accept invitation |
-| GET | `/settings/sessions` | Session management page |
+| POST | `/invite/{code}/accept` | Accept [invitation](docs/glossary/invitation-flow.md) |
+| GET | `/settings/sessions` | [Session](docs/glossary/session.md) management page |
 | GET | `/admin/members` | Member management page |
-| GET | `/admin/invitations` | Invitation management page |
+| GET | `/admin/invitations` | [Invitation](docs/glossary/invitation-flow.md) management page |
 
 ### [ForwardAuth](docs/glossary/forwardauth.md) ([Traefik](docs/glossary/reverse-proxy.md) Integration)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/auth/verify` | Verify session, return `X-Volta-*` headers |
+| GET | `/auth/verify` | Verify [session](docs/glossary/session.md), return `X-Volta-*` [headers](docs/glossary/header.md) |
 
-**Response headers on 200:**
+**Response [headers](docs/glossary/header.md) on 200:**
 
 ```
 X-Volta-User-Id:      <uuid>
@@ -765,7 +765,7 @@ X-Volta-JWT:          <signed RS256 JWT>
 X-Volta-App-Id:       app-wiki
 ```
 
-### Internal [API](docs/glossary/api.md) (App -> Proxy)
+### [Internal API](docs/glossary/internal-api.md) ([App](docs/glossary/downstream-app.md) -> Proxy)
 
 [Authentication](docs/glossary/authentication-vs-authorization.md): `Authorization: Bearer <user-jwt>` or `Authorization: Bearer volta-service:<token>` (see [Bearer scheme](docs/glossary/bearer-scheme.md))
 
@@ -774,10 +774,10 @@ X-Volta-App-Id:       app-wiki
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/users/me` | Any | Current user profile |
-| GET | `/api/v1/users/me/tenants` | Any | User's tenant list |
+| GET | `/api/v1/users/me/tenants` | Any | User's [tenant](docs/glossary/tenant.md) list |
 | PATCH | `/api/v1/users/{id}` | Self or ADMIN+ | Update display_name |
 
-**Tenant Members:**
+**[Tenant](docs/glossary/tenant.md) Members:**
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
@@ -786,13 +786,13 @@ X-Volta-App-Id:       app-wiki
 | PATCH | `/api/v1/tenants/{tid}/members/{uid}` | ADMIN+ | Change [role](docs/glossary/role.md) |
 | DELETE | `/api/v1/tenants/{tid}/members/{uid}` | ADMIN+ | Remove member |
 
-**Invitations:**
+**[Invitations](docs/glossary/invitation-flow.md):**
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/tenants/{tid}/invitations` | ADMIN+ | List [invitations](docs/glossary/invitation-flow.md) |
-| POST | `/api/v1/tenants/{tid}/invitations` | ADMIN+ | Create invitation |
-| DELETE | `/api/v1/tenants/{tid}/invitations/{iid}` | ADMIN+ | Cancel invitation |
+| POST | `/api/v1/tenants/{tid}/invitations` | ADMIN+ | Create [invitation](docs/glossary/invitation-flow.md) |
+| DELETE | `/api/v1/tenants/{tid}/invitations/{iid}` | ADMIN+ | Cancel [invitation](docs/glossary/invitation-flow.md) |
 
 **Admin (Key Management):**
 
@@ -806,7 +806,7 @@ X-Volta-App-Id:       app-wiki
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/dev/token` | DEV_MODE only | Generate test JWT |
+| POST | `/dev/token` | DEV_MODE only | Generate test [JWT](docs/glossary/jwt.md) |
 | GET | `/healthz` | None | Health check |
 | GET | `/.well-known/jwks.json` | None | [JWKS](docs/glossary/jwks.md) public keys |
 
@@ -837,16 +837,16 @@ All list endpoints support `?offset=0&limit=20` (max 100).
 | [HTTP](docs/glossary/http.md) | Code | Meaning |
 |------|------|---------|
 | 401 | `AUTHENTICATION_REQUIRED` | Not logged in |
-| 401 | `SESSION_EXPIRED` | Session timed out |
-| 401 | `SESSION_REVOKED` | Session was revoked |
+| 401 | `SESSION_EXPIRED` | [Session](docs/glossary/session.md) timed out |
+| 401 | `SESSION_REVOKED` | [Session](docs/glossary/session.md) was revoked |
 | 403 | `FORBIDDEN` | No permission |
-| 403 | `TENANT_ACCESS_DENIED` | Not a member of this tenant |
-| 403 | `TENANT_SUSPENDED` | Tenant is suspended |
+| 403 | `TENANT_ACCESS_DENIED` | Not a member of this [tenant](docs/glossary/tenant.md) |
+| 403 | `TENANT_SUSPENDED` | [Tenant](docs/glossary/tenant.md) is suspended |
 | 403 | `ROLE_INSUFFICIENT` | [Role](docs/glossary/role.md) too low for this action |
 | 404 | `NOT_FOUND` | Resource not found |
 | 409 | `CONFLICT` | Already exists |
-| 410 | `INVITATION_EXPIRED` | Invitation expired |
-| 410 | `INVITATION_EXHAUSTED` | Invitation fully used |
+| 410 | `INVITATION_EXPIRED` | [Invitation](docs/glossary/invitation-flow.md) expired |
+| 410 | `INVITATION_EXHAUSTED` | [Invitation](docs/glossary/invitation-flow.md) fully used |
 | 429 | `RATE_LIMITED` | Too many requests |
 
 ---
@@ -881,9 +881,9 @@ JWKS:       GET /.well-known/jwks.json
 
 **Security rules:**
 - `alg` must be [RS256](docs/glossary/rs256.md). [HS256](docs/glossary/hs256.md) and none are rejected
-- `kid` required in header
-- `aud` is an array (for Phase 2 per-app audience)
-- Email is NOT in JWT claims (fetch via `/api/v1/users/me` instead)
+- `kid` required in [header](docs/glossary/header.md)
+- `aud` is an array (for [Phase](docs/glossary/phase-based-development.md) 2 per-app audience)
+- Email is NOT in [JWT](docs/glossary/jwt.md) claims (fetch via `/api/v1/users/me` instead)
 
 ---
 
@@ -894,7 +894,7 @@ Priority order:
 1. Existing [session](docs/glossary/session.md) [cookie](docs/glossary/cookie.md) with `tenant_id` -- use it
 2. [URL](docs/glossary/url.md) subdomain -- lookup in `tenant_domains`
 3. Email domain -- lookup in `tenant_domains` (free email excluded)
-4. None found -- show [invitation](docs/glossary/invitation-flow.md) code prompt or tenant selection
+4. None found -- show [invitation](docs/glossary/invitation-flow.md) code prompt or [tenant](docs/glossary/tenant.md) selection
 
 **Free email domains excluded:** gmail.com, outlook.com, yahoo.com, yahoo.co.jp, hotmail.com, icloud.com, protonmail.com
 
@@ -908,16 +908,16 @@ OWNER > ADMIN > MEMBER > VIEWER
 
 | [Role](docs/glossary/role.md) | Permissions |
 |------|------------|
-| OWNER | Delete tenant, transfer ownership, all ADMIN permissions |
-| ADMIN | Invite/remove members, change roles (up to ADMIN), change tenant settings |
+| OWNER | Delete [tenant](docs/glossary/tenant.md), transfer ownership, all ADMIN permissions |
+| ADMIN | Invite/remove members, change [roles](docs/glossary/role.md) (up to ADMIN), change [tenant](docs/glossary/tenant.md) settings |
 | MEMBER | Normal usage |
-| VIEWER | Read-only (enforced by app) |
+| VIEWER | Read-only (enforced by [App](docs/glossary/downstream-app.md)) |
 
 ---
 
 ## App Registration
 
-Define apps in `volta-config.yaml`:
+Define [apps](docs/glossary/downstream-app.md) in `volta-config.yaml`:
 
 ```yaml
 apps:
@@ -930,7 +930,7 @@ apps:
     allowed_roles: [ADMIN, OWNER]
 ```
 
-[ForwardAuth](docs/glossary/forwardauth.md) (`/auth/verify`) enforces `allowed_roles` per app.
+[ForwardAuth](docs/glossary/forwardauth.md) (`/auth/verify`) enforces `allowed_roles` per [App](docs/glossary/downstream-app.md).
 
 ### Traefik Configuration
 
@@ -986,11 +986,11 @@ document.querySelector("form").addEventListener("submit", function(e) {
 });
 ```
 
-This ensures session expiry during form input is handled transparently (auto-refresh + retry).
+This ensures [session](docs/glossary/session.md) expiry during form input is handled transparently (auto-refresh + retry).
 
 ---
 
-## volta-sdk ([Java](docs/glossary/java.md), for Apps)
+## volta-sdk ([Java](docs/glossary/java.md), for [Apps](docs/glossary/downstream-app.md))
 
 ```java
 VoltaAuth volta = VoltaAuth.builder()
@@ -1035,10 +1035,10 @@ Authorization: Bearer ...  -->  Treated as JSON
 | Key storage | AES-256-GCM [encrypted in DB](docs/glossary/encryption-at-rest.md) |
 | [Key rotation](docs/glossary/key-rotation.md) | `POST /api/v1/admin/keys/rotate` (OWNER) |
 | [Session](docs/glossary/session.md) | HMAC-SHA256 signed [cookie](docs/glossary/cookie.md). [HttpOnly](docs/glossary/httponly.md), Secure, [SameSite](docs/glossary/samesite.md)=Lax |
-| [Session fixation](docs/glossary/session-fixation.md) | Session ID regenerated on login |
-| CSRF | Token-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) [API](docs/glossary/api.md) exempt |
-| [Rate limiting](docs/glossary/rate-limiting.md) | Per-IP for login (10/min), per-user for API (200/min) |
-| [Tenant](docs/glossary/tenant.md) isolation | Path tenantId must match JWT volta_tid |
+| [Session fixation](docs/glossary/session-fixation.md) | [Session](docs/glossary/session.md) ID regenerated on login |
+| [CSRF](docs/glossary/csrf.md) | Token-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) [API](docs/glossary/api.md) exempt |
+| [Rate limiting](docs/glossary/rate-limiting.md) | Per-IP for login (10/min), per-user for [API](docs/glossary/api.md) (200/min) |
+| [Tenant](docs/glossary/tenant.md) isolation | Path tenantId must match [JWT](docs/glossary/jwt.md) volta_tid |
 | OWNER protection | Last OWNER cannot be demoted |
 | Audit | All auth events logged with actor, IP, request_id |
 | [Cache-Control](docs/glossary/cache-control.md) | `no-store, private` on auth endpoints |
@@ -1051,48 +1051,48 @@ Authorization: Bearer ...  -->  Treated as JSON
 |----------|---------|-------------|
 | `PORT` | 7070 | [Server](docs/glossary/server.md) [port](docs/glossary/port.md) |
 | `DB_HOST` | [localhost](docs/glossary/localhost.md) | [Postgres](docs/glossary/database.md) host |
-| `DB_PORT` | 54329 | Postgres [port](docs/glossary/port.md) |
+| `DB_PORT` | 54329 | [Postgres](docs/glossary/database.md) [port](docs/glossary/port.md) |
 | `DB_NAME` | volta_auth | Database name |
 | `DB_USER` | volta | Database user |
 | `DB_PASSWORD` | volta | Database password |
 | `BASE_URL` | http://localhost:7070 | Public [URL](docs/glossary/url.md) |
 | `GOOGLE_CLIENT_ID` | | Google [OAuth](docs/glossary/oauth2.md) client ID |
-| `GOOGLE_CLIENT_SECRET` | | Google OAuth client secret |
-| `GOOGLE_REDIRECT_URI` | http://localhost:7070/callback | [Open redirect](docs/glossary/open-redirect.md)-safe OAuth redirect URI |
+| `GOOGLE_CLIENT_SECRET` | | Google [OAuth](docs/glossary/oauth2.md) client secret |
+| `GOOGLE_REDIRECT_URI` | http://localhost:7070/callback | [Open redirect](docs/glossary/open-redirect.md)-safe [OAuth](docs/glossary/oauth2.md) redirect [URI](docs/glossary/url.md) |
 | `JWT_ISSUER` | volta-auth | [JWT](docs/glossary/jwt.md) issuer claim |
-| `JWT_AUDIENCE` | volta-apps | JWT audience claim |
-| `JWT_TTL_SECONDS` | 300 | JWT expiry (5 min) |
+| `JWT_AUDIENCE` | volta-apps | [JWT](docs/glossary/jwt.md) audience claim |
+| `JWT_TTL_SECONDS` | 300 | [JWT](docs/glossary/jwt.md) expiry (5 min) |
 | `JWT_KEY_ENCRYPTION_SECRET` | | AES-256 key for [encrypting](docs/glossary/encryption.md) signing keys |
 | `SESSION_TTL_SECONDS` | 28800 | [Session](docs/glossary/session.md) expiry (8 hours) |
 | `ALLOWED_REDIRECT_DOMAINS` | localhost,127.0.0.1 | Whitelist for return_to ([open redirect](docs/glossary/open-redirect.md) prevention) |
-| `VOLTA_SERVICE_TOKEN` | | Static service token for M2M (Phase 1) |
+| `VOLTA_SERVICE_TOKEN` | | Static service token for M2M ([Phase](docs/glossary/phase-based-development.md) 1) |
 | `DEV_MODE` | false | Enable /dev/token endpoint |
-| `APP_CONFIG_PATH` | volta-config.yaml | Path to app registry |
+| `APP_CONFIG_PATH` | volta-config.yaml | Path to [App](docs/glossary/downstream-app.md) registry |
 | `SUPPORT_CONTACT` | | Admin contact shown on error pages |
 
 ---
 
-## Phase Roadmap
+## [Phase](docs/glossary/phase-based-development.md) Roadmap
 
-| Phase | Status | What |
+| [Phase](docs/glossary/phase-based-development.md) | Status | What |
 |-------|--------|------|
-| **Phase 1: Core** | In progress | Google [OIDC](docs/glossary/oidc.md), [tenants](docs/glossary/tenant.md), [roles](docs/glossary/role.md), [invitations](docs/glossary/invitation-flow.md), [ForwardAuth](docs/glossary/forwardauth.md), Internal [API](docs/glossary/api.md) |
-| Phase 2: Scale | Planned | Multiple [IdPs](docs/glossary/idp.md) (GitHub, Microsoft), M2M ([Client Credentials](docs/glossary/client-credentials.md)), Redis [sessions](docs/glossary/session.md), Webhooks, **Passkeys ([WebAuthn](docs/glossary/webauthn.md)/FIDO2)** |
-| Phase 3: Enterprise | Planned | [SAML](docs/glossary/sso.md), email notifications, **[MFA](docs/glossary/mfa.md)/2FA ([TOTP](docs/glossary/totp.md), WebAuthn)**, i18n, admin UI expansion, **Conditional access (risk-based auth)**, **Fraud alert integration** |
-| Phase 4: Platform | Planned | SCIM, Policy Engine, Billing (Stripe), GDPR data export/deletion, **Device trust**, **Mobile [SDK](docs/glossary/sdk.md) (iOS/Android)** |
+| **[Phase](docs/glossary/phase-based-development.md) 1: Core** | In progress | Google [OIDC](docs/glossary/oidc.md), [tenants](docs/glossary/tenant.md), [roles](docs/glossary/role.md), [invitations](docs/glossary/invitation-flow.md), [ForwardAuth](docs/glossary/forwardauth.md), [Internal API](docs/glossary/internal-api.md) |
+| [Phase](docs/glossary/phase-based-development.md) 2: Scale | Planned | Multiple [IdPs](docs/glossary/idp.md) (GitHub, Microsoft), M2M ([Client Credentials](docs/glossary/client-credentials.md)), Redis [sessions](docs/glossary/session.md), Webhooks, **Passkeys ([WebAuthn](docs/glossary/webauthn.md)/FIDO2)** |
+| [Phase](docs/glossary/phase-based-development.md) 3: Enterprise | Planned | [SAML](docs/glossary/sso.md), email notifications, **[MFA](docs/glossary/mfa.md)/2FA ([TOTP](docs/glossary/totp.md), [WebAuthn](docs/glossary/webauthn.md))**, i18n, admin UI expansion, **Conditional access (risk-based auth)**, **Fraud alert integration** |
+| [Phase](docs/glossary/phase-based-development.md) 4: Platform | Planned | SCIM, Policy Engine, Billing (Stripe), GDPR data export/deletion, **Device trust**, **Mobile [SDK](docs/glossary/sdk.md) (iOS/Android)** |
 
 ### Auth Trend Roadmap
 
-| Trend | Phase | Approach |
+| Trend | [Phase](docs/glossary/phase-based-development.md) | Approach |
 |-------|-------|----------|
-| **Passkeys ([WebAuthn](docs/glossary/webauthn.md)/FIDO2)** | Phase 2 | Passwordless auth mainstream. Add as 2nd auth method alongside Google |
-| **[MFA](docs/glossary/mfa.md)/2FA ([TOTP](docs/glossary/totp.md))** | Phase 3 | Google Authenticator etc. [Tenant](docs/glossary/tenant.md) admins can enforce "MFA required" |
-| **Risk-based auth** | Phase 3 | Extra verification on new device/IP. `amr` claim reflects auth strength in [JWT](docs/glossary/jwt.md) |
-| **Fraud detection/alerting** | Phase 3 | Suspicious login detection (impossible travel, credential stuffing). Webhook alerts to admin. Integration with threat intelligence feeds |
-| **Device trust** | Phase 4 | Remember known devices. Challenge unknown devices |
-| **Mobile [SDK](docs/glossary/sdk.md)** | Phase 4 | Native iOS/Android SDK. Deep link support for invite flows. Biometric auth integration |
-| **[SAML](docs/glossary/sso.md) [SSO](docs/glossary/sso.md)** | Phase 3 | Enterprise customer [IdP](docs/glossary/idp.md) integration (Active Directory etc.) |
-| **SCIM** | Phase 4 | Automated user provisioning from Okta, Azure AD etc. |
+| **Passkeys ([WebAuthn](docs/glossary/webauthn.md)/FIDO2)** | [Phase](docs/glossary/phase-based-development.md) 2 | Passwordless auth mainstream. Add as 2nd auth method alongside Google |
+| **[MFA](docs/glossary/mfa.md)/2FA ([TOTP](docs/glossary/totp.md))** | [Phase](docs/glossary/phase-based-development.md) 3 | Google Authenticator etc. [Tenant](docs/glossary/tenant.md) admins can enforce "MFA required" |
+| **Risk-based auth** | [Phase](docs/glossary/phase-based-development.md) 3 | Extra verification on new device/IP. `amr` claim reflects auth strength in [JWT](docs/glossary/jwt.md) |
+| **Fraud detection/alerting** | [Phase](docs/glossary/phase-based-development.md) 3 | Suspicious login detection (impossible travel, credential stuffing). Webhook alerts to admin. Integration with threat intelligence feeds |
+| **Device trust** | [Phase](docs/glossary/phase-based-development.md) 4 | Remember known devices. Challenge unknown devices |
+| **Mobile [SDK](docs/glossary/sdk.md)** | [Phase](docs/glossary/phase-based-development.md) 4 | Native iOS/Android [SDK](docs/glossary/sdk.md). Deep link support for invite flows. Biometric auth integration |
+| **[SAML](docs/glossary/sso.md) [SSO](docs/glossary/sso.md)** | [Phase](docs/glossary/phase-based-development.md) 3 | Enterprise customer [IdP](docs/glossary/idp.md) integration (Active Directory etc.) |
+| **SCIM** | [Phase](docs/glossary/phase-based-development.md) 4 | Automated user provisioning from Okta, Azure AD etc. |
 
 Full specification: [`dge/specs/implementation-all-phases.md`](dge/specs/implementation-all-phases.md)
 
@@ -1109,7 +1109,7 @@ This project was designed using DGE (Dialogue-driven Gap Extraction) -- 106 desi
 | [`dge/specs/ui-flow.md`](dge/specs/ui-flow.md) | Screen transition flows (mermaid diagrams) |
 | [`dge/feedback/2026-03-31-volta-auth-proxy.md`](dge/feedback/2026-03-31-volta-auth-proxy.md) | DGE method feedback |
 | [`tasks/001-fix-critical-bugs-and-implement-templates.md`](tasks/001-fix-critical-bugs-and-implement-templates.md) | Current implementation task |
-| [`backlog/001-form-state-recovery.md`](backlog/001-form-state-recovery.md) | Phase 2: Form auto-save on session expiry |
+| [`backlog/001-form-state-recovery.md`](backlog/001-form-state-recovery.md) | [Phase](docs/glossary/phase-based-development.md) 2: Form auto-save on [session](docs/glossary/session.md) expiry |
 
 ---
 

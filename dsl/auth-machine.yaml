@@ -1,0 +1,584 @@
+# volta-auth-proxy Auth State Machine
+# Purpose: AI specification + test generation + documentation generation
+# Version: 1
+# Phase: 1 (states tagged phase:2+ are reserved for future)
+
+version: 1
+
+# ────────────────────────────────
+# Context: variables available in guards
+# ────────────────────────────────
+context:
+  session:
+    valid: bool
+    expired: bool
+    tenant_id: uuid?
+    user_id: uuid?
+    concurrent_count: int
+  user:
+    exists: bool
+    active: bool
+    email: string
+    email_verified: bool
+    tenant_count: int
+    google_sub: string
+  membership:
+    exists: bool
+    active: bool
+    role: enum[OWNER, ADMIN, MEMBER, VIEWER]
+  tenant:
+    active: bool
+    suspended: bool
+    slug: string
+  invite:
+    present: bool       # invite_code in request
+    valid: bool          # code exists in DB
+    expired: bool
+    used: bool           # used_count >= max_uses
+    email_match: bool    # invited email matches user email (or no email restriction)
+  request:
+    accept_json: bool    # Accept: application/json
+    has_return_to: bool
+    return_to: string?
+
+# ────────────────────────────────
+# Action types
+# ────────────────────────────────
+# side_effect: DB write, state mutation
+# http: HTTP response (redirect, headers, JSON, HTML)
+# audit: audit log entry
+# guard_check: validation that can fail with error
+
+# ────────────────────────────────
+# States
+# ────────────────────────────────
+states:
+
+  # ── UNAUTHENTICATED ──
+  UNAUTHENTICATED:
+    phase: 1
+    description: No valid session. User must log in.
+    transitions:
+
+      login_browser:
+        trigger: "GET /login"
+        guard: "!request.accept_json"
+        actions:
+          - type: side_effect
+            action: create_oidc_flow
+            params: { provider: google, store_invite_code: true, store_return_to: true }
+          - type: http
+            action: redirect
+            target: google_authorize_url
+        next: OIDC_PENDING
+
+      login_api:
+        trigger: "GET /login"
+        guard: "request.accept_json"
+        actions:
+          - type: http
+            action: json_error
+            params: { code: AUTHENTICATION_REQUIRED, status: 401 }
+        next: UNAUTHENTICATED
+
+      access_invite:
+        trigger: "GET /invite/{code}"
+        guard: "invite.valid AND !invite.expired AND !invite.used"
+        actions:
+          - type: http
+            action: render_html
+            template: invite-landing
+            model: { tenant_name: invite.tenant.name, inviter: invite.created_by.display_name, role: invite.role }
+        next: UNAUTHENTICATED
+        # Still unauthenticated, but showing invite page with login button
+
+      access_invite_expired:
+        trigger: "GET /invite/{code}"
+        guard: "invite.valid AND invite.expired"
+        actions:
+          - type: http
+            action: render_html
+            template: invite-expired
+        next: UNAUTHENTICATED
+
+      access_invite_used:
+        trigger: "GET /invite/{code}"
+        guard: "invite.valid AND invite.used"
+        actions:
+          - type: http
+            action: render_html
+            template: invite-used
+        next: UNAUTHENTICATED
+
+      access_invite_invalid:
+        trigger: "GET /invite/{code}"
+        guard: "!invite.valid"
+        actions:
+          - type: http
+            action: render_html
+            template: error
+            params: { code: NOT_FOUND, status: 404 }
+        next: UNAUTHENTICATED
+
+      forward_auth_fail:
+        trigger: "GET /auth/verify"
+        actions:
+          - type: http
+            action: status
+            params: { status: 401 }
+        next: UNAUTHENTICATED
+
+  # ── OIDC_PENDING ──
+  OIDC_PENDING:
+    phase: 1
+    description: User redirected to Google. Waiting for callback.
+    timeout:
+      duration_seconds: 600
+      next: UNAUTHENTICATED
+      cleanup: delete_oidc_flow
+
+    transitions:
+      callback_success:
+        trigger: "GET /callback"
+        guard: "state_valid AND nonce_valid AND email_verified"
+        actions:
+          - type: side_effect
+            action: upsert_user
+            params: { email: id_token.email, google_sub: id_token.sub, display_name: id_token.name }
+          - type: side_effect
+            action: delete_oidc_flow
+          - type: side_effect
+            action: create_session
+            params: { max_concurrent: 5 }
+          - type: audit
+            event: LOGIN_SUCCESS
+        next_if:
+          # Order matters: first matching guard wins
+          - guard: "invite.present AND invite.valid"
+            next: INVITE_CONSENT
+            actions:
+              - type: http
+                action: redirect
+                target: "/invite/{invite.code}/accept"
+
+          - guard: "user.tenant_count == 1"
+            next: AUTHENTICATED
+            actions:
+              - type: side_effect
+                action: auto_select_tenant
+              - type: http
+                action: redirect
+                target: "{request.return_to || config.default_app_url}"
+
+          - guard: "user.tenant_count > 1"
+            next: TENANT_SELECT
+            actions:
+              - type: http
+                action: redirect
+                target: "/select-tenant"
+
+          - guard: "user.tenant_count == 0 AND !invite.present"
+            next: NO_TENANT
+            actions:
+              - type: http
+                action: redirect
+                target: "/no-tenant"
+
+      callback_state_invalid:
+        trigger: "GET /callback"
+        guard: "!state_valid"
+        actions:
+          - type: audit
+            event: LOGIN_FAILURE
+            params: { reason: state_mismatch }
+          - type: http
+            action: render_html
+            template: error
+            params: { code: AUTH_FAILED, message: "Authentication failed. Please try again.", recovery: retry_login }
+        next: UNAUTHENTICATED
+
+      callback_email_not_verified:
+        trigger: "GET /callback"
+        guard: "state_valid AND !email_verified"
+        actions:
+          - type: side_effect
+            action: delete_oidc_flow
+          - type: audit
+            event: LOGIN_FAILURE
+            params: { reason: email_not_verified }
+          - type: http
+            action: render_html
+            template: error
+            params: { code: EMAIL_NOT_VERIFIED, message: "Please verify your email in Google first." }
+        next: UNAUTHENTICATED
+
+      callback_oidc_error:
+        trigger: "GET /callback"
+        guard: "request.has_error_param"
+        actions:
+          - type: side_effect
+            action: delete_oidc_flow
+          - type: audit
+            event: LOGIN_FAILURE
+            params: { reason: oidc_provider_error }
+          - type: http
+            action: render_html
+            template: error
+            params: { code: OIDC_FAILED, recovery: retry_login }
+        next: UNAUTHENTICATED
+
+  # ── INVITE_CONSENT ──
+  INVITE_CONSENT:
+    phase: 1
+    description: User is authenticated. Showing invitation consent screen.
+    transitions:
+      accept:
+        trigger: "POST /invite/{code}/accept"
+        guard: "invite.valid AND !invite.expired AND !invite.used AND invite.email_match"
+        actions:
+          - type: guard_check
+            check: csrf_token_valid
+          - type: side_effect
+            action: create_membership
+            params: { role: invite.role, invited_by: invite.created_by }
+          - type: side_effect
+            action: consume_invitation
+          - type: side_effect
+            action: set_session_tenant
+            params: { tenant_id: invite.tenant_id }
+          - type: side_effect
+            action: issue_jwt
+          - type: audit
+            event: INVITATION_ACCEPTED
+          - type: audit
+            event: TENANT_JOINED
+          - type: http
+            action: redirect
+            target: "{config.default_app_url || '/'}"
+        next: AUTHENTICATED
+
+      accept_already_member:
+        trigger: "POST /invite/{code}/accept"
+        guard: "membership.exists"
+        actions:
+          - type: http
+            action: render_html
+            template: error
+            params: { code: CONFLICT, message: "You are already a member of this workspace." }
+        next: AUTHENTICATED
+
+      accept_expired:
+        trigger: "POST /invite/{code}/accept"
+        guard: "invite.expired"
+        actions:
+          - type: http
+            action: render_html
+            template: invite-expired
+        next: INVITE_CONSENT
+
+      accept_email_mismatch:
+        trigger: "POST /invite/{code}/accept"
+        guard: "!invite.email_match"
+        actions:
+          - type: http
+            action: render_html
+            template: error
+            params: { code: INVITATION_EMAIL_MISMATCH, status: 403 }
+        next: INVITE_CONSENT
+
+      cancel:
+        trigger: "user navigates away"
+        next: AUTHENTICATED_NO_TENANT
+
+      show_consent:
+        trigger: "GET /invite/{code}/accept"
+        actions:
+          - type: http
+            action: render_html
+            template: invite-consent
+            model:
+              tenant_name: invite.tenant.name
+              inviter_name: invite.created_by.display_name
+              role: invite.role
+              consent_text: "Your profile will be visible to workspace admins."
+              csrf_token: session.csrf_token
+        next: INVITE_CONSENT
+
+  # ── TENANT_SELECT ──
+  TENANT_SELECT:
+    phase: 1
+    description: User belongs to multiple tenants. Must choose one.
+    transitions:
+      select:
+        trigger: "POST /auth/switch-tenant"
+        guard: "membership.exists AND membership.active AND tenant.active"
+        actions:
+          - type: side_effect
+            action: set_session_tenant
+          - type: side_effect
+            action: issue_jwt
+          - type: audit
+            event: TENANT_SWITCHED
+          - type: http
+            action: json_ok
+            params: { tenantId: tenant.id }
+        next: AUTHENTICATED
+
+      select_suspended:
+        trigger: "POST /auth/switch-tenant"
+        guard: "tenant.suspended"
+        actions:
+          - type: http
+            action: json_error
+            params: { code: TENANT_SUSPENDED, status: 403 }
+        next: TENANT_SELECT
+
+      select_no_membership:
+        trigger: "POST /auth/switch-tenant"
+        guard: "!membership.exists"
+        actions:
+          - type: http
+            action: json_error
+            params: { code: TENANT_ACCESS_DENIED, status: 403 }
+        next: TENANT_SELECT
+
+      show_select:
+        trigger: "GET /select-tenant"
+        actions:
+          - type: http
+            action: render_html
+            template: tenant-select
+            model:
+              tenants: user.tenants  # list of {id, name, slug, role, is_last}
+              return_to: request.return_to
+        next: TENANT_SELECT
+
+  # ── NO_TENANT ──
+  NO_TENANT:
+    phase: 1
+    description: User is authenticated but has no tenant membership and no invitation.
+    transitions:
+      receive_invite:
+        trigger: "GET /invite/{code}"
+        guard: "invite.valid"
+        next: INVITE_CONSENT
+
+      show_no_tenant:
+        trigger: "GET /no-tenant"
+        actions:
+          - type: http
+            action: render_html
+            template: no-tenant
+            model:
+              message: "You don't belong to any workspace yet. Ask someone to invite you."
+        next: NO_TENANT
+
+  # ── AUTHENTICATED ──
+  AUTHENTICATED:
+    phase: 1
+    description: Fully authenticated. Tenant confirmed. JWT available.
+    transitions:
+
+      # ForwardAuth — the most common path
+      forward_auth:
+        trigger: "GET /auth/verify"
+        guard: "session.valid AND tenant.active"
+        actions:
+          - type: side_effect
+            action: touch_session  # sliding window
+          - type: side_effect
+            action: issue_jwt_if_needed  # only if expired or missing
+          - type: http
+            action: return_volta_headers
+        next: AUTHENTICATED
+
+      # JWT refresh (SPA)
+      refresh:
+        trigger: "POST /auth/refresh"
+        guard: "session.valid"
+        actions:
+          - type: side_effect
+            action: issue_jwt
+          - type: http
+            action: json_ok
+            params: { token: jwt }
+        next: AUTHENTICATED
+
+      refresh_expired:
+        trigger: "POST /auth/refresh"
+        guard: "session.expired"
+        actions:
+          - type: http
+            action: json_error
+            params: { code: SESSION_EXPIRED, status: 401 }
+        next: UNAUTHENTICATED
+
+      # Tenant switch
+      switch_tenant:
+        trigger: "POST /auth/switch-tenant"
+        guard: "membership.exists AND membership.active AND tenant.active"
+        actions:
+          - type: side_effect
+            action: invalidate_current_session
+          - type: side_effect
+            action: create_session
+            params: { tenant_id: target_tenant_id }
+          - type: side_effect
+            action: issue_jwt
+          - type: audit
+            event: TENANT_SWITCHED
+          - type: http
+            action: json_ok
+        next: AUTHENTICATED
+
+      # Logout
+      logout_browser:
+        trigger: "POST /auth/logout"
+        guard: "!request.accept_json"
+        actions:
+          - type: side_effect
+            action: invalidate_session
+          - type: side_effect
+            action: clear_cookie
+          - type: audit
+            event: LOGOUT
+          - type: http
+            action: redirect
+            target: "/login"
+        next: UNAUTHENTICATED
+
+      logout_api:
+        trigger: "POST /auth/logout"
+        guard: "request.accept_json"
+        actions:
+          - type: side_effect
+            action: invalidate_session
+          - type: side_effect
+            action: clear_cookie
+          - type: audit
+            event: LOGOUT
+          - type: http
+            action: json_ok
+        next: UNAUTHENTICATED
+
+      # Session expired during use
+      session_expired:
+        trigger: "GET /auth/verify"
+        guard: "session.expired OR !session.valid"
+        actions:
+          - type: http
+            action: status
+            params: { status: 401 }
+        next: UNAUTHENTICATED
+
+      # Tenant suspended during use
+      tenant_suspended:
+        trigger: "GET /auth/verify"
+        guard: "session.valid AND tenant.suspended"
+        actions:
+          - type: http
+            action: status
+            params: { status: 403, code: TENANT_SUSPENDED }
+        next: TENANT_SUSPENDED
+
+      # Session management pages
+      show_sessions:
+        trigger: "GET /settings/sessions"
+        actions:
+          - type: http
+            action: render_html
+            template: sessions
+            model: { sessions: user.sessions, current_session_id: session.id, csrf_token: session.csrf_token }
+        next: AUTHENTICATED
+
+      revoke_session:
+        trigger: "DELETE /auth/sessions/{id}"
+        guard: "target_session.user_id == session.user_id AND target_session.id != session.id"
+        actions:
+          - type: side_effect
+            action: invalidate_target_session
+          - type: audit
+            event: SESSION_REVOKED
+          - type: http
+            action: json_ok
+        next: AUTHENTICATED
+
+      revoke_all_other:
+        trigger: "POST /auth/sessions/revoke-all"
+        actions:
+          - type: side_effect
+            action: invalidate_all_other_sessions
+          - type: audit
+            event: ALL_SESSIONS_REVOKED
+          - type: http
+            action: json_ok
+        next: AUTHENTICATED
+
+      # Admin pages
+      show_members:
+        trigger: "GET /admin/members"
+        guard: "membership.role IN [ADMIN, OWNER]"
+        actions:
+          - type: http
+            action: render_html
+            template: admin/members
+        next: AUTHENTICATED
+
+      show_invitations:
+        trigger: "GET /admin/invitations"
+        guard: "membership.role IN [ADMIN, OWNER]"
+        actions:
+          - type: http
+            action: render_html
+            template: admin/invitations
+        next: AUTHENTICATED
+
+  # ── TENANT_SUSPENDED ──
+  TENANT_SUSPENDED:
+    phase: 1
+    description: Current tenant is suspended. User must switch or wait.
+    transitions:
+      switch_other:
+        trigger: "user action"
+        guard: "user.tenant_count > 1"
+        next: TENANT_SELECT
+
+      no_other:
+        trigger: "none"
+        guard: "user.tenant_count <= 1"
+        actions:
+          - type: http
+            action: render_html
+            template: error
+            params: { code: TENANT_SUSPENDED, show_contact: true }
+        next: TENANT_SUSPENDED
+
+  # ── Phase 2+ reserved states ──
+  # MFA_REQUIRED:
+  #   phase: 3
+  #   description: Authenticated but MFA not yet completed
+  #   transitions:
+  #     verify_totp:
+  #       guard: "totp_code_valid"
+  #       next: AUTHENTICATED
+  #     verify_webauthn:
+  #       guard: "webauthn_assertion_valid"
+  #       next: AUTHENTICATED
+
+  # ACCOUNT_LOCKED:
+  #   phase: 3
+  #   description: Too many failed login attempts
+  #   timeout: { duration_seconds: 900, next: UNAUTHENTICATED }
+
+# ────────────────────────────────
+# Audit events emitted by this machine
+# ────────────────────────────────
+audit_events:
+  - LOGIN_SUCCESS
+  - LOGIN_FAILURE
+  - LOGOUT
+  - TENANT_SWITCHED
+  - TENANT_JOINED
+  - INVITATION_ACCEPTED
+  - SESSION_REVOKED
+  - ALL_SESSIONS_REVOKED

@@ -1,0 +1,593 @@
+# volta-auth-proxy Protocol Definition
+# Defines the contract between Gateway and Apps
+# Version: 1
+
+version: 1
+
+# ────────────────────────────────
+# ForwardAuth — Traefik integration
+# ────────────────────────────────
+forward_auth:
+  endpoint: "GET /auth/verify"
+  description: >
+    Traefik calls this on every request to check if the user is authenticated.
+    Returns 200 with X-Volta-* headers if OK, 401 if not.
+    Gateway NEVER sees the request body. Auth check only.
+
+  request:
+    cookies:
+      - name: __volta_session
+        required: true
+    headers_forwarded_by_traefik:
+      - X-Forwarded-For
+      - X-Forwarded-Host
+      - X-Forwarded-Proto
+
+  response_success:
+    status: 200
+    headers:
+      X-Volta-User-Id:
+        type: uuid
+        required: true
+        source: user.id
+        description: User's unique identifier
+
+      X-Volta-Email:
+        type: email
+        required: true
+        source: user.email
+        description: User's email address
+
+      X-Volta-Tenant-Id:
+        type: uuid
+        required: true
+        source: session.tenant_id
+        description: Current active tenant
+
+      X-Volta-Tenant-Slug:
+        type: string
+        required: true
+        source: tenant.slug
+        description: Tenant URL-safe identifier
+
+      X-Volta-Roles:
+        type: csv
+        required: true
+        source: membership.roles
+        example: "ADMIN,MEMBER"
+        description: Comma-separated role list for current tenant
+
+      X-Volta-Display-Name:
+        type: string
+        required: false
+        source: user.display_name
+        description: User's display name (may be null)
+
+      X-Volta-JWT:
+        type: jwt_rs256
+        required: true
+        source: issued_jwt
+        description: Signed RS256 JWT with full identity context
+
+      X-Volta-App-Id:
+        type: string
+        required: false
+        source: matched_app.id
+        description: App ID from volta-config.yaml (if matched)
+
+    cache_headers:
+      Cache-Control: "no-store, no-cache, must-revalidate, private"
+      Pragma: "no-cache"
+
+  response_error:
+    unauthenticated:
+      status: 401
+      when: "!session.valid OR session.expired"
+
+    tenant_suspended:
+      status: 403
+      code: TENANT_SUSPENDED
+      when: "session.valid AND tenant.suspended"
+
+    role_insufficient:
+      status: 403
+      code: ROLE_INSUFFICIENT
+      when: "user.role NOT IN app.allowed_roles"
+
+  performance:
+    target_latency: "10ms (cached), 50ms (uncached)"
+    cache: "Caffeine, session TTL 30s"
+
+# ────────────────────────────────
+# JWT specification
+# ────────────────────────────────
+jwt:
+  algorithm: RS256
+  key_size: 2048
+  expiry_seconds: 300  # 5 minutes
+  key_storage: "signing_keys table, AES-256-GCM encrypted"
+  jwks_endpoint: "GET /.well-known/jwks.json"
+  jwks_cache_header: "Cache-Control: public, max-age=3600"
+
+  header:
+    alg: { const: RS256, note: "HS256 and none are REJECTED" }
+    kid: { type: string, required: true, source: signing_key.kid }
+    typ: { const: JWT }
+
+  claims:
+    # Standard claims
+    iss:
+      type: string
+      const: "volta-auth"
+      description: Issuer. Always "volta-auth"
+
+    aud:
+      type: string[]
+      default: ["volta-apps"]
+      description: Audience. Array for Phase 2 per-app audience
+      note: "Phase 2: add app-specific audience like ['volta-apps', 'app-wiki']"
+
+    sub:
+      type: uuid
+      source: user.id
+      description: Subject. User's unique ID
+
+    exp:
+      type: unix_timestamp
+      computed: "now() + expiry_seconds"
+      description: Expiration time
+
+    iat:
+      type: unix_timestamp
+      computed: "now()"
+      description: Issued at
+
+    jti:
+      type: uuid
+      computed: random_uuid
+      description: JWT ID. Unique per token
+
+    # Volta custom claims (prefixed with volta_)
+    volta_v:
+      type: int
+      const: 1
+      description: Claims schema version. Additive-only changes
+
+    volta_tid:
+      type: uuid
+      source: session.tenant_id
+      description: Current active tenant ID
+
+    volta_tname:
+      type: string
+      source: tenant.name
+      description: Tenant display name
+
+    volta_tslug:
+      type: string
+      source: tenant.slug
+      description: Tenant URL slug
+
+    volta_roles:
+      type: string[]
+      source: membership.roles
+      example: ["ADMIN"]
+      description: User's roles in current tenant
+
+    volta_display:
+      type: string
+      source: user.display_name
+      optional: true
+      description: User's display name (configurable via JWT_INCLUDE_DISPLAY_NAME)
+
+  security_rules:
+    - "alg MUST be RS256. Reject HS256, none, and any other algorithm"
+    - "kid MUST be present in header. Reject JWT without kid"
+    - "kid MUST match an active or rotated key in JWKS"
+    - "exp MUST be in the future (with 30s clock skew tolerance)"
+    - "iss MUST be 'volta-auth'"
+    - "aud MUST contain 'volta-apps' (or app-specific audience in Phase 2)"
+    - "Email is NOT included in JWT claims. Fetch via /api/v1/users/me"
+
+  pii_policy:
+    included: [sub, volta_display]
+    excluded: [email, phone, address, custom_attributes]
+    reason: "JWT is base64-encoded (not encrypted). Minimise PII exposure in logs and caches"
+
+# ────────────────────────────────
+# Content negotiation
+# ────────────────────────────────
+content_negotiation:
+  description: >
+    Gateway decides response format based on request headers.
+    CRITICAL: JSON requests NEVER get 302 redirects.
+
+  rules:
+    - condition: "Accept header contains 'application/json'"
+      response: json
+      note: "Always return JSON body. Never 302"
+
+    - condition: "X-Requested-With: XMLHttpRequest"
+      response: json
+
+    - condition: "Authorization: Bearer ..."
+      response: json
+
+    - condition: "Accept: text/html OR no Accept header"
+      response: html_or_redirect
+
+  reason: >
+    SPA fetch() follows 302 automatically. If Gateway returns 302 to Google login,
+    fetch receives Google's HTML instead of a JSON error.
+    This breaks all SPA error handling.
+
+# ────────────────────────────────
+# Error definitions
+# ────────────────────────────────
+errors:
+  - code: AUTHENTICATION_REQUIRED
+    status: 401
+    message:
+      en: "Login is required"
+      ja: "ログインが必要です"
+    recovery:
+      browser: { redirect: "/login?return_to={current_url}" }
+      api: { json: true }
+
+  - code: SESSION_EXPIRED
+    status: 401
+    message:
+      en: "Your session has expired"
+      ja: "セッションの有効期限が切れました"
+    recovery:
+      browser: { redirect: "/login?return_to={current_url}" }
+      api: { json: true }
+
+  - code: SESSION_REVOKED
+    status: 401
+    message:
+      en: "Your session was revoked by an administrator"
+      ja: "セッションが管理者によって無効化されました"
+    recovery:
+      browser: { redirect: "/login", show_contact: true }
+      api: { json: true }
+
+  - code: FORBIDDEN
+    status: 403
+    message:
+      en: "You do not have permission to access this resource"
+      ja: "このリソースにアクセスする権限がありません"
+    recovery:
+      browser: { back_button: true }
+      api: { json: true }
+
+  - code: TENANT_ACCESS_DENIED
+    status: 403
+    message:
+      en: "You are not a member of this workspace"
+      ja: "このワークスペースへのアクセス権がありません"
+    recovery:
+      has_other_tenants: { redirect: "/select-tenant" }
+      no_other_tenants: { show_message: "Request an invitation from a workspace admin" }
+
+  - code: TENANT_SUSPENDED
+    status: 403
+    message:
+      en: "This workspace is currently suspended"
+      ja: "このワークスペースは一時停止中です"
+    recovery:
+      has_other_tenants: { redirect: "/select-tenant" }
+      no_other_tenants: { show_contact: true }
+
+  - code: ROLE_INSUFFICIENT
+    status: 403
+    message:
+      en: "You need a higher role to perform this action"
+      ja: "この操作には管理者権限が必要です"
+    recovery:
+      browser: { back_button: true, show_message: "Ask your admin for permission" }
+
+  - code: NOT_FOUND
+    status: 404
+    message:
+      en: "Resource not found"
+      ja: "見つかりませんでした"
+    recovery:
+      browser: { redirect: "/" }
+
+  - code: CONFLICT
+    status: 409
+    message:
+      en: "This resource already exists"
+      ja: "すでに存在します"
+
+  - code: INVITATION_EXPIRED
+    status: 410
+    message:
+      en: "This invitation has expired"
+      ja: "招待リンクの有効期限が切れました"
+    recovery:
+      browser: { show_message: "Ask the inviter to send a new invitation" }
+
+  - code: INVITATION_EXHAUSTED
+    status: 410
+    message:
+      en: "This invitation has already been used"
+      ja: "この招待リンクは使用済みです"
+    recovery:
+      browser: { redirect: "/login" }
+
+  - code: INVITATION_EMAIL_MISMATCH
+    status: 403
+    message:
+      en: "This invitation is for a different email address"
+      ja: "この招待は別のメールアドレス宛てです"
+    recovery:
+      browser: { show_message: "Log out and log in with the correct Google account" }
+
+  - code: RATE_LIMITED
+    status: 429
+    message:
+      en: "Too many requests. Please wait {retry_after} seconds"
+      ja: "リクエストが多すぎます。{retry_after}秒後にお試しください"
+    headers:
+      Retry-After: "{retry_after_seconds}"
+      X-RateLimit-Limit: "{limit}"
+      X-RateLimit-Remaining: "0"
+    recovery:
+      browser: { countdown_timer: true }
+      api: { retry_after_header: true }
+
+  - code: INTERNAL_ERROR
+    status: 500
+    message:
+      en: "An unexpected error occurred"
+      ja: "予期しないエラーが発生しました"
+    recovery:
+      browser: { reload_button: true, show_contact: true }
+
+# ────────────────────────────────
+# Internal API (App → Proxy)
+# ────────────────────────────────
+api:
+  base_path: /api/v1
+  description: >
+    REST API for apps to delegate user/tenant/member operations.
+    Apps forward the user's JWT or use service token.
+
+  authentication:
+    user_context:
+      header: "Authorization: Bearer {user_jwt}"
+      description: "User's JWT from ForwardAuth. Proxy validates and checks permissions"
+
+    service_context:
+      header: "Authorization: Bearer volta-service:{VOLTA_SERVICE_TOKEN}"
+      description: "Static service token for batch/background processing. Docker internal network only"
+      requires_tenant_header: "X-Volta-Tenant-Id"
+
+  tenant_check:
+    rule: "Path param {tenantId} MUST equal JWT claim volta_tid"
+    error: TENANT_ACCESS_DENIED
+    exception: "Platform admin (future) can access cross-tenant"
+
+  pagination:
+    default_limit: 20
+    max_limit: 100
+    params: "?offset=0&limit=20"
+    response_meta: { total: int, limit: int, offset: int, request_id: uuid }
+
+  rate_limit:
+    default: "200 req/min per user"
+    key: "user_id (Phase 2: user_id:app_id)"
+
+  response_format:
+    success:
+      single: |
+        { "data": { ... }, "meta": { "request_id": "uuid" } }
+      list: |
+        { "data": [ ... ], "meta": { "total": 150, "limit": 20, "offset": 0, "request_id": "uuid" } }
+    error: |
+      { "error": { "code": "...", "message": "...", "status": 403, "request_id": "uuid" } }
+
+  endpoints:
+    # Users
+    - method: GET
+      path: /users/me
+      auth: any_authenticated
+      description: Current user's profile
+      response: UserObject
+
+    - method: GET
+      path: /users/me/tenants
+      auth: any_authenticated
+      description: List of tenants user belongs to
+      response: TenantWithRoleObject[]
+
+    - method: PATCH
+      path: /users/{userId}
+      auth: "self OR ADMIN+"
+      description: Update display name
+      body:
+        display_name: { type: string, max_length: 100 }
+      response: UserObject
+
+    # Tenant Members
+    - method: GET
+      path: /tenants/{tenantId}/members
+      auth: "MEMBER+"
+      description: List tenant members (paginated)
+      pagination: true
+      response: MemberObject[]
+
+    - method: GET
+      path: /tenants/{tenantId}/members/{memberId}
+      auth: "MEMBER+"
+      description: Single member detail
+      response: MemberObject
+
+    - method: PATCH
+      path: /tenants/{tenantId}/members/{memberId}
+      auth: "ADMIN+"
+      description: Change member role
+      body:
+        role: { type: enum, values: [VIEWER, MEMBER, ADMIN] }
+      guards:
+        - "Cannot promote above own role"
+        - "Last OWNER cannot be demoted"
+      response: MemberObject
+
+    - method: DELETE
+      path: /tenants/{tenantId}/members/{memberId}
+      auth: "ADMIN+"
+      description: Remove member (deactivate)
+      guards:
+        - "Cannot remove last OWNER"
+        - "Cannot remove self"
+      side_effects:
+        - "Set membership.is_active = false"
+        - "Invalidate all sessions for user in this tenant"
+
+    # Invitations
+    - method: GET
+      path: /tenants/{tenantId}/invitations
+      auth: "ADMIN+"
+      description: List invitations (paginated)
+      pagination: true
+      response: InvitationObject[]
+
+    - method: POST
+      path: /tenants/{tenantId}/invitations
+      auth: "ADMIN+"
+      description: Create invitation
+      body:
+        email: { type: email, optional: true, description: "Lock to specific email" }
+        role: { type: enum, values: [VIEWER, MEMBER, ADMIN], default: MEMBER }
+        max_uses: { type: int, default: 1, max: 100 }
+        expires_in_hours: { type: int, default: 72, max: 720 }
+      response:
+        type: InvitationObject
+        extra_fields:
+          link: { type: url, description: "Full invitation URL" }
+
+    - method: DELETE
+      path: /tenants/{tenantId}/invitations/{invitationId}
+      auth: "ADMIN+"
+      description: Cancel invitation
+      guards:
+        - "Can only cancel pending invitations"
+
+    # Tenant management
+    - method: GET
+      path: /tenants/{tenantId}
+      auth: "MEMBER+"
+      description: Tenant details
+      response: TenantObject
+
+    - method: PATCH
+      path: /tenants/{tenantId}
+      auth: "OWNER"
+      description: Update tenant settings
+      body:
+        name: { type: string, optional: true }
+        slug: { type: string, optional: true, note: "Slug change has high impact" }
+
+    - method: POST
+      path: /tenants/{tenantId}/transfer-ownership
+      auth: "OWNER"
+      description: Transfer OWNER role to another member
+      body:
+        new_owner_id: { type: uuid }
+
+    # Key management (platform admin)
+    - method: GET
+      path: /admin/keys
+      auth: "OWNER"
+      description: List signing keys
+      response: SigningKeyObject[]
+
+    - method: POST
+      path: /admin/keys/rotate
+      auth: "OWNER"
+      description: Rotate signing key
+
+    - method: POST
+      path: /admin/keys/{kid}/revoke
+      auth: "OWNER"
+      description: Revoke a signing key
+
+    # Dev
+    - method: POST
+      path: /dev/token
+      auth: none
+      guard: "DEV_MODE == true AND host == localhost"
+      description: Generate test JWT for development
+      body:
+        userId: { type: string }
+        tenantId: { type: string }
+        roles: { type: string[] }
+      response: { token: jwt }
+
+    # Health
+    - method: GET
+      path: /healthz
+      auth: none
+      description: Health check
+      response: { status: "ok" }
+
+    # JWKS
+    - method: GET
+      path: /.well-known/jwks.json
+      auth: none
+      description: Public keys for JWT verification
+      response: JWKSet
+      cache: "public, max-age=3600"
+
+  # ────────────────────────────────
+  # Data models
+  # ────────────────────────────────
+  models:
+    UserObject:
+      id: { type: uuid }
+      email: { type: email }
+      display_name: { type: string, nullable: true }
+      is_active: { type: boolean }
+      created_at: { type: iso8601 }
+
+    TenantObject:
+      id: { type: uuid }
+      name: { type: string }
+      slug: { type: string }
+      plan: { type: string }
+      is_active: { type: boolean }
+      member_count: { type: int }
+      created_at: { type: iso8601 }
+
+    TenantWithRoleObject:
+      extends: TenantObject
+      role: { type: enum, values: [OWNER, ADMIN, MEMBER, VIEWER] }
+      is_last_accessed: { type: boolean }
+
+    MemberObject:
+      user: { type: UserObject }
+      role: { type: enum, values: [OWNER, ADMIN, MEMBER, VIEWER] }
+      joined_at: { type: iso8601 }
+      invited_by: { type: UserObject, nullable: true }
+      is_active: { type: boolean }
+
+    InvitationObject:
+      id: { type: uuid }
+      code: { type: string, description: "base64url, 43 chars" }
+      email: { type: email, nullable: true }
+      role: { type: string }
+      max_uses: { type: int }
+      used_count: { type: int }
+      status: { type: enum, values: [pending, used, expired, cancelled] }
+      created_by: { type: UserObject }
+      created_at: { type: iso8601 }
+      expires_at: { type: iso8601 }
+
+    SigningKeyObject:
+      kid: { type: string }
+      status: { type: enum, values: [active, rotated, revoked] }
+      created_at: { type: iso8601 }
+      rotated_at: { type: iso8601, nullable: true }

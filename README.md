@@ -7,6 +7,22 @@ Handles auth, tenants, roles, invitations so downstream apps don't have to.
 
 **No Keycloak. No oauth2-proxy. Control is king.**
 
+> **Auth terminology is hard. But pretending you understand is the most dangerous thing.**
+> Every technical term in this document links to a [glossary article](docs/glossary/).
+> Click and read. It's not embarrassing. Knowing what you don't know is the most important thing.
+> In the age of AI, education matters.
+
+## Phase 2-4 integrations implemented
+
+- M2M OAuth client credentials: `POST /oauth/token`
+- Webhook outbox worker (retry + HMAC signature) with `WEBHOOK_ENABLED=true`
+- IdP admin (OIDC/SAML config) + SAML login entry route (`/auth/saml/login`)
+- MFA TOTP setup/verify APIs
+- SCIM user/group endpoints (`/scim/v2/*`) with service token auth
+- Billing webhook ingestion (`POST /api/v1/billing/stripe/webhook`)
+- External audit sink options: `postgres | kafka | elasticsearch`
+- Notification channels: `smtp | sendgrid | none`
+
 ---
 
 ## Why volta-auth-proxy?

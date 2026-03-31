@@ -1,0 +1,318 @@
+# volta-auth-proxy Policy Definition
+# Defines authorization rules, role hierarchy, and constraints
+# Version: 1
+
+version: 1
+
+# ────────────────────────────────
+# Role hierarchy
+# ────────────────────────────────
+roles:
+  hierarchy:
+    - OWNER     # highest
+    - ADMIN
+    - MEMBER
+    - VIEWER    # lowest
+
+  description:
+    OWNER:
+      en: "Full control. Can delete tenant and transfer ownership."
+      ja: "完全な制御。テナント削除とオーナー譲渡が可能。"
+    ADMIN:
+      en: "Manage members and settings. Cannot delete tenant."
+      ja: "メンバーと設定の管理。テナント削除は不可。"
+    MEMBER:
+      en: "Normal usage. Can use all permitted apps."
+      ja: "通常利用。許可されたアプリを使用可能。"
+    VIEWER:
+      en: "Read-only access. Enforced by individual apps."
+      ja: "読み取り専用。各アプリで制御。"
+
+# ────────────────────────────────
+# Permissions per role
+# ────────────────────────────────
+permissions:
+  OWNER:
+    inherits: ADMIN
+    can:
+      - delete_tenant
+      - transfer_ownership
+      - manage_signing_keys
+      - change_tenant_slug
+
+  ADMIN:
+    inherits: MEMBER
+    can:
+      - invite_members
+      - remove_members
+      - change_member_role     # up to own role level
+      - view_invitations
+      - create_invitations
+      - cancel_invitations
+      - change_tenant_name
+      - view_audit_logs
+
+  MEMBER:
+    inherits: VIEWER
+    can:
+      - use_apps
+      - view_own_profile
+      - update_own_profile
+      - manage_own_sessions
+      - view_tenant_members    # can see who's in the team
+      - switch_tenant
+      - accept_invitation
+
+  VIEWER:
+    can:
+      - read_only              # enforced by each app, not by gateway
+
+# ────────────────────────────────
+# Constraints (invariants)
+# ────────────────────────────────
+constraints:
+  - id: last_owner
+    rule: "A tenant MUST have at least one OWNER at all times"
+    enforcement: "Block role change / removal if it would leave zero OWNERs"
+    error: "LAST_OWNER_CANNOT_CHANGE"
+
+  - id: promote_limit
+    rule: "A user cannot promote another user above their own role"
+    enforcement: "ADMIN can promote to ADMIN max. Only OWNER can promote to OWNER (via transfer)"
+    error: "ROLE_INSUFFICIENT"
+
+  - id: self_demotion
+    rule: "A user CAN demote themselves, but requires confirmation"
+    enforcement: "UI shows confirmation dialog. API accepts without dialog"
+    note: "Last OWNER constraint still applies"
+
+  - id: max_tenants
+    rule: "A user can belong to at most MAX_TENANTS_PER_USER tenants"
+    default: 10
+    enforcement: "Block invitation acceptance if limit reached"
+    error: "MAX_TENANTS_REACHED"
+
+  - id: max_members
+    rule: "A tenant can have at most tenant.max_members members"
+    default: 50
+    enforcement: "Block invitation acceptance if limit reached"
+    error: "MAX_MEMBERS_REACHED"
+
+  - id: concurrent_sessions
+    rule: "A user can have at most MAX_CONCURRENT_SESSIONS active sessions"
+    default: 5
+    enforcement: "On new session, if limit reached, invalidate oldest session"
+    note: "Not an error — oldest session is silently removed"
+
+# ────────────────────────────────
+# Tenant isolation
+# ────────────────────────────────
+tenant_isolation:
+  rules:
+    - id: path_jwt_match
+      rule: "API path {tenantId} MUST equal JWT volta_tid"
+      enforcement: "Before handler checks on all /api/v1/tenants/{tenantId}/* routes"
+      error: "TENANT_ACCESS_DENIED"
+
+    - id: session_tenant_bound
+      rule: "A session is bound to exactly one tenant at a time"
+      enforcement: "session.tenant_id is set. Changing tenant creates new session"
+
+    - id: member_visibility
+      rule: "A user can only see members of tenants they belong to"
+      enforcement: "API queries filter by tenant_id from JWT"
+
+    - id: invitation_scope
+      rule: "Invitations are scoped to a tenant. Only ADMIN+ of that tenant can manage them"
+      enforcement: "enforceRole + enforceTenantMatch on all invitation endpoints"
+
+    - id: audit_scope
+      rule: "Audit logs are scoped to tenant. ADMIN+ can only see logs for their own tenant"
+      enforcement: "API queries filter by tenant_id from JWT"
+      exception: "Platform admin (Phase 4) can see all"
+
+# ────────────────────────────────
+# App access control
+# ────────────────────────────────
+app_access:
+  source: "volta-config.yaml"
+  enforcement: "ForwardAuth (/auth/verify)"
+  rule: >
+    For each request, Gateway determines the target app from X-Forwarded-Host.
+    It then checks if the user's role is in the app's allowed_roles list.
+    If not, returns 403 ROLE_INSUFFICIENT.
+
+  example:
+    config: |
+      apps:
+        - id: app-wiki
+          url: https://wiki.example.com
+          allowed_roles: [MEMBER, ADMIN, OWNER]
+        - id: app-admin
+          url: https://admin.example.com
+          allowed_roles: [ADMIN, OWNER]
+    scenarios:
+      - user_role: MEMBER
+        app: app-wiki
+        result: ALLOW
+      - user_role: MEMBER
+        app: app-admin
+        result: DENY (403)
+      - user_role: ADMIN
+        app: app-admin
+        result: ALLOW
+
+# ────────────────────────────────
+# Free email domain policy
+# ────────────────────────────────
+email_domain:
+  free_domains:
+    - gmail.com
+    - googlemail.com
+    - outlook.com
+    - hotmail.com
+    - yahoo.com
+    - yahoo.co.jp
+    - icloud.com
+    - protonmail.com
+
+  rules:
+    - id: no_auto_tenant
+      rule: "Free email domains are excluded from automatic tenant resolution"
+      enforcement: "Tenant resolution step 3 (email domain lookup) skips free domains"
+
+    - id: invite_required
+      rule: "Users with free email must join tenants via invitation only"
+      enforcement: "No auto_join for free email users"
+
+# ────────────────────────────────
+# Tenant resolution priority
+# ────────────────────────────────
+tenant_resolution:
+  priority:
+    1:
+      source: "session.tenant_id (Cookie/JWT)"
+      description: "If session already has a tenant, use it"
+    2:
+      source: "URL subdomain → tenant_domains lookup"
+      description: "company.auth.example.com → find tenant by domain"
+    3:
+      source: "user.email domain → tenant_domains lookup"
+      description: "user@company.com → find tenant by email domain"
+      exclusion: "Skip if domain is in free_domains list"
+    4:
+      source: "Manual selection or invitation"
+      description: "Show tenant selection screen or require invitation code"
+
+# ────────────────────────────────
+# Rate limiting policy
+# ────────────────────────────────
+rate_limits:
+  - endpoint: "GET /login"
+    limit: 10
+    window: "1 minute"
+    key: ip
+    description: "Prevent brute force OIDC initiation"
+
+  - endpoint: "GET /callback"
+    limit: 10
+    window: "1 minute"
+    key: ip
+
+  - endpoint: "POST /invite/*/accept"
+    limit: 5
+    window: "1 minute"
+    key: "ip + user_id"
+    description: "Prevent invitation brute force"
+
+  - endpoint: "POST /api/v1/tenants/*/invitations"
+    limit: 20
+    window: "1 hour"
+    key: user_id
+    description: "Prevent invitation spam"
+
+  - endpoint: "/api/v1/*"
+    limit: 200
+    window: "1 minute"
+    key: user_id
+    description: "General API rate limit"
+
+  - endpoint: "global"
+    limit: 100
+    window: "1 minute"
+    key: ip
+    description: "Global per-IP limit"
+
+# ────────────────────────────────
+# Session policy
+# ────────────────────────────────
+session:
+  cookie:
+    name: __volta_session
+    flags: [HttpOnly, Secure, "SameSite=Lax"]
+    path: /
+    signing: HMAC-SHA256
+
+  expiry:
+    type: sliding_window
+    duration_seconds: 28800  # 8 hours
+    note: "Each request extends the session by duration_seconds from now"
+
+  fixation_prevention:
+    rule: "Regenerate session ID on every successful login"
+
+  concurrent_limit:
+    max: 5
+    on_exceed: "Invalidate oldest session silently"
+
+  invalidation:
+    immediate: "Set sessions.invalidated_at = now()"
+    jwt_lag: "Max 5 minutes (JWT expiry) before apps see the invalidation"
+
+# ────────────────────────────────
+# CSRF policy
+# ────────────────────────────────
+csrf:
+  scope: "HTML form POST/DELETE/PATCH only"
+  exempt: "JSON API requests (Accept: application/json OR X-Requested-With: XMLHttpRequest)"
+  token:
+    generation: "SecureRandom 32 bytes, base64url"
+    storage: "Session-bound"
+    delivery: '<input type="hidden" name="_csrf" value="{token}">'
+    validation: "Before handler compares form._csrf with session.csrf_token"
+
+# ────────────────────────────────
+# Audit policy
+# ────────────────────────────────
+audit:
+  events:
+    - LOGIN_SUCCESS
+    - LOGIN_FAILURE
+    - LOGOUT
+    - TENANT_JOINED
+    - TENANT_SWITCHED
+    - INVITATION_CREATED
+    - INVITATION_ACCEPTED
+    - INVITATION_CANCELLED
+    - MEMBER_ROLE_CHANGED
+    - MEMBER_REMOVED
+    - SESSION_REVOKED
+    - ALL_SESSIONS_REVOKED
+    - KEY_ROTATED
+    - KEY_REVOKED
+
+  fields:
+    - timestamp
+    - event_type
+    - actor_id
+    - actor_ip
+    - tenant_id
+    - target_type
+    - target_id
+    - detail (JSONB)
+    - request_id
+
+  retention:
+    default_days: 365
+    configurable: true
+    env_var: AUDIT_RETENTION_DAYS

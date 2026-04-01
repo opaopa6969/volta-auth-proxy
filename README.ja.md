@@ -312,9 +312,9 @@ app.get("/api/data", ctx -> {
 | [Phase](docs/glossary/phase-based-development.ja.md) | 状態 | 内容 |
 |-------|------|------|
 | **[Phase](docs/glossary/phase-based-development.ja.md) 1: Core** | **実装済み** | Google [OIDC](docs/glossary/oidc.ja.md), [テナント](docs/glossary/tenant.ja.md), [ロール](docs/glossary/role.ja.md), [招待](docs/glossary/invitation-flow.ja.md), [ForwardAuth](docs/glossary/forwardauth.ja.md), [Internal API](docs/glossary/internal-api.ja.md) |
-| **[Phase](docs/glossary/phase-based-development.ja.md) 2: Scale** | **実装済み** | 複数 [IdP](docs/glossary/idp.ja.md) (GitHub, Microsoft), M2M ([Client Credentials](docs/glossary/client-credentials.ja.md)), Redis [セッション](docs/glossary/session.ja.md), Webhook, **パスキー ([WebAuthn](docs/glossary/webauthn.ja.md)/FIDO2)** |
-| **[Phase](docs/glossary/phase-based-development.ja.md) 3: Enterprise** | **実装済み** | [SAML](docs/glossary/sso.ja.md), メール通知, **[MFA](docs/glossary/mfa.ja.md)/2FA ([TOTP](docs/glossary/totp.ja.md), [WebAuthn](docs/glossary/webauthn.ja.md))**, i18n, 管理 UI 拡張, **条件付きアクセス (リスクベース認証)** |
-| **[Phase](docs/glossary/phase-based-development.ja.md) 4: Platform** | **実装済み** | SCIM, Policy Engine, Billing (Stripe), GDPR データエクスポート/削除, **デバイストラスト** |
+| **[Phase](docs/glossary/phase-based-development.ja.md) 2: Scale** | **実装済み** | 複数 [IdP](docs/glossary/idp.ja.md) (GitHub, Microsoft), M2M ([Client Credentials](docs/glossary/client-credentials.ja.md)), Redis [セッション](docs/glossary/session.ja.md), Webhook |
+| **[Phase](docs/glossary/phase-based-development.ja.md) 3: Enterprise** | **一部** | [SAML](docs/glossary/sso.ja.md) ✅, メール通知 ✅, **[MFA](docs/glossary/mfa.ja.md)/2FA ([TOTP](docs/glossary/totp.ja.md))** ✅ — i18n ❌, **条件付きアクセス** ❌, **不正検知** ❌ |
+| **[Phase](docs/glossary/phase-based-development.ja.md) 4: Platform** | **一部** | SCIM ✅, Billing (Stripe webhook) ✅ — Policy Engine ❌, GDPR データ削除 ❌, **デバイストラスト** ❌, **モバイル SDK** ❌ |
 
 ### 認証トレンドへの対応計画
 

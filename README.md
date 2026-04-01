@@ -1077,9 +1077,9 @@ Authorization: Bearer ...  -->  Treated as JSON
 | [Phase](docs/glossary/phase-based-development.md) | Status | What |
 |-------|--------|------|
 | **[Phase](docs/glossary/phase-based-development.md) 1: Core** | **Implemented** | Google [OIDC](docs/glossary/oidc.md), [tenants](docs/glossary/tenant.md), [roles](docs/glossary/role.md), [invitations](docs/glossary/invitation-flow.md), [ForwardAuth](docs/glossary/forwardauth.md), [Internal API](docs/glossary/internal-api.md) |
-| **[Phase](docs/glossary/phase-based-development.md) 2: Scale** | **Implemented** | Multiple [IdPs](docs/glossary/idp.md) (GitHub, Microsoft), M2M ([Client Credentials](docs/glossary/client-credentials.md)), Redis [sessions](docs/glossary/session.md), Webhooks, **Passkeys ([WebAuthn](docs/glossary/webauthn.md)/FIDO2)** |
-| **[Phase](docs/glossary/phase-based-development.md) 3: Enterprise** | **Implemented** | [SAML](docs/glossary/sso.md), email notifications, **[MFA](docs/glossary/mfa.md)/2FA ([TOTP](docs/glossary/totp.md), [WebAuthn](docs/glossary/webauthn.md))**, i18n, admin UI expansion, **Conditional access (risk-based auth)**, **Fraud alert integration** |
-| **[Phase](docs/glossary/phase-based-development.md) 4: Platform** | **Implemented** | SCIM, Policy Engine, Billing (Stripe), GDPR data export/deletion, **Device trust**, **Mobile [SDK](docs/glossary/sdk.md) (iOS/Android)** |
+| **[Phase](docs/glossary/phase-based-development.md) 2: Scale** | **Implemented** | Multiple [IdPs](docs/glossary/idp.md) (GitHub, Microsoft), M2M ([Client Credentials](docs/glossary/client-credentials.md)), Redis [sessions](docs/glossary/session.md), Webhooks |
+| **[Phase](docs/glossary/phase-based-development.md) 3: Enterprise** | **Partial** | [SAML](docs/glossary/sso.md) ✅, email notifications ✅, **[MFA](docs/glossary/mfa.md)/2FA ([TOTP](docs/glossary/totp.md))** ✅ — i18n ❌, **Conditional access** ❌, **Fraud alert** ❌ |
+| **[Phase](docs/glossary/phase-based-development.md) 4: Platform** | **Partial** | SCIM ✅, Billing (Stripe webhook) ✅ — Policy Engine ❌, GDPR export/deletion ❌, **Device trust** ❌, **Mobile [SDK](docs/glossary/sdk.md)** ❌ |
 
 ### Auth Trend Roadmap
 

@@ -15,11 +15,13 @@ public final class AuthService {
     private final AppConfig config;
     private final SqlStore store;
     private final JwtService jwtService;
+    private final SessionStore sessionStore;
 
-    public AuthService(AppConfig config, SqlStore store, JwtService jwtService) {
+    public AuthService(AppConfig config, SqlStore store, JwtService jwtService, SessionStore sessionStore) {
         this.config = config;
         this.store = store;
         this.jwtService = jwtService;
+        this.sessionStore = sessionStore;
     }
 
     public Optional<AuthPrincipal> authenticate(Context ctx) {
@@ -44,6 +46,23 @@ public final class AuthService {
             }
             try {
                 Map<String, Object> claims = jwtService.verify(token);
+                Object isClient = claims.get("volta_client");
+                if (Boolean.TRUE.equals(isClient)) {
+                    UUID tenantId = UUID.fromString((String) claims.get("volta_tid"));
+                    String clientId = (String) claims.getOrDefault("volta_client_id", "m2m-client");
+                    @SuppressWarnings("unchecked")
+                    List<String> roles = (List<String>) claims.get("volta_roles");
+                    return Optional.of(new AuthPrincipal(
+                            new UUID(0L, 0L),
+                            "m2m@" + clientId,
+                            clientId,
+                            tenantId,
+                            "machine",
+                            "machine",
+                            roles == null ? List.of() : roles,
+                            true
+                    ));
+                }
                 UUID userId = UUID.fromString((String) claims.get("sub"));
                 UUID tenantId = UUID.fromString((String) claims.get("volta_tid"));
                 UserRecord user = store.findUserById(userId).orElse(null);
@@ -74,7 +93,7 @@ public final class AuthService {
         }
         try {
             UUID sessionId = UUID.fromString(sessionCookie);
-            SessionRecord session = store.findSession(sessionId).orElse(null);
+            SessionRecord session = sessionStore.findSession(sessionId).orElse(null);
             if (session == null || !session.isValidAt(Instant.now())) {
                 return Optional.empty();
             }
@@ -85,7 +104,7 @@ public final class AuthService {
                 return Optional.empty();
             }
             if (membership != null && membership.active()) {
-                store.touchSession(session.id(), Instant.now().plusSeconds(config.sessionTtlSeconds()));
+                sessionStore.touchSession(session.id(), Instant.now().plusSeconds(config.sessionTtlSeconds()));
                 return Optional.of(new AuthPrincipal(
                         user.id(),
                         user.email(),
@@ -104,7 +123,7 @@ public final class AuthService {
                         && invitation.tenantId().equals(tenant.id())
                         && invitation.isUsableAt(Instant.now())
                         && (invitation.email() == null || invitation.email().equalsIgnoreCase(user.email()))) {
-                    store.touchSession(session.id(), Instant.now().plusSeconds(config.sessionTtlSeconds()));
+                    sessionStore.touchSession(session.id(), Instant.now().plusSeconds(config.sessionTtlSeconds()));
                     return Optional.of(new AuthPrincipal(
                             user.id(),
                             user.email(),
@@ -124,19 +143,21 @@ public final class AuthService {
     }
 
     public UUID issueSession(AuthPrincipal principal, String returnTo, String ip, String userAgent) {
-        int current = store.countActiveSessions(principal.userId());
+        int current = sessionStore.countActiveSessions(principal.userId());
         if (current >= MAX_CONCURRENT_SESSIONS) {
             int revokeCount = (current - MAX_CONCURRENT_SESSIONS) + 1;
-            store.revokeOldestActiveSessions(principal.userId(), revokeCount);
+            sessionStore.revokeOldestActiveSessions(principal.userId(), revokeCount);
         }
         UUID sessionId = SecurityUtils.newUuid();
         String csrfToken = SecurityUtils.randomUrlSafe(32);
-        store.createSession(
+        Instant mfaVerifiedAt = store.hasActiveMfa(principal.userId()) ? null : Instant.now();
+        sessionStore.createSession(
                 sessionId,
                 principal.userId(),
                 principal.tenantId(),
                 returnTo,
                 Instant.now().plusSeconds(config.sessionTtlSeconds()),
+                mfaVerifiedAt,
                 ip,
                 userAgent,
                 csrfToken
@@ -150,5 +171,42 @@ public final class AuthService {
 
     public void clearSessionCookie(Context ctx) {
         ctx.removeCookie(SESSION_COOKIE);
+    }
+
+    public boolean isMfaPending(Context ctx) {
+        String sessionCookie = ctx.cookie(SESSION_COOKIE);
+        if (sessionCookie == null || sessionCookie.isBlank()) {
+            return false;
+        }
+        try {
+            UUID sessionId = UUID.fromString(sessionCookie);
+            SessionRecord session = sessionStore.findSession(sessionId).orElse(null);
+            if (session == null) {
+                return false;
+            }
+            return store.hasActiveMfa(session.userId()) && session.mfaVerifiedAt() == null;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public Optional<SessionRecord> currentSession(Context ctx) {
+        String sessionCookie = ctx.cookie(SESSION_COOKIE);
+        if (sessionCookie == null || sessionCookie.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return sessionStore.findSession(UUID.fromString(sessionCookie));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    public void markMfaVerified(UUID sessionId) {
+        sessionStore.markSessionMfaVerified(sessionId);
+    }
+
+    public SessionStore sessionStore() {
+        return sessionStore;
     }
 }

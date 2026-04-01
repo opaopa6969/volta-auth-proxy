@@ -45,10 +45,14 @@ public final class JwtService {
     }
 
     public String issueToken(AuthPrincipal principal) {
+        return issueToken(principal, List.of(config.jwtAudience()), Map.of());
+    }
+
+    public String issueToken(AuthPrincipal principal, List<String> audience, Map<String, Object> extraClaims) {
         Instant now = Instant.now();
-        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+        JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
                 .issuer(config.jwtIssuer())
-                .audience(List.of(config.jwtAudience()))
+                .audience(audience == null || audience.isEmpty() ? List.of(config.jwtAudience()) : audience)
                 .subject(principal.userId().toString())
                 .expirationTime(Date.from(now.plusSeconds(config.jwtTtlSeconds())))
                 .issueTime(Date.from(now))
@@ -58,8 +62,13 @@ public final class JwtService {
                 .claim("volta_roles", principal.roles())
                 .claim("volta_display", principal.displayName())
                 .claim("volta_tname", principal.tenantName())
-                .claim("volta_tslug", principal.tenantSlug())
-                .build();
+                .claim("volta_tslug", principal.tenantSlug());
+        if (extraClaims != null) {
+            for (Map.Entry<String, Object> entry : extraClaims.entrySet()) {
+                builder.claim(entry.getKey(), entry.getValue());
+            }
+        }
+        JWTClaimsSet claims = builder.build();
         try {
             SignedJWT jwt = new SignedJWT(
                     new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(rsaKey.getKeyID()).type(JOSEObjectType.JWT).build(),
@@ -180,5 +189,19 @@ public final class JwtService {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public String issueM2mToken(UUID clientPrincipalId, UUID tenantId, List<String> scopes, List<String> audience, String clientId) {
+        AuthPrincipal principal = new AuthPrincipal(
+                clientPrincipalId,
+                "m2m@" + clientId,
+                clientId,
+                tenantId,
+                "machine",
+                "machine",
+                scopes,
+                true
+        );
+        return issueToken(principal, audience, Map.of("volta_client", true, "volta_client_id", clientId));
     }
 }

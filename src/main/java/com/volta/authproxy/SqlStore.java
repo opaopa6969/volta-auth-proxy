@@ -4,7 +4,9 @@ import javax.sql.DataSource;
 import java.sql.*;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -218,20 +220,95 @@ public final class SqlStore {
         }
     }
 
-    public void createSession(UUID sessionId, UUID userId, UUID tenantId, String returnTo, Instant expiresAt, String ip, String userAgent, String csrfToken) {
+    public Optional<TenantDetailRecord> findTenantDetailById(UUID tenantId) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     INSERT INTO sessions(id, user_id, tenant_id, return_to, expires_at, ip_address, user_agent, csrf_token)
-                     VALUES (?, ?, ?, ?, ?, ?::inet, ?, ?)
+                     SELECT id, name, slug, auto_join, plan, max_members, is_active, logo_url, primary_color, theme
+                     FROM tenants
+                     WHERE id = ?
+                     """)) {
+            ps.setObject(1, tenantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new TenantDetailRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("name"),
+                        rs.getString("slug"),
+                        rs.getBoolean("auto_join"),
+                        rs.getString("plan"),
+                        rs.getInt("max_members"),
+                        rs.getBoolean("is_active"),
+                        rs.getString("logo_url"),
+                        rs.getString("primary_color"),
+                        rs.getString("theme")
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Optional<TenantDetailRecord> updateTenantSettings(UUID tenantId, String name, Boolean autoJoin, String logoUrl, String primaryColor, String theme) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE tenants
+                     SET name = COALESCE(?, name),
+                         auto_join = COALESCE(?, auto_join),
+                         logo_url = COALESCE(?, logo_url),
+                         primary_color = COALESCE(?, primary_color),
+                         theme = COALESCE(?, theme)
+                     WHERE id = ?
+                     RETURNING id, name, slug, auto_join, plan, max_members, is_active, logo_url, primary_color, theme
+                     """)) {
+            ps.setString(1, name);
+            if (autoJoin == null) {
+                ps.setNull(2, Types.BOOLEAN);
+            } else {
+                ps.setBoolean(2, autoJoin);
+            }
+            ps.setString(3, logoUrl);
+            ps.setString(4, primaryColor);
+            ps.setString(5, theme);
+            ps.setObject(6, tenantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new TenantDetailRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("name"),
+                        rs.getString("slug"),
+                        rs.getBoolean("auto_join"),
+                        rs.getString("plan"),
+                        rs.getInt("max_members"),
+                        rs.getBoolean("is_active"),
+                        rs.getString("logo_url"),
+                        rs.getString("primary_color"),
+                        rs.getString("theme")
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void createSession(UUID sessionId, UUID userId, UUID tenantId, String returnTo, Instant expiresAt, Instant mfaVerifiedAt, String ip, String userAgent, String csrfToken) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO sessions(id, user_id, tenant_id, return_to, expires_at, mfa_verified_at, ip_address, user_agent, csrf_token)
+                     VALUES (?, ?, ?, ?, ?, ?, ?::inet, ?, ?)
                      """)) {
             ps.setObject(1, sessionId);
             ps.setObject(2, userId);
             ps.setObject(3, tenantId);
             ps.setString(4, returnTo);
             ps.setTimestamp(5, Timestamp.from(expiresAt));
-            ps.setString(6, ip);
-            ps.setString(7, userAgent);
-            ps.setString(8, csrfToken);
+            ps.setTimestamp(6, mfaVerifiedAt == null ? null : Timestamp.from(mfaVerifiedAt));
+            ps.setString(7, ip);
+            ps.setString(8, userAgent);
+            ps.setString(9, csrfToken);
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -241,7 +318,7 @@ public final class SqlStore {
     public Optional<SessionRecord> findSession(UUID sessionId) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     SELECT id, user_id, tenant_id, return_to, created_at, last_active_at, expires_at, invalidated_at, ip_address, user_agent, csrf_token
+                     SELECT id, user_id, tenant_id, return_to, created_at, last_active_at, expires_at, invalidated_at, mfa_verified_at, ip_address, user_agent, csrf_token
                      FROM sessions
                      WHERE id = ?
                      """)) {
@@ -259,6 +336,7 @@ public final class SqlStore {
                         rs.getTimestamp("last_active_at").toInstant(),
                         rs.getTimestamp("expires_at").toInstant(),
                         rs.getTimestamp("invalidated_at") == null ? null : rs.getTimestamp("invalidated_at").toInstant(),
+                        rs.getTimestamp("mfa_verified_at") == null ? null : rs.getTimestamp("mfa_verified_at").toInstant(),
                         rs.getString("ip_address"),
                         rs.getString("user_agent"),
                         rs.getString("csrf_token")
@@ -312,7 +390,7 @@ public final class SqlStore {
     public List<SessionRecord> listUserSessions(UUID userId) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     SELECT id, user_id, tenant_id, return_to, created_at, last_active_at, expires_at, invalidated_at, ip_address, user_agent, csrf_token
+                     SELECT id, user_id, tenant_id, return_to, created_at, last_active_at, expires_at, invalidated_at, mfa_verified_at, ip_address, user_agent, csrf_token
                      FROM sessions
                      WHERE user_id = ?
                      ORDER BY created_at DESC
@@ -331,6 +409,7 @@ public final class SqlStore {
                             rs.getTimestamp("last_active_at").toInstant(),
                             rs.getTimestamp("expires_at").toInstant(),
                             rs.getTimestamp("invalidated_at") == null ? null : rs.getTimestamp("invalidated_at").toInstant(),
+                            rs.getTimestamp("mfa_verified_at") == null ? null : rs.getTimestamp("mfa_verified_at").toInstant(),
                             rs.getString("ip_address"),
                             rs.getString("user_agent"),
                             rs.getString("csrf_token")
@@ -841,6 +920,95 @@ public final class SqlStore {
         }
     }
 
+    public Optional<MembershipRecord> findMembershipByUser(UUID tenantId, UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, user_id, tenant_id, role, is_active
+                     FROM memberships
+                     WHERE tenant_id = ? AND user_id = ?
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new MembershipRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("user_id", UUID.class),
+                        rs.getObject("tenant_id", UUID.class),
+                        rs.getString("role"),
+                        rs.getBoolean("is_active")
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int transferOwnership(UUID tenantId, UUID fromUserId, UUID toUserId) {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement actor = conn.prepareStatement("""
+                        SELECT role, is_active
+                        FROM memberships
+                        WHERE tenant_id = ? AND user_id = ?
+                        FOR UPDATE
+                        """)) {
+                    actor.setObject(1, tenantId);
+                    actor.setObject(2, fromUserId);
+                    try (ResultSet rs = actor.executeQuery()) {
+                        if (!rs.next() || !rs.getBoolean("is_active") || !"OWNER".equalsIgnoreCase(rs.getString("role"))) {
+                            conn.rollback();
+                            return 0;
+                        }
+                    }
+                }
+                try (PreparedStatement target = conn.prepareStatement("""
+                        SELECT is_active
+                        FROM memberships
+                        WHERE tenant_id = ? AND user_id = ?
+                        FOR UPDATE
+                        """)) {
+                    target.setObject(1, tenantId);
+                    target.setObject(2, toUserId);
+                    try (ResultSet rs = target.executeQuery()) {
+                        if (!rs.next() || !rs.getBoolean("is_active")) {
+                            conn.rollback();
+                            return 0;
+                        }
+                    }
+                }
+                try (PreparedStatement demote = conn.prepareStatement("""
+                        UPDATE memberships
+                        SET role = 'ADMIN'
+                        WHERE tenant_id = ? AND user_id = ? AND role = 'OWNER'
+                        """)) {
+                    demote.setObject(1, tenantId);
+                    demote.setObject(2, fromUserId);
+                    demote.executeUpdate();
+                }
+                try (PreparedStatement promote = conn.prepareStatement("""
+                        UPDATE memberships
+                        SET role = 'OWNER'
+                        WHERE tenant_id = ? AND user_id = ?
+                        """)) {
+                    promote.setObject(1, tenantId);
+                    promote.setObject(2, toUserId);
+                    int updated = promote.executeUpdate();
+                    conn.commit();
+                    return updated;
+                }
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public void insertAuditLog(
             String eventType,
             UUID actorId,
@@ -875,5 +1043,1076 @@ public final class SqlStore {
     }
 
     public record UserTenantInfo(UUID id, String name, String slug, String role) {
+    }
+
+    public record TenantDetailRecord(
+            UUID id,
+            String name,
+            String slug,
+            boolean autoJoin,
+            String plan,
+            int maxMembers,
+            boolean active,
+            String logoUrl,
+            String primaryColor,
+            String theme
+    ) {
+    }
+
+    public Optional<M2mClientRecord> findM2mClient(String clientId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, tenant_id, client_id, client_secret_hash, scopes, is_active
+                     FROM m2m_clients
+                     WHERE client_id = ?
+                     """)) {
+            ps.setString(1, clientId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new M2mClientRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("tenant_id", UUID.class),
+                        rs.getString("client_id"),
+                        rs.getString("client_secret_hash"),
+                        rs.getString("scopes"),
+                        rs.getBoolean("is_active")
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public UUID createM2mClient(UUID tenantId, String clientId, String secretHash, String scopesCsv) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO m2m_clients(tenant_id, client_id, client_secret_hash, scopes)
+                     VALUES (?, ?, ?, ?)
+                     RETURNING id
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, clientId);
+            ps.setString(3, secretHash);
+            ps.setString(4, scopesCsv);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getObject("id", UUID.class);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<M2mClientRecord> listM2mClients(UUID tenantId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, tenant_id, client_id, client_secret_hash, scopes, is_active
+                     FROM m2m_clients
+                     WHERE tenant_id = ?
+                     ORDER BY created_at DESC
+                     """)) {
+            ps.setObject(1, tenantId);
+            List<M2mClientRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new M2mClientRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("tenant_id", UUID.class),
+                            rs.getString("client_id"),
+                            rs.getString("client_secret_hash"),
+                            rs.getString("scopes"),
+                            rs.getBoolean("is_active")
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public UUID createWebhook(UUID tenantId, String endpoint, String secret, String eventsCsv) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO webhook_subscriptions(tenant_id, endpoint_url, secret, events)
+                     VALUES (?, ?, ?, ?)
+                     RETURNING id
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, endpoint);
+            ps.setString(3, secret);
+            ps.setString(4, eventsCsv);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getObject("id", UUID.class);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<WebhookRecord> listWebhooks(UUID tenantId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, tenant_id, endpoint_url, secret, events, is_active, created_at
+                     FROM webhook_subscriptions
+                     WHERE tenant_id = ?
+                     ORDER BY created_at DESC
+                     """)) {
+            ps.setObject(1, tenantId);
+            List<WebhookRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new WebhookRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("tenant_id", UUID.class),
+                            rs.getString("endpoint_url"),
+                            rs.getString("secret"),
+                            rs.getString("events"),
+                            rs.getBoolean("is_active"),
+                            rs.getTimestamp("created_at").toInstant()
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int deactivateWebhook(UUID tenantId, UUID webhookId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE webhook_subscriptions
+                     SET is_active = false
+                     WHERE tenant_id = ? AND id = ?
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, webhookId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public UUID upsertIdpConfig(UUID tenantId, String providerType, String metadataUrl, String issuer, String clientId, String x509Cert) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO idp_configs(tenant_id, provider_type, metadata_url, issuer, client_id, x509_cert, is_active)
+                     VALUES (?, ?, ?, ?, ?, ?, true)
+                     ON CONFLICT(tenant_id, provider_type) DO UPDATE SET
+                       metadata_url = EXCLUDED.metadata_url,
+                       issuer = EXCLUDED.issuer,
+                       client_id = EXCLUDED.client_id,
+                       x509_cert = EXCLUDED.x509_cert,
+                       is_active = true
+                     RETURNING id
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, providerType);
+            ps.setString(3, metadataUrl);
+            ps.setString(4, issuer);
+            ps.setString(5, clientId);
+            ps.setString(6, x509Cert);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getObject("id", UUID.class);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<IdpConfigRecord> listIdpConfigs(UUID tenantId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, tenant_id, provider_type, metadata_url, issuer, client_id, x509_cert, is_active, created_at
+                     FROM idp_configs
+                     WHERE tenant_id = ?
+                     ORDER BY created_at DESC
+                     """)) {
+            ps.setObject(1, tenantId);
+            List<IdpConfigRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new IdpConfigRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("tenant_id", UUID.class),
+                            rs.getString("provider_type"),
+                            rs.getString("metadata_url"),
+                            rs.getString("issuer"),
+                            rs.getString("client_id"),
+                            rs.getString("x509_cert"),
+                            rs.getBoolean("is_active"),
+                            rs.getTimestamp("created_at").toInstant()
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Optional<IdpConfigRecord> findIdpConfig(UUID tenantId, String providerType) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, tenant_id, provider_type, metadata_url, issuer, client_id, x509_cert, is_active, created_at
+                     FROM idp_configs
+                     WHERE tenant_id = ? AND provider_type = ? AND is_active = true
+                     LIMIT 1
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, providerType);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new IdpConfigRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("tenant_id", UUID.class),
+                        rs.getString("provider_type"),
+                        rs.getString("metadata_url"),
+                        rs.getString("issuer"),
+                        rs.getString("client_id"),
+                        rs.getString("x509_cert"),
+                        rs.getBoolean("is_active"),
+                        rs.getTimestamp("created_at").toInstant()
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public UUID createTenant(UUID createdBy, String name, String slug, boolean autoJoin) {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                UUID tenantId;
+                try (PreparedStatement ps = conn.prepareStatement("""
+                        INSERT INTO tenants(name, slug, created_by, auto_join)
+                        VALUES (?, ?, ?, ?)
+                        RETURNING id
+                        """)) {
+                    ps.setString(1, name);
+                    ps.setString(2, slug);
+                    ps.setObject(3, createdBy);
+                    ps.setBoolean(4, autoJoin);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        rs.next();
+                        tenantId = rs.getObject("id", UUID.class);
+                    }
+                }
+                try (PreparedStatement ps = conn.prepareStatement("""
+                        INSERT INTO memberships(user_id, tenant_id, role)
+                        VALUES (?, ?, 'OWNER')
+                        ON CONFLICT(user_id, tenant_id) DO UPDATE SET role='OWNER', is_active=true
+                        """)) {
+                    ps.setObject(1, createdBy);
+                    ps.setObject(2, tenantId);
+                    ps.executeUpdate();
+                }
+                conn.commit();
+                return tenantId;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<TenantAdminRecord> listTenants(int offset, int limit) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT t.id, t.name, t.slug, t.plan, t.is_active, t.created_at,
+                            COUNT(m.id) FILTER (WHERE m.is_active = true) AS member_count
+                     FROM tenants t
+                     LEFT JOIN memberships m ON m.tenant_id = t.id
+                     GROUP BY t.id
+                     ORDER BY t.created_at DESC
+                     OFFSET ? LIMIT ?
+                     """)) {
+            ps.setInt(1, offset);
+            ps.setInt(2, limit);
+            List<TenantAdminRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new TenantAdminRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getString("name"),
+                            rs.getString("slug"),
+                            rs.getString("plan"),
+                            rs.getBoolean("is_active"),
+                            rs.getInt("member_count"),
+                            rs.getTimestamp("created_at").toInstant()
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int setTenantActive(UUID tenantId, boolean active) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE tenants
+                     SET is_active = ?
+                     WHERE id = ?
+                     """)) {
+            ps.setBoolean(1, active);
+            ps.setObject(2, tenantId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<BasicUserRecord> listUsers(int offset, int limit) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, email, display_name, created_at, is_active, locale
+                     FROM users
+                     ORDER BY created_at DESC
+                     OFFSET ? LIMIT ?
+                     """)) {
+            ps.setInt(1, offset);
+            ps.setInt(2, limit);
+            List<BasicUserRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new BasicUserRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getString("email"),
+                            rs.getString("display_name"),
+                            rs.getBoolean("is_active"),
+                            rs.getString("locale"),
+                            rs.getTimestamp("created_at").toInstant()
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<Map<String, Object>> listAuditLogs(UUID tenantId, int offset, int limit) {
+        String sql = """
+                SELECT id, timestamp, event_type, actor_id, tenant_id, target_type, target_id, detail, request_id
+                FROM audit_logs
+                WHERE (?::uuid IS NULL OR tenant_id = ?)
+                ORDER BY timestamp DESC
+                OFFSET ? LIMIT ?
+                """;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, tenantId);
+            ps.setInt(3, offset);
+            ps.setInt(4, limit);
+            List<Map<String, Object>> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", rs.getLong("id"));
+                    row.put("timestamp", rs.getTimestamp("timestamp").toInstant().toString());
+                    row.put("eventType", rs.getString("event_type"));
+                    row.put("actorId", rs.getObject("actor_id"));
+                    row.put("tenantId", rs.getObject("tenant_id"));
+                    row.put("targetType", rs.getString("target_type"));
+                    row.put("targetId", rs.getString("target_id"));
+                    row.put("detail", rs.getString("detail"));
+                    row.put("requestId", rs.getObject("request_id"));
+                    out.add(row);
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public UUID createPolicy(UUID tenantId, String resource, String action, String conditionJson, String effect, int priority) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO policies(tenant_id, resource, action, condition, effect, priority)
+                     VALUES (?, ?, ?, ?::jsonb, ?, ?)
+                     RETURNING id
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, resource);
+            ps.setString(3, action);
+            ps.setString(4, conditionJson == null ? "{}" : conditionJson);
+            ps.setString(5, effect);
+            ps.setInt(6, priority);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getObject("id", UUID.class);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<PolicyRecord> listPolicies(UUID tenantId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, tenant_id, resource, action, condition, effect, priority, is_active
+                     FROM policies
+                     WHERE tenant_id = ? AND is_active = true
+                     ORDER BY priority DESC, created_at DESC
+                     """)) {
+            ps.setObject(1, tenantId);
+            List<PolicyRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new PolicyRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("tenant_id", UUID.class),
+                            rs.getString("resource"),
+                            rs.getString("action"),
+                            rs.getString("condition"),
+                            rs.getString("effect"),
+                            rs.getInt("priority"),
+                            rs.getBoolean("is_active")
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Optional<PolicyRecord> findMatchingPolicy(UUID tenantId, String resource, String action) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, tenant_id, resource, action, condition, effect, priority, is_active
+                     FROM policies
+                     WHERE tenant_id = ? AND resource = ? AND action = ? AND is_active = true
+                     ORDER BY priority DESC, created_at DESC
+                     LIMIT 1
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, resource);
+            ps.setString(3, action);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new PolicyRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("tenant_id", UUID.class),
+                        rs.getString("resource"),
+                        rs.getString("action"),
+                        rs.getString("condition"),
+                        rs.getString("effect"),
+                        rs.getInt("priority"),
+                        rs.getBoolean("is_active")
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<PlanRecord> listPlans() {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, name, max_members, max_apps, features
+                     FROM plans
+                     ORDER BY id
+                     """)) {
+            List<PlanRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new PlanRecord(
+                            rs.getString("id"),
+                            rs.getString("name"),
+                            rs.getInt("max_members"),
+                            rs.getInt("max_apps"),
+                            rs.getString("features")
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Optional<SubscriptionRecord> findSubscription(UUID tenantId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, tenant_id, plan_id, status, stripe_sub_id, started_at, expires_at
+                     FROM subscriptions
+                     WHERE tenant_id = ?
+                     ORDER BY started_at DESC
+                     LIMIT 1
+                     """)) {
+            ps.setObject(1, tenantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new SubscriptionRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("tenant_id", UUID.class),
+                        rs.getString("plan_id"),
+                        rs.getString("status"),
+                        rs.getString("stripe_sub_id"),
+                        rs.getTimestamp("started_at").toInstant(),
+                        rs.getTimestamp("expires_at") == null ? null : rs.getTimestamp("expires_at").toInstant()
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public UUID upsertSubscription(UUID tenantId, String planId, String status, Instant expiresAt) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO subscriptions(tenant_id, plan_id, status, started_at, expires_at)
+                     VALUES (?, ?, ?, now(), ?)
+                     RETURNING id
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, planId);
+            ps.setString(3, status);
+            ps.setTimestamp(4, expiresAt == null ? null : Timestamp.from(expiresAt));
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getObject("id", UUID.class);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int setUserLocale(UUID userId, String locale) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE users
+                     SET locale = ?
+                     WHERE id = ?
+                     """)) {
+            ps.setString(1, locale);
+            ps.setObject(2, userId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<BasicUserRecord> listScimUsers(UUID tenantId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT u.id, u.email, u.display_name, u.is_active, u.locale, u.created_at
+                     FROM memberships m
+                     JOIN users u ON u.id = m.user_id
+                     WHERE m.tenant_id = ? AND m.is_active = true
+                     ORDER BY u.created_at DESC
+                     """)) {
+            ps.setObject(1, tenantId);
+            List<BasicUserRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new BasicUserRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getString("email"),
+                            rs.getString("display_name"),
+                            rs.getBoolean("is_active"),
+                            rs.getString("locale"),
+                            rs.getTimestamp("created_at").toInstant()
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Optional<BasicUserRecord> findScimUser(UUID tenantId, UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT u.id, u.email, u.display_name, u.is_active, u.locale, u.created_at
+                     FROM memberships m
+                     JOIN users u ON u.id = m.user_id
+                     WHERE m.tenant_id = ? AND u.id = ?
+                     LIMIT 1
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new BasicUserRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("email"),
+                        rs.getString("display_name"),
+                        rs.getBoolean("is_active"),
+                        rs.getString("locale"),
+                        rs.getTimestamp("created_at").toInstant()
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public UUID createScimUser(UUID tenantId, String email, String displayName) {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                UUID userId;
+                try (PreparedStatement ps = conn.prepareStatement("""
+                        INSERT INTO users(email, display_name, google_sub, is_active)
+                        VALUES (?, ?, ?, true)
+                        ON CONFLICT(email) DO UPDATE SET display_name = EXCLUDED.display_name
+                        RETURNING id
+                        """)) {
+                    ps.setString(1, email);
+                    ps.setString(2, displayName);
+                    ps.setString(3, "scim:" + SecurityUtils.randomUrlSafe(16));
+                    try (ResultSet rs = ps.executeQuery()) {
+                        rs.next();
+                        userId = rs.getObject("id", UUID.class);
+                    }
+                }
+                try (PreparedStatement ps = conn.prepareStatement("""
+                        INSERT INTO memberships(user_id, tenant_id, role, is_active)
+                        VALUES (?, ?, 'MEMBER', true)
+                        ON CONFLICT(user_id, tenant_id) DO UPDATE SET is_active=true
+                        """)) {
+                    ps.setObject(1, userId);
+                    ps.setObject(2, tenantId);
+                    ps.executeUpdate();
+                }
+                conn.commit();
+                return userId;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int updateScimUser(UUID userId, String email, String displayName, boolean active) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE users
+                     SET email = ?, display_name = ?, is_active = ?
+                     WHERE id = ?
+                     """)) {
+            ps.setString(1, email);
+            ps.setString(2, displayName);
+            ps.setBoolean(3, active);
+            ps.setObject(4, userId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int deactivateScimMembership(UUID tenantId, UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE memberships
+                     SET is_active = false
+                     WHERE tenant_id = ? AND user_id = ?
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, userId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int deleteUserData(UUID userId) {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement ps = conn.prepareStatement("UPDATE sessions SET invalidated_at = now() WHERE user_id = ?")) {
+                    ps.setObject(1, userId);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM memberships WHERE user_id = ?")) {
+                    ps.setObject(1, userId);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement("""
+                        UPDATE users
+                        SET email = concat('deleted+', id::text, '@example.invalid'),
+                            display_name = 'Deleted User',
+                            is_active = false
+                        WHERE id = ?
+                        """)) {
+                    ps.setObject(1, userId);
+                    int updated = ps.executeUpdate();
+                    conn.commit();
+                    return updated;
+                }
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void upsertUserMfa(UUID userId, String type, String secret, boolean active) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO user_mfa(user_id, type, secret, is_active)
+                     VALUES (?, ?, ?, ?)
+                     ON CONFLICT (user_id, type) DO UPDATE SET secret = EXCLUDED.secret, is_active = EXCLUDED.is_active
+                     """)) {
+            ps.setObject(1, userId);
+            ps.setString(2, type);
+            ps.setString(3, secret);
+            ps.setBoolean(4, active);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Optional<UserMfaRecord> findUserMfa(UUID userId, String type) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, user_id, type, secret, is_active, created_at
+                     FROM user_mfa
+                     WHERE user_id = ? AND type = ?
+                     LIMIT 1
+                     """)) {
+            ps.setObject(1, userId);
+            ps.setString(2, type);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new UserMfaRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("user_id", UUID.class),
+                        rs.getString("type"),
+                        rs.getString("secret"),
+                        rs.getBoolean("is_active"),
+                        rs.getTimestamp("created_at").toInstant()
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public boolean hasActiveMfa(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT 1
+                     FROM user_mfa
+                     WHERE user_id = ? AND is_active = true
+                     LIMIT 1
+                     """)) {
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void markSessionMfaVerified(UUID sessionId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE sessions
+                     SET mfa_verified_at = now()
+                     WHERE id = ?
+                     """)) {
+            ps.setObject(1, sessionId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public UUID enqueueOutboxEvent(UUID tenantId, String eventType, String payloadJson) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO outbox_events(tenant_id, event_type, payload)
+                     VALUES (?, ?, ?::jsonb)
+                     RETURNING id
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, eventType);
+            ps.setString(3, payloadJson);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getObject("id", UUID.class);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<OutboxRecord> claimPendingOutboxEvents(int limit, String workerId, int lockSeconds) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     WITH cte AS (
+                       SELECT id
+                       FROM outbox_events
+                       WHERE published_at IS NULL
+                         AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+                         AND (processing_until IS NULL OR processing_until < now())
+                       ORDER BY created_at
+                       LIMIT ?
+                       FOR UPDATE SKIP LOCKED
+                     )
+                     UPDATE outbox_events o
+                     SET processing_by = ?, processing_until = now() + (? || ' seconds')::interval
+                     FROM cte
+                     WHERE o.id = cte.id
+                     RETURNING o.id, o.tenant_id, o.event_type, o.payload, o.created_at, o.published_at, o.attempt_count, o.next_attempt_at, o.last_error
+                     """)) {
+            ps.setInt(1, limit);
+            ps.setString(2, workerId);
+            ps.setInt(3, lockSeconds);
+            List<OutboxRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new OutboxRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("tenant_id", UUID.class),
+                            rs.getString("event_type"),
+                            rs.getString("payload"),
+                            rs.getTimestamp("created_at").toInstant(),
+                            rs.getTimestamp("published_at") == null ? null : rs.getTimestamp("published_at").toInstant(),
+                            rs.getInt("attempt_count"),
+                            rs.getTimestamp("next_attempt_at") == null ? null : rs.getTimestamp("next_attempt_at").toInstant(),
+                            rs.getString("last_error")
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void markOutboxPublished(UUID outboxId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE outbox_events
+                     SET published_at = now(), last_error = NULL, processing_by = NULL, processing_until = NULL
+                     WHERE id = ?
+                     """)) {
+            ps.setObject(1, outboxId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void markOutboxRetry(UUID outboxId, int attemptCount, Instant nextAttemptAt, String lastError) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE outbox_events
+                     SET attempt_count = ?, next_attempt_at = ?, last_error = ?, processing_by = NULL, processing_until = NULL
+                     WHERE id = ?
+                     """)) {
+            ps.setInt(1, attemptCount);
+            ps.setTimestamp(2, nextAttemptAt == null ? null : Timestamp.from(nextAttemptAt));
+            ps.setString(3, lastError);
+            ps.setObject(4, outboxId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void clearOutboxLock(UUID outboxId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE outbox_events
+                     SET processing_by = NULL, processing_until = NULL
+                     WHERE id = ?
+                     """)) {
+            ps.setObject(1, outboxId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void markWebhookSuccess(UUID webhookId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE webhook_subscriptions
+                     SET last_success_at = now()
+                     WHERE id = ?
+                     """)) {
+            ps.setObject(1, webhookId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void markWebhookFailure(UUID webhookId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE webhook_subscriptions
+                     SET last_failure_at = now()
+                     WHERE id = ?
+                     """)) {
+            ps.setObject(1, webhookId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void insertWebhookDelivery(UUID outboxEventId, UUID webhookId, String eventType, String status, Integer statusCode, String responseBody) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO webhook_deliveries(outbox_event_id, webhook_id, event_type, status, status_code, response_body)
+                     VALUES (?, ?, ?, ?, ?, ?)
+                     """)) {
+            ps.setObject(1, outboxEventId);
+            ps.setObject(2, webhookId);
+            ps.setString(3, eventType);
+            ps.setString(4, status);
+            if (statusCode == null) {
+                ps.setNull(5, Types.INTEGER);
+            } else {
+                ps.setInt(5, statusCode);
+            }
+            ps.setString(6, responseBody);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public record M2mClientRecord(
+            UUID id,
+            UUID tenantId,
+            String clientId,
+            String clientSecretHash,
+            String scopes,
+            boolean active
+    ) {
+    }
+
+    public record WebhookRecord(
+            UUID id,
+            UUID tenantId,
+            String endpointUrl,
+            String secret,
+            String events,
+            boolean active,
+            Instant createdAt
+    ) {
+    }
+
+    public record OutboxRecord(
+            UUID id,
+            UUID tenantId,
+            String eventType,
+            String payload,
+            Instant createdAt,
+            Instant publishedAt,
+            int attemptCount,
+            Instant nextAttemptAt,
+            String lastError
+    ) {
+    }
+
+    public record IdpConfigRecord(
+            UUID id,
+            UUID tenantId,
+            String providerType,
+            String metadataUrl,
+            String issuer,
+            String clientId,
+            String x509Cert,
+            boolean active,
+            Instant createdAt
+    ) {
+    }
+
+    public record TenantAdminRecord(
+            UUID id,
+            String name,
+            String slug,
+            String plan,
+            boolean active,
+            int memberCount,
+            Instant createdAt
+    ) {
+    }
+
+    public record BasicUserRecord(
+            UUID id,
+            String email,
+            String displayName,
+            boolean active,
+            String locale,
+            Instant createdAt
+    ) {
+    }
+
+    public record PolicyRecord(
+            UUID id,
+            UUID tenantId,
+            String resource,
+            String action,
+            String condition,
+            String effect,
+            int priority,
+            boolean active
+    ) {
+    }
+
+    public record PlanRecord(
+            String id,
+            String name,
+            int maxMembers,
+            int maxApps,
+            String features
+    ) {
+    }
+
+    public record SubscriptionRecord(
+            UUID id,
+            UUID tenantId,
+            String planId,
+            String status,
+            String stripeSubId,
+            Instant startedAt,
+            Instant expiresAt
+    ) {
+    }
+
+    public record UserMfaRecord(
+            UUID id,
+            UUID userId,
+            String type,
+            String secret,
+            boolean active,
+            Instant createdAt
+    ) {
     }
 }

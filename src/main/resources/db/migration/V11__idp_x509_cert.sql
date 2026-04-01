@@ -1,0 +1,2 @@
+ALTER TABLE idp_configs
+    ADD COLUMN IF NOT EXISTS x509_cert TEXT;

@@ -22,6 +22,7 @@ record SessionRecord(
         Instant lastActiveAt,
         Instant expiresAt,
         Instant invalidatedAt,
+        Instant mfaVerifiedAt,
         String ipAddress,
         String userAgent,
         String csrfToken

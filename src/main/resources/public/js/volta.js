@@ -197,6 +197,67 @@
         });
       }
     }
+    if (global.__voltaWebhooks) {
+      var wtid = global.__voltaWebhooks.tenantId;
+      document.querySelectorAll(".webhook-remove").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          voltaFetch(_gatewayUrl + "/api/v1/tenants/" + wtid + "/webhooks/" + btn.dataset.webhookId, { method: "DELETE" })
+            .then(function () { window.location.reload(); });
+        });
+      });
+      var wform = document.getElementById("webhook-create-form");
+      if (wform) {
+        wform.addEventListener("submit", function (e) {
+          e.preventDefault();
+          var body = {
+            endpoint_url: wform.endpoint_url.value,
+            events: (wform.events.value || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean)
+          };
+          voltaFetch(_gatewayUrl + "/api/v1/tenants/" + wtid + "/webhooks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }).then(json).then(function (payload) {
+            document.getElementById("webhook-result").textContent = "secret: " + (payload.secret || "");
+          });
+        });
+      }
+    }
+    if (global.__voltaIdp) {
+      var itenant = global.__voltaIdp.tenantId;
+      var iform = document.getElementById("idp-create-form");
+      if (iform) {
+        iform.addEventListener("submit", function (e) {
+          e.preventDefault();
+          var body = {
+            provider_type: iform.provider_type.value,
+            issuer: iform.issuer.value || null,
+            metadata_url: iform.metadata_url.value || null,
+            client_id: iform.client_id.value || null,
+            x509_cert: iform.x509_cert ? (iform.x509_cert.value || null) : null
+          };
+          voltaFetch(_gatewayUrl + "/api/v1/tenants/" + itenant + "/idp-configs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }).then(function () { window.location.reload(); });
+        });
+      }
+    }
+    if (global.__voltaTenants) {
+      document.querySelectorAll(".tenant-suspend").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          voltaFetch(_gatewayUrl + "/api/v1/admin/tenants/" + btn.dataset.tenantId + "/suspend", { method: "POST" })
+            .then(function () { window.location.reload(); });
+        });
+      });
+      document.querySelectorAll(".tenant-activate").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          voltaFetch(_gatewayUrl + "/api/v1/admin/tenants/" + btn.dataset.tenantId + "/activate", { method: "POST" })
+            .then(function () { window.location.reload(); });
+        });
+      });
+    }
   }
 
   global.Volta = {
@@ -212,6 +273,15 @@
     onSessionExpired: function (cb) {
       _sessionExpiredCb = cb;
     },
+    can: function (action, resource, context) {
+      var tenantId = context && context.tenantId;
+      if (!tenantId) return Promise.resolve(false);
+      return voltaFetch(_gatewayUrl + "/api/v1/tenants/" + tenantId + "/policies/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: action, resource: resource, context: context || {} }),
+      }).then(json).then(function (payload) { return !!payload.allowed; });
+    }
   };
 
   global.Volta.init({ gatewayUrl: "" });

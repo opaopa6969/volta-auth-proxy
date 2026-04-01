@@ -22,7 +22,26 @@ public record AppConfig(
         int sessionTtlSeconds,
         String jwtKeyEncryptionSecret,
         String appConfigPath,
-        String supportContact
+        String supportContact,
+        String sessionStore,
+        String redisUrl,
+        boolean allowSelfServiceTenant,
+        boolean webhookEnabled,
+        int webhookRetryMax,
+        int webhookWorkerIntervalSeconds,
+        String notificationChannel,
+        String smtpHost,
+        int smtpPort,
+        String smtpUser,
+        String smtpPassword,
+        String smtpFrom,
+        String sendgridApiKey,
+        boolean samlSkipSignature,
+        String auditSink,
+        String kafkaBootstrapServers,
+        String kafkaAuditTopic,
+        String elasticsearchUrl,
+        String stripeWebhookSecret
 ) {
     public static AppConfig fromEnv() {
         return new AppConfig(
@@ -45,7 +64,26 @@ public record AppConfig(
                 getInt("SESSION_TTL_SECONDS", 28800),
                 get("JWT_KEY_ENCRYPTION_SECRET", "dev-only-secret-change-me"),
                 get("APP_CONFIG_PATH", "volta-config.yaml"),
-                get("SUPPORT_CONTACT", "管理者にお問い合わせください")
+                get("SUPPORT_CONTACT", "管理者にお問い合わせください"),
+                get("SESSION_STORE", "postgres"),
+                get("REDIS_URL", "redis://localhost:6379"),
+                getBoolean("ALLOW_SELF_SERVICE_TENANT", true),
+                getBoolean("WEBHOOK_ENABLED", false),
+                getInt("WEBHOOK_RETRY_MAX", 3),
+                getInt("WEBHOOK_WORKER_INTERVAL_SECONDS", 15),
+                get("NOTIFICATION_CHANNEL", "none"),
+                get("SMTP_HOST", ""),
+                getInt("SMTP_PORT", 587),
+                get("SMTP_USER", ""),
+                get("SMTP_PASSWORD", ""),
+                get("SMTP_FROM", "noreply@example.com"),
+                get("SENDGRID_API_KEY", ""),
+                getBoolean("SAML_SKIP_SIGNATURE", false),
+                get("AUDIT_SINK", "postgres"),
+                get("KAFKA_BOOTSTRAP_SERVERS", ""),
+                get("KAFKA_AUDIT_TOPIC", "volta-audit"),
+                get("ELASTICSEARCH_URL", ""),
+                get("STRIPE_WEBHOOK_SECRET", "")
         );
     }
 

@@ -27,13 +27,19 @@ public final class Main {
         HikariDataSource dataSource = Database.createDataSource(config);
         Database.migrate(dataSource);
         SqlStore store = new SqlStore(dataSource);
+        SessionStore sessionStore = SessionStore.create(config, store);
         JwtService jwtService = new JwtService(config, store);
-        AuthService authService = new AuthService(config, store, jwtService);
+        AuthService authService = new AuthService(config, store, jwtService, sessionStore);
         OidcService oidcService = new OidcService(config, store);
+        SamlService samlService = new SamlService();
         AppRegistry appRegistry = new AppRegistry(config);
-        AuditService auditService = new AuditService(store);
+        AuditSink auditSink = AuditSink.create(config);
+        AuditService auditService = new AuditService(store, auditSink);
+        NotificationService notificationService = NotificationService.create(config);
+        OutboxWorker outboxWorker = new OutboxWorker(config, store);
         RateLimiter rateLimiter = new RateLimiter(200);
         ObjectMapper objectMapper = new ObjectMapper();
+        KeyCipher secretCipher = new KeyCipher(config.jwtKeyEncryptionSecret());
         TemplateEngine templateEngine = TemplateEngine.create(
                 new DirectoryCodeResolver(java.nio.file.Path.of("src/main/jte")),
                 java.nio.file.Path.of("target/jte-classes"),
@@ -61,6 +67,13 @@ public final class Main {
             if (!method.equals("POST") && !method.equals("DELETE") && !method.equals("PATCH")) {
                 return;
             }
+            if ("/api/v1/billing/stripe/webhook".equals(ctx.path())
+                    || "/oauth/token".equals(ctx.path())
+                    || ctx.path().startsWith("/api/v1/")
+                    || "/auth/saml/callback".equals(ctx.path())
+                    || ctx.path().startsWith("/scim/v2/")) {
+                return;
+            }
             if (isJsonOrXhr(ctx)) {
                 return;
             }
@@ -68,12 +81,33 @@ public final class Main {
             if (sessionCookie == null) {
                 throw new ApiException(403, "CSRF_INVALID", "CSRF トークンが無効です。");
             }
-            SessionRecord session = store.findSession(UUID.fromString(sessionCookie))
+            SessionRecord session = sessionStore.findSession(UUID.fromString(sessionCookie))
                     .orElseThrow(() -> new ApiException(403, "CSRF_INVALID", "CSRF トークンが無効です。"));
             String csrf = ctx.formParam("_csrf");
             if (csrf == null || session.csrfToken() == null || !session.csrfToken().equals(csrf)) {
                 throw new ApiException(403, "CSRF_INVALID", "CSRF トークンが無効です。");
             }
+        });
+        app.before(ctx -> {
+            if (!authService.isMfaPending(ctx)) {
+                return;
+            }
+            String path = ctx.path();
+            boolean exempt = path.equals("/mfa/challenge")
+                    || path.equals("/auth/mfa/verify")
+                    || path.equals("/auth/logout")
+                    || path.startsWith("/css/")
+                    || path.startsWith("/js/");
+            if (exempt) {
+                return;
+            }
+            if (Boolean.TRUE.equals(ctx.attribute("wantsJson")) || path.startsWith("/api/") || path.equals("/auth/verify")) {
+                HttpSupport.jsonError(ctx, 401, "MFA_REQUIRED", "MFA verification required");
+                ctx.skipRemainingHandlers();
+                return;
+            }
+            ctx.redirect("/mfa/challenge");
+            ctx.skipRemainingHandlers();
         });
         app.exception(ApiException.class, (e, ctx) -> {
             AuthPrincipal actor = authService.authenticate(ctx).orElse(null);
@@ -165,6 +199,32 @@ public final class Main {
             ));
         });
 
+        app.get("/auth/saml/login", ctx -> {
+            String tenantRaw = ctx.queryParam("tenant_id");
+            if (tenantRaw == null || tenantRaw.isBlank()) {
+                throw new ApiException(400, "BAD_REQUEST", "tenant_id is required");
+            }
+            UUID tenantId = UUID.fromString(tenantRaw);
+            SqlStore.IdpConfigRecord saml = store.findIdpConfig(tenantId, "SAML")
+                    .orElseThrow(() -> new ApiException(404, "IDP_NOT_FOUND", "SAML IdP 設定が見つかりません。"));
+            String entry = saml.metadataUrl();
+            if (entry == null || entry.isBlank()) {
+                entry = saml.issuer();
+            }
+            if (entry == null || entry.isBlank()) {
+                throw new ApiException(400, "IDP_INVALID", "SAML エントリーポイントが未設定です。");
+            }
+            String returnToRaw = ctx.queryParam("return_to");
+            String returnTo = HttpSupport.isAllowedReturnTo(returnToRaw, config.allowedRedirectDomains()) ? returnToRaw : null;
+            String relay = samlService.encodeRelayState(Map.of(
+                    "tenant_id", tenantId.toString(),
+                    "return_to", returnTo == null ? "" : returnTo
+            ));
+            String redirect = entry + (entry.contains("?") ? "&" : "?") + "RelayState="
+                    + java.net.URLEncoder.encode(relay, java.nio.charset.StandardCharsets.UTF_8);
+            ctx.redirect(redirect);
+        });
+
         app.post("/auth/callback/complete", ctx -> {
             setNoStore(ctx);
             JsonNode body = objectMapper.readTree(ctx.body());
@@ -175,6 +235,99 @@ public final class Main {
             }
             String redirectTo = completeOidcCallback(ctx, code, state, config, store, authService, oidcService, auditService, appRegistry);
             ctx.json(Map.of("redirect_to", redirectTo));
+        });
+
+        app.post("/auth/saml/callback", ctx -> {
+            setNoStore(ctx);
+            String samlResponse = ctx.formParam("SAMLResponse");
+            SamlService.RelayState relayState = samlService.decodeRelayState(ctx.formParam("RelayState"));
+            UUID tenantId = relayState.tenantId() == null || relayState.tenantId().isBlank()
+                    ? null : UUID.fromString(relayState.tenantId());
+            if (tenantId == null) {
+                throw new ApiException(400, "BAD_REQUEST", "tenant_id is required in RelayState");
+            }
+            SqlStore.IdpConfigRecord saml = store.findIdpConfig(tenantId, "SAML")
+                    .orElseThrow(() -> new ApiException(404, "IDP_NOT_FOUND", "SAML IdP 設定が見つかりません。"));
+            SamlService.SamlIdentity identity = samlService.parseIdentity(samlResponse, saml, config.devMode(), config.samlSkipSignature());
+            String providerSub = "saml:" + SecurityUtils.sha256Hex((identity.issuer() == null ? "" : identity.issuer()) + "|" + identity.email().toLowerCase(Locale.ROOT));
+            UserRecord user = store.upsertUser(identity.email(), identity.displayName(), providerSub);
+            TenantRecord tenant = store.findTenantById(tenantId)
+                    .orElseThrow(() -> new ApiException(404, "TENANT_NOT_FOUND", "テナントが見つかりません。"));
+            MembershipRecord membership = store.findMembership(user.id(), tenant.id())
+                    .orElseThrow(() -> new ApiException(403, "TENANT_ACCESS_DENIED", "Tenant membership not found"));
+            if (!membership.active()) {
+                throw new ApiException(403, "TENANT_ACCESS_DENIED", "Tenant membership not active");
+            }
+            AuthPrincipal principal = new AuthPrincipal(
+                    user.id(),
+                    user.email(),
+                    user.displayName(),
+                    tenant.id(),
+                    tenant.name(),
+                    tenant.slug(),
+                    List.of(membership.role()),
+                    false
+            );
+            UUID sessionId = authService.issueSession(principal, relayState.returnTo(), clientIp(ctx), ctx.userAgent());
+            setSessionCookie(ctx, sessionId, config.sessionTtlSeconds());
+            auditService.log(ctx, "LOGIN_SUCCESS", principal, "SESSION", sessionId.toString(), Map.of(
+                    "via", "saml",
+                    "issuer", identity.issuer() == null ? "" : identity.issuer()
+            ));
+            String returnTo = relayState.returnTo();
+            if (!HttpSupport.isAllowedReturnTo(returnTo, config.allowedRedirectDomains())) {
+                returnTo = null;
+            }
+            String redirectTo = (returnTo == null || returnTo.isBlank()) ? "/select-tenant" : returnTo;
+            if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
+                ctx.json(Map.of("redirect_to", redirectTo));
+            } else {
+                ctx.redirect(redirectTo);
+            }
+        });
+
+        app.get("/mfa/challenge", ctx -> {
+            if (!authService.isMfaPending(ctx)) {
+                ctx.redirect("/select-tenant");
+                return;
+            }
+            ctx.result("""
+                    <!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+                    <title>MFA認証</title><link rel="stylesheet" href="/css/volta.css"></head><body><main class="container">
+                    <h1>MFA 認証</h1><p>TOTP コードを入力してください。</p>
+                    <form id="mfa-form"><input name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" style="min-height:44px;" required>
+                    <button class="button" type="submit">確認</button></form><p id="err" class="muted"></p>
+                    <script>
+                    document.getElementById('mfa-form').addEventListener('submit', async function(e){
+                      e.preventDefault();
+                      const code = Number(this.code.value || 0);
+                      const res = await fetch('/auth/mfa/verify', {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify({code})});
+                      if(!res.ok){ document.getElementById('err').textContent='コードが正しくありません'; return; }
+                      const p = await res.json(); location.href = p.redirect_to || '/select-tenant';
+                    });
+                    </script></main></body></html>
+                    """).contentType("text/html; charset=utf-8");
+        });
+
+        app.post("/auth/mfa/verify", ctx -> {
+            SessionRecord session = authService.currentSession(ctx)
+                    .orElseThrow(() -> new ApiException(401, "AUTHENTICATION_REQUIRED", "Authentication required"));
+            JsonNode body = objectMapper.readTree(ctx.body());
+            int code = body.path("code").asInt(-1);
+            SqlStore.UserMfaRecord mfa = store.findUserMfa(session.userId(), "totp")
+                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "MFA setup not found"));
+            com.warrenstrange.googleauth.GoogleAuthenticator ga = new com.warrenstrange.googleauth.GoogleAuthenticator();
+            if (!ga.authorize(secretCipher.decrypt(mfa.secret()), code)) {
+                throw new ApiException(400, "MFA_INVALID_CODE", "TOTP code is invalid");
+            }
+            authService.markMfaVerified(session.id());
+            String next = session.returnTo();
+            if (next != null && next.startsWith("invite:")) {
+                next = "/invite/" + next.substring("invite:".length());
+            } else if (next == null || next.isBlank()) {
+                next = "/select-tenant";
+            }
+            ctx.json(Map.of("ok", true, "redirect_to", next));
         });
 
         app.post("/auth/refresh", ctx -> {
@@ -194,7 +347,7 @@ public final class Main {
             String cookie = ctx.cookie(AuthService.SESSION_COOKIE);
             if (cookie != null) {
                 try {
-                    store.revokeSession(UUID.fromString(cookie));
+                    sessionStore.revokeSession(UUID.fromString(cookie));
                 } catch (IllegalArgumentException ignored) {
                 }
             }
@@ -232,7 +385,7 @@ public final class Main {
                     "title", "Tenant Select",
                     "tenants", tenants,
                     "returnTo", ctx.queryParam("return_to"),
-                    "csrfToken", currentCsrfToken(ctx, store)
+                    "csrfToken", currentCsrfToken(ctx, sessionStore)
             ));
         });
 
@@ -261,7 +414,7 @@ public final class Main {
             setSessionCookie(ctx, sessionId, config.sessionTtlSeconds());
             if (oldSessionRaw != null) {
                 try {
-                    store.revokeSession(UUID.fromString(oldSessionRaw));
+                    sessionStore.revokeSession(UUID.fromString(oldSessionRaw));
                 } catch (IllegalArgumentException ignored) {
                 }
             }
@@ -324,7 +477,7 @@ public final class Main {
                 "role", invitation.role(),
                 "inviterName", inviter,
                 "isLoggedIn", true,
-                "csrfToken", currentCsrfToken(ctx, store),
+                "csrfToken", currentCsrfToken(ctx, sessionStore),
                 "inviteLoginHref", "/login?invite=" + code
             ));
         });
@@ -384,7 +537,7 @@ public final class Main {
                 return;
             }
             AuthPrincipal principal = principalOpt.get();
-            List<SessionRecord> sessions = store.listUserSessions(principal.userId());
+            List<SessionRecord> sessions = sessionStore.listUserSessions(principal.userId());
             String currentSessionId = ctx.cookie(AuthService.SESSION_COOKIE);
             List<Map<String, String>> sessionView = new ArrayList<>();
             for (SessionRecord s : sessions) {
@@ -407,7 +560,7 @@ public final class Main {
                     "title", "Sessions",
                     "sessionCount", sessions.size(),
                     "sessions", sessionView,
-                    "csrfToken", currentCsrfToken(ctx, store),
+                    "csrfToken", currentCsrfToken(ctx, sessionStore),
                     "flashMessage", flashMessage
             ));
         });
@@ -415,19 +568,19 @@ public final class Main {
         app.delete("/auth/sessions/{id}", ctx -> {
             AuthPrincipal principal = requireAuth(ctx, authService);
             UUID sessionId = UUID.fromString(ctx.pathParam("id"));
-            SessionRecord session = store.findSession(sessionId).orElse(null);
+            SessionRecord session = sessionStore.findSession(sessionId).orElse(null);
             if (session == null || !session.userId().equals(principal.userId())) {
                 ctx.status(HttpStatus.NOT_FOUND);
                 return;
             }
-            store.revokeSession(sessionId);
+            sessionStore.revokeSession(sessionId);
             auditService.log(ctx, "SESSION_REVOKED", principal, "SESSION", sessionId.toString(), Map.of());
             ctx.json(Map.of("ok", true));
         });
 
         app.post("/auth/sessions/revoke-all", ctx -> {
             AuthPrincipal principal = requireAuth(ctx, authService);
-            store.revokeAllSessions(principal.userId());
+            sessionStore.revokeAllSessions(principal.userId());
             authService.clearSessionCookie(ctx);
             auditService.log(ctx, "SESSIONS_REVOKED_ALL", principal, "USER", principal.userId().toString(), Map.of());
             ctx.json(Map.of("ok", true));
@@ -435,7 +588,7 @@ public final class Main {
 
         app.get("/api/me/sessions", ctx -> {
             AuthPrincipal principal = requireAuth(ctx, authService);
-            List<Map<String, String>> sessions = store.listUserSessions(principal.userId()).stream()
+            List<Map<String, String>> sessions = sessionStore.listUserSessions(principal.userId()).stream()
                     .filter(s -> s.isValidAt(Instant.now()))
                     .map(s -> Map.of(
                             "id", s.id().toString(),
@@ -453,19 +606,19 @@ public final class Main {
         app.delete("/api/me/sessions/{id}", ctx -> {
             AuthPrincipal principal = requireAuth(ctx, authService);
             UUID sessionId = UUID.fromString(ctx.pathParam("id"));
-            SessionRecord target = store.findSession(sessionId)
+            SessionRecord target = sessionStore.findSession(sessionId)
                     .orElseThrow(() -> new ApiException(404, "SESSION_NOT_FOUND", "セッションが見つかりません。"));
             if (!target.userId().equals(principal.userId())) {
                 throw new ApiException(403, "FORBIDDEN", "他ユーザーのセッションは操作できません。");
             }
-            store.revokeSession(sessionId);
+            sessionStore.revokeSession(sessionId);
             auditService.log(ctx, "SESSION_REVOKED", principal, "SESSION", sessionId.toString(), Map.of("via", "api-me"));
             ctx.json(Map.of("ok", true));
         });
 
         app.delete("/api/me/sessions", ctx -> {
             AuthPrincipal principal = requireAuth(ctx, authService);
-            store.revokeAllSessions(principal.userId());
+            sessionStore.revokeAllSessions(principal.userId());
             authService.clearSessionCookie(ctx);
             auditService.log(ctx, "SESSIONS_REVOKED_ALL", principal, "USER", principal.userId().toString(), Map.of("via", "api-me"));
             ctx.json(Map.of("ok", true));
@@ -501,7 +654,7 @@ public final class Main {
                     "tenantId", principal.tenantId().toString(),
                     "members", memberView,
                     "currentUserRole", principal.roles().getFirst(),
-                    "csrfToken", currentCsrfToken(ctx, store)
+                    "csrfToken", currentCsrfToken(ctx, sessionStore)
             ));
         });
 
@@ -528,8 +681,99 @@ public final class Main {
                     "title", "招待管理",
                     "tenantId", principal.tenantId().toString(),
                     "invitations", invitationView,
-                    "csrfToken", currentCsrfToken(ctx, store)
+                    "csrfToken", currentCsrfToken(ctx, sessionStore)
             ));
+        });
+
+        app.get("/admin/webhooks", ctx -> {
+            AuthPrincipal principal = requireAuth(ctx, authService);
+            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "管理画面へのアクセス権限がありません。");
+            }
+            List<Map<String, String>> view = store.listWebhooks(principal.tenantId()).stream()
+                    .map(w -> Map.of(
+                            "id", w.id().toString(),
+                            "url", w.endpointUrl(),
+                            "events", w.events(),
+                            "active", String.valueOf(w.active()),
+                            "createdAt", w.createdAt().toString()
+                    )).toList();
+            ctx.render("admin/webhooks.jte", model(
+                    "title", "Webhook 管理",
+                    "tenantId", principal.tenantId().toString(),
+                    "webhooks", view,
+                    "csrfToken", currentCsrfToken(ctx, sessionStore)
+            ));
+        });
+
+        app.get("/admin/idp", ctx -> {
+            AuthPrincipal principal = requireAuth(ctx, authService);
+            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "管理画面へのアクセス権限がありません。");
+            }
+            List<Map<String, String>> view = store.listIdpConfigs(principal.tenantId()).stream()
+                    .map(i -> Map.of(
+                            "id", i.id().toString(),
+                            "provider", i.providerType(),
+                            "issuer", i.issuer() == null ? "" : i.issuer(),
+                            "metadataUrl", i.metadataUrl() == null ? "" : i.metadataUrl(),
+                            "clientId", i.clientId() == null ? "" : i.clientId(),
+                            "x509Cert", i.x509Cert() == null ? "" : i.x509Cert()
+                    )).toList();
+            ctx.render("admin/idp.jte", model(
+                    "title", "IdP 設定",
+                    "tenantId", principal.tenantId().toString(),
+                    "idps", view,
+                    "csrfToken", currentCsrfToken(ctx, sessionStore)
+            ));
+        });
+
+        app.get("/admin/tenants", ctx -> {
+            AuthPrincipal principal = requireAuth(ctx, authService);
+            requireOwner(principal);
+            int offset = parseOffset(ctx.queryParam("offset"));
+            int limit = parseLimit(ctx.queryParam("limit"));
+            List<Map<String, String>> items = store.listTenants(offset, limit).stream().map(t -> Map.of(
+                    "id", t.id().toString(),
+                    "name", t.name(),
+                    "slug", t.slug(),
+                    "plan", t.plan(),
+                    "active", String.valueOf(t.active()),
+                    "memberCount", String.valueOf(t.memberCount()),
+                    "createdAt", t.createdAt().toString()
+            )).toList();
+            ctx.render("admin/tenants.jte", model(
+                    "title", "テナント管理",
+                    "tenants", items,
+                    "csrfToken", currentCsrfToken(ctx, sessionStore)
+            ));
+        });
+
+        app.get("/admin/users", ctx -> {
+            AuthPrincipal principal = requireAuth(ctx, authService);
+            requireOwner(principal);
+            int offset = parseOffset(ctx.queryParam("offset"));
+            int limit = parseLimit(ctx.queryParam("limit"));
+            List<Map<String, String>> items = store.listUsers(offset, limit).stream().map(u -> Map.of(
+                    "id", u.id().toString(),
+                    "email", u.email(),
+                    "displayName", u.displayName() == null ? "" : u.displayName(),
+                    "locale", u.locale() == null ? "ja" : u.locale(),
+                    "active", String.valueOf(u.active()),
+                    "createdAt", u.createdAt().toString()
+            )).toList();
+            ctx.render("admin/users.jte", model("title", "ユーザー管理", "users", items));
+        });
+
+        app.get("/admin/audit", ctx -> {
+            AuthPrincipal principal = requireAuth(ctx, authService);
+            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "監査ログ参照の権限がありません。");
+            }
+            int offset = parseOffset(ctx.queryParam("offset"));
+            int limit = parseLimit(ctx.queryParam("limit"));
+            List<Map<String, Object>> logs = store.listAuditLogs(principal.tenantId(), offset, limit);
+            ctx.render("admin/audit.jte", model("title", "監査ログ", "logs", logs));
         });
 
         app.post("/dev/token", ctx -> {
@@ -549,6 +793,49 @@ public final class Main {
                     false
             );
             ctx.json(Map.of("token", jwtService.issueToken(principal)));
+        });
+
+        app.post("/oauth/token", ctx -> {
+            String grantType = ctx.formParam("grant_type");
+            String clientId = ctx.formParam("client_id");
+            String clientSecret = ctx.formParam("client_secret");
+            String scopeParam = ctx.formParam("scope");
+            String audienceParam = ctx.formParam("audience");
+            if (!"client_credentials".equals(grantType)) {
+                throw new ApiException(400, "UNSUPPORTED_GRANT_TYPE", "grant_type=client_credentials のみ対応しています。");
+            }
+            if (clientId == null || clientSecret == null) {
+                throw new ApiException(400, "INVALID_CLIENT", "client_id / client_secret が必要です。");
+            }
+            SqlStore.M2mClientRecord client = store.findM2mClient(clientId)
+                    .orElseThrow(() -> new ApiException(401, "INVALID_CLIENT", "クライアント認証に失敗しました。"));
+            if (!client.active()) {
+                throw new ApiException(401, "INVALID_CLIENT", "クライアントは無効です。");
+            }
+            String providedHash = SecurityUtils.sha256Hex(clientSecret);
+            if (!SecurityUtils.constantTimeEquals(client.clientSecretHash(), providedHash)) {
+                throw new ApiException(401, "INVALID_CLIENT", "クライアント認証に失敗しました。");
+            }
+            List<String> scopes = csvToList(client.scopes());
+            if (scopeParam != null && !scopeParam.isBlank()) {
+                List<String> requested = Arrays.stream(scopeParam.split("\\s+"))
+                        .map(String::trim).filter(s -> !s.isBlank()).toList();
+                if (!scopes.containsAll(requested)) {
+                    throw new ApiException(403, "SCOPE_NOT_ALLOWED", "要求された scope は許可されていません。");
+                }
+                scopes = requested;
+            }
+            List<String> audience = audienceParam == null || audienceParam.isBlank()
+                    ? List.of(config.jwtAudience())
+                    : Arrays.stream(audienceParam.split(",")).map(String::trim).filter(s -> !s.isBlank()).toList();
+            String token = jwtService.issueM2mToken(client.id(), client.tenantId(), scopes, audience, client.clientId());
+            store.enqueueOutboxEvent(client.tenantId(), "oauth.token.issued", "{\"client_id\":\"" + client.clientId() + "\"}");
+            ctx.json(Map.of(
+                    "access_token", token,
+                    "token_type", "Bearer",
+                    "expires_in", config.jwtTtlSeconds(),
+                    "scope", String.join(" ", scopes)
+            ));
         });
 
         app.get("/auth/verify", ctx -> {
@@ -583,6 +870,9 @@ public final class Main {
         });
 
         app.before("/api/v1/*", ctx -> {
+            if ("/api/v1/billing/stripe/webhook".equals(ctx.path())) {
+                return;
+            }
             Optional<AuthPrincipal> principal = authService.authenticate(ctx);
             if (principal.isEmpty()) {
                 HttpSupport.jsonError(ctx, 401, "AUTHENTICATION_REQUIRED", "Authentication required");
@@ -637,6 +927,21 @@ public final class Main {
             ));
         });
 
+        app.get("/api/v1/users/{id}", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("id"));
+            if (!p.serviceToken() && !p.userId().equals(userId) && !p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "FORBIDDEN", "権限がありません。");
+            }
+            UserRecord user = store.findUserById(userId)
+                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "ユーザーが見つかりません。"));
+            ctx.json(Map.of(
+                    "id", user.id().toString(),
+                    "email", user.email(),
+                    "displayName", user.displayName()
+            ));
+        });
+
         app.get("/api/v1/users/me/tenants", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             List<Map<String, Object>> data = new ArrayList<>();
@@ -652,6 +957,85 @@ public final class Main {
                 ));
             }
             ctx.json(Map.of("data", data));
+        });
+
+        app.get("/api/v1/tenants/{tenantId}", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            SqlStore.TenantDetailRecord tenant = store.findTenantDetailById(tenantId)
+                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "テナントが見つかりません。"));
+            ctx.json(tenant);
+        });
+
+        app.patch("/api/v1/tenants/{tenantId}", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Owner role required");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String name = body.path("name").isMissingNode() ? null : body.path("name").asText(null);
+            Boolean autoJoin = body.path("auto_join").isMissingNode() ? null : body.path("auto_join").asBoolean();
+            String logoUrl = body.path("logo_url").isMissingNode() ? null : body.path("logo_url").asText(null);
+            String primaryColor = body.path("primary_color").isMissingNode() ? null : body.path("primary_color").asText(null);
+            String theme = body.path("theme").isMissingNode() ? null : body.path("theme").asText(null);
+            SqlStore.TenantDetailRecord updated = store.updateTenantSettings(tenantId, name, autoJoin, logoUrl, primaryColor, theme)
+                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "テナントが見つかりません。"));
+            ctx.json(updated);
+        });
+
+        app.patch("/api/v1/users/{userId}/locale", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            if (!p.userId().equals(userId)) {
+                throw new ApiException(403, "FORBIDDEN", "Only self update is allowed");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String locale = body.path("locale").asText("ja");
+            if (!locale.equals("ja") && !locale.equals("en")) {
+                throw new ApiException(400, "BAD_REQUEST", "locale は ja または en を指定してください。");
+            }
+            int updated = store.setUserLocale(userId, locale);
+            if (updated == 0) {
+                throw new ApiException(404, "NOT_FOUND", "ユーザーが見つかりません。");
+            }
+            ctx.json(Map.of("ok", true, "locale", locale));
+        });
+
+        app.post("/api/v1/users/{userId}/mfa/totp/setup", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            if (!p.userId().equals(userId)) {
+                throw new ApiException(403, "FORBIDDEN", "Only self update is allowed");
+            }
+            com.warrenstrange.googleauth.GoogleAuthenticator ga = new com.warrenstrange.googleauth.GoogleAuthenticator();
+            final com.warrenstrange.googleauth.GoogleAuthenticatorKey key = ga.createCredentials();
+            store.upsertUserMfa(userId, "totp", secretCipher.encrypt(key.getKey()), false);
+            String issuer = java.net.URLEncoder.encode("volta-auth-proxy", java.nio.charset.StandardCharsets.UTF_8);
+            String label = java.net.URLEncoder.encode(p.email(), java.nio.charset.StandardCharsets.UTF_8);
+            String otpauth = "otpauth://totp/" + issuer + ":" + label + "?secret=" + key.getKey() + "&issuer=" + issuer;
+            ctx.json(Map.of("secret", key.getKey(), "otpauth_url", otpauth));
+        });
+
+        app.post("/api/v1/users/{userId}/mfa/totp/verify", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            if (!p.userId().equals(userId)) {
+                throw new ApiException(403, "FORBIDDEN", "Only self update is allowed");
+            }
+            SqlStore.UserMfaRecord mfa = store.findUserMfa(userId, "totp")
+                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "MFA setup not found"));
+            JsonNode body = objectMapper.readTree(ctx.body());
+            int code = body.path("code").asInt(-1);
+            com.warrenstrange.googleauth.GoogleAuthenticator ga = new com.warrenstrange.googleauth.GoogleAuthenticator();
+            boolean ok = ga.authorize(secretCipher.decrypt(mfa.secret()), code);
+            if (!ok) {
+                throw new ApiException(400, "MFA_INVALID_CODE", "TOTP code is invalid");
+            }
+            store.upsertUserMfa(userId, "totp", mfa.secret(), true);
+            ctx.json(Map.of("ok", true, "enabled", true));
         });
 
         app.patch("/api/v1/users/{userId}", ctx -> {
@@ -678,6 +1062,16 @@ public final class Main {
             int limit = parseLimit(ctx.queryParam("limit"));
             List<MembershipRecord> members = store.listTenantMembers(tenantId, offset, limit);
             ctx.json(Map.of("items", members, "offset", offset, "limit", limit));
+        });
+
+        app.get("/api/v1/tenants/{tenantId}/members/{userId}", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            enforceTenantMatch(p, tenantId);
+            MembershipRecord member = store.findMembershipByUser(tenantId, userId)
+                    .orElseThrow(() -> new ApiException(404, "MEMBER_NOT_FOUND", "メンバーが見つかりません。"));
+            ctx.json(member);
         });
 
         app.patch("/api/v1/tenants/{tenantId}/members/{memberId}", ctx -> {
@@ -727,12 +1121,34 @@ public final class Main {
                     "role", role,
                     "maxUses", maxUses
             ));
+            if (email != null && !email.isBlank()) {
+                String tenantName = store.findTenantById(tenantId).map(TenantRecord::name).orElse("Workspace");
+                String inviterName = store.findUserById(p.userId()).map(UserRecord::displayName).orElse(p.displayName());
+                notificationService.sendInvitationEmail(email, config.baseUrl() + "/invite/" + code, tenantName, role, inviterName);
+            }
             ctx.status(201).json(Map.of(
                     "id", invitationId.toString(),
                     "code", code,
                     "link", config.baseUrl() + "/invite/" + code,
                     "expiresAt", expiresAt.toString()
             ));
+        });
+
+        app.post("/api/v1/tenants/{tenantId}/transfer-ownership", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Owner role required");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            UUID newOwnerUserId = UUID.fromString(body.path("user_id").asText());
+            int updated = store.transferOwnership(tenantId, p.userId(), newOwnerUserId);
+            if (updated == 0) {
+                throw new ApiException(400, "BAD_REQUEST", "owner transfer failed");
+            }
+            auditService.log(ctx, "TENANT_OWNERSHIP_TRANSFERRED", p, "TENANT", tenantId.toString(), Map.of("to", newOwnerUserId.toString()));
+            ctx.json(Map.of("ok", true, "new_owner_user_id", newOwnerUserId.toString()));
         });
 
         app.get("/api/v1/tenants/{tenantId}/invitations", ctx -> {
@@ -781,13 +1197,448 @@ public final class Main {
             if (updated == 0) {
                 throw new ApiException(404, "MEMBER_NOT_FOUND", "メンバーが見つかりません。");
             }
-            store.revokeSessionsForUserTenant(target.userId(), tenantId);
+            sessionStore.revokeSessionsForUserTenant(target.userId(), tenantId);
             auditService.log(ctx, "MEMBER_REMOVED", p, "MEMBER", memberId.toString(), Map.of());
+            store.enqueueOutboxEvent(tenantId, "member.removed", "{\"member_id\":\"" + memberId + "\"}");
             ctx.json(Map.of("ok", true));
         });
 
-        Runtime.getRuntime().addShutdownHook(new Thread(dataSource::close));
+        app.post("/api/v1/tenants", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            if (!config.allowSelfServiceTenant()) {
+                throw new ApiException(403, "FORBIDDEN", "self-service tenant 作成は無効です。");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String name = body.path("name").asText();
+            String slug = body.path("slug").asText();
+            if (name.isBlank() || slug.isBlank()) {
+                throw new ApiException(400, "BAD_REQUEST", "name / slug が必要です。");
+            }
+            UUID tenantId = store.createTenant(p.userId(), name, slug, body.path("auto_join").asBoolean(false));
+            ctx.status(201).json(Map.of("id", tenantId.toString(), "name", name, "slug", slug));
+        });
+
+        app.get("/api/v1/tenants/{tenantId}/webhooks", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            ctx.json(Map.of("items", store.listWebhooks(tenantId)));
+        });
+
+        app.post("/api/v1/tenants/{tenantId}/webhooks", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String endpoint = body.path("endpoint_url").asText();
+            if (endpoint.isBlank()) {
+                throw new ApiException(400, "BAD_REQUEST", "endpoint_url が必要です。");
+            }
+            String secret = body.path("secret").asText();
+            if (secret.isBlank()) {
+                secret = SecurityUtils.randomUrlSafe(24);
+            }
+            String events = body.path("events").isArray()
+                    ? String.join(",", toStringList(body.path("events")))
+                    : body.path("events").asText("member.joined,member.removed,user.deleted");
+            UUID id = store.createWebhook(tenantId, endpoint, secret, events);
+            auditService.log(ctx, "WEBHOOK_CREATED", p, "WEBHOOK", id.toString(), Map.of("endpoint", endpoint));
+            ctx.status(201).json(Map.of("id", id.toString(), "secret", secret, "events", events));
+        });
+
+        app.delete("/api/v1/tenants/{tenantId}/webhooks/{webhookId}", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            UUID webhookId = UUID.fromString(ctx.pathParam("webhookId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            int updated = store.deactivateWebhook(tenantId, webhookId);
+            if (updated == 0) {
+                throw new ApiException(404, "NOT_FOUND", "Webhook が見つかりません。");
+            }
+            ctx.json(Map.of("ok", true));
+        });
+
+        app.get("/api/v1/tenants/{tenantId}/idp-configs", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            ctx.json(Map.of("items", store.listIdpConfigs(tenantId)));
+        });
+
+        app.post("/api/v1/tenants/{tenantId}/idp-configs", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String providerType = body.path("provider_type").asText("OIDC").toUpperCase(Locale.ROOT);
+            String metadataUrl = body.path("metadata_url").asText(null);
+            String issuer = body.path("issuer").asText(null);
+            String clientId = body.path("client_id").asText(null);
+            String x509Cert = body.path("x509_cert").asText(null);
+            UUID id = store.upsertIdpConfig(tenantId, providerType, metadataUrl, issuer, clientId, x509Cert);
+            ctx.status(201).json(Map.of("id", id.toString(), "providerType", providerType));
+        });
+
+        app.get("/api/v1/tenants/{tenantId}/m2m-clients", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            List<Map<String, Object>> items = store.listM2mClients(tenantId).stream().map(c -> Map.of(
+                    "id", c.id().toString(),
+                    "tenantId", c.tenantId().toString(),
+                    "clientId", c.clientId(),
+                    "scopes", csvToList(c.scopes()),
+                    "active", c.active()
+            )).toList();
+            ctx.json(Map.of("items", items));
+        });
+
+        app.post("/api/v1/tenants/{tenantId}/m2m-clients", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String name = body.path("name").asText("m2m");
+            String clientId = body.path("client_id").asText("m2m_" + tenantId.toString().substring(0, 8) + "_" + SecurityUtils.randomUrlSafe(6));
+            String secret = SecurityUtils.randomUrlSafe(24);
+            List<String> scopes = body.path("scopes").isArray() ? toStringList(body.path("scopes")) : List.of("service:read");
+            UUID id = store.createM2mClient(tenantId, clientId, SecurityUtils.sha256Hex(secret), String.join(",", scopes));
+            auditService.log(ctx, "M2M_CLIENT_CREATED", p, "M2M_CLIENT", id.toString(), Map.of("name", name, "clientId", clientId));
+            ctx.status(201).json(Map.of("id", id.toString(), "client_id", clientId, "client_secret", secret, "scopes", scopes));
+        });
+
+        app.get("/api/v1/tenants/{tenantId}/policies", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            ctx.json(Map.of("items", store.listPolicies(tenantId)));
+        });
+
+        app.post("/api/v1/tenants/{tenantId}/policies", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String resource = body.path("resource").asText();
+            String action = body.path("action").asText();
+            String effect = body.path("effect").asText("allow");
+            int priority = body.path("priority").asInt(0);
+            JsonNode condition = body.path("condition");
+            UUID id = store.createPolicy(tenantId, resource, action, condition.isMissingNode() ? "{}" : condition.toString(), effect, priority);
+            ctx.status(201).json(Map.of("id", id.toString()));
+        });
+
+        app.post("/api/v1/tenants/{tenantId}/policies/evaluate", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String resource = body.path("resource").asText();
+            String action = body.path("action").asText();
+            SqlStore.PolicyRecord policy = store.findMatchingPolicy(tenantId, resource, action).orElse(null);
+            boolean allowed = policy == null || !"deny".equalsIgnoreCase(policy.effect());
+            ctx.json(Map.of(
+                    "allowed", allowed,
+                    "matchedPolicyId", policy == null ? null : policy.id().toString(),
+                    "effect", policy == null ? "allow(default)" : policy.effect()
+            ));
+        });
+
+        app.get("/api/v1/tenants/{tenantId}/billing", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("plans", store.listPlans());
+            out.put("subscription", store.findSubscription(tenantId).orElse(null));
+            ctx.json(out);
+        });
+
+        app.post("/api/v1/tenants/{tenantId}/billing/subscription", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Owner role required");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String planId = body.path("plan_id").asText("free");
+            String status = body.path("status").asText("active");
+            Instant expiresAt = body.path("expires_at").isTextual() ? Instant.parse(body.path("expires_at").asText()) : null;
+            UUID id = store.upsertSubscription(tenantId, planId, status, expiresAt);
+            auditService.log(ctx, "SUBSCRIPTION_UPDATED", p, "SUBSCRIPTION", id.toString(), Map.of("planId", planId));
+            ctx.status(201).json(Map.of("id", id.toString(), "planId", planId, "status", status));
+        });
+
+        app.post("/api/v1/users/{userId}/export", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            if (!p.userId().equals(userId) && !p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "FORBIDDEN", "データエクスポートの権限がありません。");
+            }
+            UserRecord user = store.findUserById(userId).orElseThrow(() -> new ApiException(404, "NOT_FOUND", "ユーザーが見つかりません。"));
+            List<SessionRecord> sessions = sessionStore.listUserSessions(userId);
+            String payload = objectMapper.writeValueAsString(Map.of(
+                    "user", Map.of("id", user.id().toString(), "email", user.email(), "displayName", user.displayName()),
+                    "sessions", sessions.stream().map(s -> Map.of(
+                            "id", s.id().toString(),
+                            "tenantId", s.tenantId().toString(),
+                            "createdAt", s.createdAt().toString(),
+                            "lastActiveAt", s.lastActiveAt().toString(),
+                            "expiresAt", s.expiresAt().toString(),
+                            "invalidatedAt", s.invalidatedAt() == null ? null : s.invalidatedAt().toString()
+                    )).toList()
+            ));
+            UUID eventId = store.enqueueOutboxEvent(p.tenantId(), "user.data_export_requested", payload);
+            ctx.json(Map.of("ok", true, "eventId", eventId.toString(), "data", objectMapper.readTree(payload)));
+        });
+
+        app.delete("/api/v1/users/{userId}/data", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            if (!p.userId().equals(userId) && !p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "FORBIDDEN", "データ削除の権限がありません。");
+            }
+            int updated = store.deleteUserData(userId);
+            if (updated == 0) {
+                throw new ApiException(404, "NOT_FOUND", "ユーザーが見つかりません。");
+            }
+            UUID eventId = store.enqueueOutboxEvent(p.tenantId(), "user.data_deletion_requested", "{\"user_id\":\"" + userId + "\"}");
+            ctx.json(Map.of("ok", true, "eventId", eventId.toString()));
+        });
+
+        app.get("/api/v1/admin/tenants", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            requireOwner(p);
+            int offset = parseOffset(ctx.queryParam("offset"));
+            int limit = parseLimit(ctx.queryParam("limit"));
+            ctx.json(Map.of("items", store.listTenants(offset, limit), "offset", offset, "limit", limit));
+        });
+
+        app.post("/api/v1/admin/tenants/{tenantId}/suspend", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            requireOwner(p);
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            int updated = store.setTenantActive(tenantId, false);
+            if (updated == 0) throw new ApiException(404, "NOT_FOUND", "tenant not found");
+            store.enqueueOutboxEvent(tenantId, "tenant.suspended", "{\"tenant_id\":\"" + tenantId + "\"}");
+            ctx.json(Map.of("ok", true));
+        });
+
+        app.post("/api/v1/admin/tenants/{tenantId}/activate", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            requireOwner(p);
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            int updated = store.setTenantActive(tenantId, true);
+            if (updated == 0) throw new ApiException(404, "NOT_FOUND", "tenant not found");
+            ctx.json(Map.of("ok", true));
+        });
+
+        app.get("/api/v1/admin/users", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            requireOwner(p);
+            int offset = parseOffset(ctx.queryParam("offset"));
+            int limit = parseLimit(ctx.queryParam("limit"));
+            ctx.json(Map.of("items", store.listUsers(offset, limit), "offset", offset, "limit", limit));
+        });
+
+        app.get("/api/v1/admin/audit", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "監査ログ参照の権限がありません。");
+            }
+            int offset = parseOffset(ctx.queryParam("offset"));
+            int limit = parseLimit(ctx.queryParam("limit"));
+            UUID tenantFilter = p.serviceToken() ? null : p.tenantId();
+            ctx.json(Map.of("items", store.listAuditLogs(tenantFilter, offset, limit), "offset", offset, "limit", limit));
+        });
+
+        app.post("/api/v1/admin/outbox/flush", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            requireOwner(p);
+            outboxWorker.runOnce();
+            ctx.json(Map.of("ok", true));
+        });
+
+        app.post("/api/v1/billing/stripe/webhook", ctx -> {
+            String configured = config.stripeWebhookSecret();
+            if (!configured.isBlank()) {
+                String signature = ctx.header("Stripe-Signature");
+                if (!verifyStripeSignature(signature, ctx.body(), configured)) {
+                    throw new ApiException(401, "FORBIDDEN", "invalid webhook secret");
+                }
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String eventType = body.path("type").asText("");
+            JsonNode object = body.path("data").path("object");
+            String tenantRaw = object.path("metadata").path("tenant_id").asText("");
+            if (tenantRaw.isBlank()) {
+                ctx.json(Map.of("ok", true, "ignored", true));
+                return;
+            }
+            UUID tenantId = UUID.fromString(tenantRaw);
+            if (store.findTenantById(tenantId).isEmpty()) {
+                ctx.json(Map.of("ok", true, "ignored", true, "reason", "tenant_not_found"));
+                return;
+            }
+            String planId = object.path("metadata").path("plan_id").asText("free");
+            String status = object.path("status").asText("active");
+            Instant expiresAt = object.path("current_period_end").canConvertToLong()
+                    ? Instant.ofEpochSecond(object.path("current_period_end").asLong())
+                    : null;
+            if (eventType.contains("subscription")) {
+                store.upsertSubscription(tenantId, planId, status, expiresAt);
+                store.enqueueOutboxEvent(tenantId, "billing.subscription.updated", ctx.body());
+            }
+            ctx.json(Map.of("ok", true));
+        });
+
+        app.before("/scim/v2/*", ctx -> {
+            String auth = ctx.header("Authorization");
+            if (auth == null || !auth.startsWith("Bearer volta-service:")) {
+                ctx.header("WWW-Authenticate", "Bearer realm=\"volta-scim\"");
+                ctx.status(401);
+                ctx.skipRemainingHandlers();
+                return;
+            }
+            String provided = auth.substring("Bearer volta-service:".length()).trim();
+            if (config.serviceToken().isBlank() || !config.serviceToken().equals(provided)) {
+                ctx.status(403);
+                ctx.skipRemainingHandlers();
+            }
+        });
+
+        app.get("/scim/v2/Users", ctx -> {
+            UUID tenantId = UUID.fromString(ctx.queryParam("tenantId"));
+            List<Map<String, Object>> resources = store.listScimUsers(tenantId).stream()
+                    .map(u -> Map.of(
+                            "id", u.id().toString(),
+                            "userName", u.email(),
+                            "active", u.active(),
+                            "name", Map.of("formatted", u.displayName() == null ? "" : u.displayName())
+                    )).toList();
+            ctx.json(Map.of("schemas", List.of("urn:ietf:params:scim:api:messages:2.0:ListResponse"), "Resources", resources));
+        });
+
+        app.post("/scim/v2/Users", ctx -> {
+            JsonNode body = objectMapper.readTree(ctx.body());
+            UUID tenantId = UUID.fromString(body.path("tenantId").asText());
+            String email = body.path("userName").asText();
+            String displayName = body.path("name").path("formatted").asText(email);
+            UUID userId = store.createScimUser(tenantId, email, displayName);
+            ctx.status(201).json(Map.of("id", userId.toString(), "userName", email, "active", true));
+        });
+
+        app.get("/scim/v2/Users/{id}", ctx -> {
+            UUID tenantId = UUID.fromString(ctx.queryParam("tenantId"));
+            UUID userId = UUID.fromString(ctx.pathParam("id"));
+            SqlStore.BasicUserRecord u = store.findScimUser(tenantId, userId)
+                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "SCIM user not found"));
+            ctx.json(Map.of("id", u.id().toString(), "userName", u.email(), "active", u.active()));
+        });
+
+        app.put("/scim/v2/Users/{id}", ctx -> {
+            JsonNode body = objectMapper.readTree(ctx.body());
+            UUID userId = UUID.fromString(ctx.pathParam("id"));
+            String email = body.path("userName").asText();
+            String displayName = body.path("name").path("formatted").asText(email);
+            boolean active = body.path("active").asBoolean(true);
+            int updated = store.updateScimUser(userId, email, displayName, active);
+            if (updated == 0) throw new ApiException(404, "NOT_FOUND", "SCIM user not found");
+            ctx.json(Map.of("id", userId.toString(), "userName", email, "active", active));
+        });
+
+        app.patch("/scim/v2/Users/{id}", ctx -> {
+            JsonNode body = objectMapper.readTree(ctx.body());
+            UUID userId = UUID.fromString(ctx.pathParam("id"));
+            String email = body.path("userName").asText("patched-" + userId + "@example.local");
+            String displayName = body.path("displayName").asText("patched");
+            boolean active = body.path("active").asBoolean(true);
+            int updated = store.updateScimUser(userId, email, displayName, active);
+            if (updated == 0) throw new ApiException(404, "NOT_FOUND", "SCIM user not found");
+            ctx.json(Map.of("id", userId.toString(), "active", active));
+        });
+
+        app.delete("/scim/v2/Users/{id}", ctx -> {
+            UUID tenantId = UUID.fromString(ctx.queryParam("tenantId"));
+            UUID userId = UUID.fromString(ctx.pathParam("id"));
+            int updated = store.deactivateScimMembership(tenantId, userId);
+            if (updated == 0) throw new ApiException(404, "NOT_FOUND", "SCIM user not found");
+            ctx.status(204);
+        });
+
+        app.get("/scim/v2/Groups", ctx -> ctx.json(Map.of("schemas", List.of("urn:ietf:params:scim:api:messages:2.0:ListResponse"), "Resources", List.of())));
+        app.post("/scim/v2/Groups", ctx -> ctx.status(201).json(Map.of("id", SecurityUtils.newUuid().toString(), "displayName", "group")));
+
+        outboxWorker.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            outboxWorker.close();
+            auditSink.close();
+            sessionStore.close();
+            dataSource.close();
+        }));
         app.start(config.port());
+    }
+
+    private static boolean verifyStripeSignature(String header, String payload, String secret) {
+        if (header == null || header.isBlank()) {
+            return false;
+        }
+        String[] parts = header.split(",");
+        String timestamp = null;
+        String v1 = null;
+        for (String part : parts) {
+            String[] kv = part.trim().split("=", 2);
+            if (kv.length != 2) continue;
+            if ("t".equals(kv[0])) timestamp = kv[1];
+            if ("v1".equals(kv[0])) v1 = kv[1];
+        }
+        if (timestamp == null || v1 == null) {
+            return false;
+        }
+        long ts;
+        try {
+            ts = Long.parseLong(timestamp);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        long now = Instant.now().getEpochSecond();
+        if (Math.abs(now - ts) > 300) {
+            return false;
+        }
+        String signedPayload = timestamp + "." + payload;
+        String expected = SecurityUtils.hmacSha256Hex(secret, signedPayload);
+        return SecurityUtils.constantTimeEquals(expected, v1);
     }
 
     private static void ensureOidcConfig(AppConfig config) {
@@ -857,7 +1708,7 @@ public final class Main {
         if (tenants.size() > 1) {
             return "/select-tenant";
         }
-        if (identity.returnTo() != null) {
+        if (identity.returnTo() != null && HttpSupport.isAllowedReturnTo(identity.returnTo(), config.allowedRedirectDomains())) {
             return identity.returnTo();
         }
         return appRegistry.defaultAppUrl().orElse("/select-tenant");
@@ -921,6 +1772,16 @@ public final class Main {
         List<String> out = new ArrayList<>();
         node.forEach(item -> out.add(item.asText()));
         return out.isEmpty() ? List.of("MEMBER") : out;
+    }
+
+    private static List<String> csvToList(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
     }
 
     private static void enforceTenantMatch(AuthPrincipal principal, UUID tenantId) {
@@ -992,18 +1853,20 @@ public final class Main {
 
     private static boolean isJsonOrXhr(Context ctx) {
         String accept = ctx.header("Accept");
+        String contentType = ctx.header("Content-Type");
         String xrw = ctx.header("X-Requested-With");
         return (accept != null && accept.toLowerCase().contains("application/json"))
+                || (contentType != null && contentType.toLowerCase().contains("application/json"))
                 || "XMLHttpRequest".equalsIgnoreCase(xrw);
     }
 
-    private static String currentCsrfToken(Context ctx, SqlStore store) {
+    private static String currentCsrfToken(Context ctx, SessionStore sessionStore) {
         String sessionRaw = ctx.cookie(AuthService.SESSION_COOKIE);
         if (sessionRaw == null) {
             return "";
         }
         try {
-            return store.findSession(UUID.fromString(sessionRaw))
+            return sessionStore.findSession(UUID.fromString(sessionRaw))
                     .map(SessionRecord::csrfToken)
                     .orElse("");
         } catch (IllegalArgumentException e) {

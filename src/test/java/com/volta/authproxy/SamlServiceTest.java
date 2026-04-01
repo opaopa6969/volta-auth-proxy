@@ -28,7 +28,7 @@ final class SamlServiceTest {
     void parsesMockIdentityInDevMode() {
         String mock = "MOCK:alice@example.com";
         String saml = Base64.getEncoder().encodeToString(mock.getBytes(StandardCharsets.UTF_8));
-        SamlService.SamlIdentity identity = service.parseIdentity(saml, idp, true, true);
+        SamlService.SamlIdentity identity = service.parseIdentity(saml, idp, true, true, null, null);
         assertEquals("alice@example.com", identity.email());
     }
 
@@ -53,7 +53,7 @@ final class SamlServiceTest {
                 </samlp:Response>
                 """;
         String saml = Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8));
-        SamlService.SamlIdentity identity = service.parseIdentity(saml, idp, false, true);
+        SamlService.SamlIdentity identity = service.parseIdentity(saml, idp, false, true, "https://sp.example.com/callback", null);
         assertEquals("bob@example.com", identity.email());
         assertEquals("bob", identity.displayName());
     }
@@ -67,6 +67,7 @@ final class SamlServiceTest {
         SamlService.RelayState state = service.decodeRelayState(encoded);
         assertEquals("11111111-1111-1111-1111-111111111111", state.tenantId());
         assertEquals("https://app.example.com/path", state.returnTo());
+        assertNull(state.requestId());
     }
 
     @Test
@@ -78,7 +79,7 @@ final class SamlServiceTest {
                 </Response>
                 """;
         String saml = Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8));
-        ApiException ex = assertThrows(ApiException.class, () -> service.parseIdentity(saml, idp, false, true));
+        ApiException ex = assertThrows(ApiException.class, () -> service.parseIdentity(saml, idp, false, true, null, null));
         assertEquals("SAML_INVALID_RESPONSE", ex.code());
     }
 
@@ -90,7 +91,7 @@ final class SamlServiceTest {
                 </samlp:Response>
                 """;
         String saml = Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8));
-        ApiException ex = assertThrows(ApiException.class, () -> service.parseIdentity(saml, idp, false, false));
+        ApiException ex = assertThrows(ApiException.class, () -> service.parseIdentity(saml, idp, false, false, null, null));
         assertEquals("SAML_SIGNATURE_REQUIRED", ex.code());
     }
 }

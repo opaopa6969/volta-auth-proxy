@@ -1848,6 +1848,52 @@ public final class SqlStore {
         }
     }
 
+    public void replaceRecoveryCodes(UUID userId, List<String> codeHashes) {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement del = conn.prepareStatement("DELETE FROM mfa_recovery_codes WHERE user_id = ?")) {
+                    del.setObject(1, userId);
+                    del.executeUpdate();
+                }
+                try (PreparedStatement ins = conn.prepareStatement("""
+                        INSERT INTO mfa_recovery_codes(user_id, code_hash)
+                        VALUES (?, ?)
+                        """)) {
+                    for (String hash : codeHashes) {
+                        ins.setObject(1, userId);
+                        ins.setString(2, hash);
+                        ins.addBatch();
+                    }
+                    ins.executeBatch();
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public boolean consumeRecoveryCode(UUID userId, String codeHash) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE mfa_recovery_codes
+                     SET used_at = now()
+                     WHERE user_id = ? AND code_hash = ? AND used_at IS NULL
+                     """)) {
+            ps.setObject(1, userId);
+            ps.setString(2, codeHash);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public UUID enqueueOutboxEvent(UUID tenantId, String eventType, String payloadJson) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

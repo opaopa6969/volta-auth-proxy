@@ -69,7 +69,6 @@ public final class Main {
             }
             if ("/api/v1/billing/stripe/webhook".equals(ctx.path())
                     || "/oauth/token".equals(ctx.path())
-                    || ctx.path().startsWith("/api/v1/")
                     || "/auth/saml/callback".equals(ctx.path())
                     || ctx.path().startsWith("/scim/v2/")) {
                 return;
@@ -216,9 +215,11 @@ public final class Main {
             }
             String returnToRaw = ctx.queryParam("return_to");
             String returnTo = HttpSupport.isAllowedReturnTo(returnToRaw, config.allowedRedirectDomains()) ? returnToRaw : null;
+            String requestId = "_" + SecurityUtils.randomUrlSafe(16);
             String relay = samlService.encodeRelayState(Map.of(
                     "tenant_id", tenantId.toString(),
-                    "return_to", returnTo == null ? "" : returnTo
+                    "return_to", returnTo == null ? "" : returnTo,
+                    "request_id", requestId
             ));
             String redirect = entry + (entry.contains("?") ? "&" : "?") + "RelayState="
                     + java.net.URLEncoder.encode(relay, java.nio.charset.StandardCharsets.UTF_8);
@@ -248,7 +249,14 @@ public final class Main {
             }
             SqlStore.IdpConfigRecord saml = store.findIdpConfig(tenantId, "SAML")
                     .orElseThrow(() -> new ApiException(404, "IDP_NOT_FOUND", "SAML IdP 設定が見つかりません。"));
-            SamlService.SamlIdentity identity = samlService.parseIdentity(samlResponse, saml, config.devMode(), config.samlSkipSignature());
+            SamlService.SamlIdentity identity = samlService.parseIdentity(
+                    samlResponse,
+                    saml,
+                    config.devMode(),
+                    config.samlSkipSignature(),
+                    config.baseUrl() + "/auth/saml/callback",
+                    relayState.requestId()
+            );
             String providerSub = "saml:" + SecurityUtils.sha256Hex((identity.issuer() == null ? "" : identity.issuer()) + "|" + identity.email().toLowerCase(Locale.ROOT));
             UserRecord user = store.upsertUser(identity.email(), identity.displayName(), providerSub);
             TenantRecord tenant = store.findTenantById(tenantId)
@@ -314,11 +322,19 @@ public final class Main {
                     .orElseThrow(() -> new ApiException(401, "AUTHENTICATION_REQUIRED", "Authentication required"));
             JsonNode body = objectMapper.readTree(ctx.body());
             int code = body.path("code").asInt(-1);
-            SqlStore.UserMfaRecord mfa = store.findUserMfa(session.userId(), "totp")
-                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "MFA setup not found"));
-            com.warrenstrange.googleauth.GoogleAuthenticator ga = new com.warrenstrange.googleauth.GoogleAuthenticator();
-            if (!ga.authorize(secretCipher.decrypt(mfa.secret()), code)) {
-                throw new ApiException(400, "MFA_INVALID_CODE", "TOTP code is invalid");
+            String recoveryCode = body.path("recovery_code").asText("");
+            boolean verified;
+            if (recoveryCode != null && !recoveryCode.isBlank()) {
+                String hash = SecurityUtils.sha256Hex(recoveryCode.replace("-", "").toUpperCase(Locale.ROOT));
+                verified = store.consumeRecoveryCode(session.userId(), hash);
+            } else {
+                SqlStore.UserMfaRecord mfa = store.findUserMfa(session.userId(), "totp")
+                        .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "MFA setup not found"));
+                com.warrenstrange.googleauth.GoogleAuthenticator ga = new com.warrenstrange.googleauth.GoogleAuthenticator();
+                verified = ga.authorize(secretCipher.decrypt(mfa.secret()), code);
+            }
+            if (!verified) {
+                throw new ApiException(400, "MFA_INVALID_CODE", "MFA code is invalid");
             }
             authService.markMfaVerified(session.id());
             String next = session.returnTo();
@@ -842,6 +858,10 @@ public final class Main {
             setNoStore(ctx);
             Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
             if (principalOpt.isEmpty()) {
+                if (isSuspendedTenantSession(ctx, sessionStore, store)) {
+                    ctx.status(403);
+                    return;
+                }
                 ctx.status(401);
                 return;
             }
@@ -871,6 +891,13 @@ public final class Main {
 
         app.before("/api/v1/*", ctx -> {
             if ("/api/v1/billing/stripe/webhook".equals(ctx.path())) {
+                return;
+            }
+            String authHeader = ctx.header("Authorization");
+            if ((authHeader == null || !authHeader.startsWith("Bearer "))
+                    && !isJsonOrXhr(ctx)) {
+                HttpSupport.jsonError(ctx, 403, "CSRF_INVALID", "CSRF トークンが無効です。");
+                ctx.skipRemainingHandlers();
                 return;
             }
             Optional<AuthPrincipal> principal = authService.authenticate(ctx);
@@ -1036,6 +1063,27 @@ public final class Main {
             }
             store.upsertUserMfa(userId, "totp", mfa.secret(), true);
             ctx.json(Map.of("ok", true, "enabled", true));
+        });
+
+        app.post("/api/v1/users/{userId}/mfa/recovery-codes/regenerate", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            if (!p.userId().equals(userId)) {
+                throw new ApiException(403, "FORBIDDEN", "Only self update is allowed");
+            }
+            if (store.findUserMfa(userId, "totp").isEmpty()) {
+                throw new ApiException(400, "BAD_REQUEST", "TOTP must be configured first");
+            }
+            List<String> codes = new ArrayList<>();
+            List<String> hashes = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                String raw = SecurityUtils.randomUrlSafe(6).replace("-", "").replace("_", "").toUpperCase(Locale.ROOT);
+                String code = raw.substring(0, 4) + "-" + raw.substring(4, 8);
+                codes.add(code);
+                hashes.add(SecurityUtils.sha256Hex(code.replace("-", "")));
+            }
+            store.replaceRecoveryCodes(userId, hashes);
+            ctx.json(Map.of("codes", codes));
         });
 
         app.patch("/api/v1/users/{userId}", ctx -> {
@@ -1871,6 +1919,24 @@ public final class Main {
                     .orElse("");
         } catch (IllegalArgumentException e) {
             return "";
+        }
+    }
+
+    private static boolean isSuspendedTenantSession(Context ctx, SessionStore sessionStore, SqlStore store) {
+        String sessionRaw = ctx.cookie(AuthService.SESSION_COOKIE);
+        if (sessionRaw == null || sessionRaw.isBlank()) {
+            return false;
+        }
+        try {
+            SessionRecord session = sessionStore.findSession(UUID.fromString(sessionRaw)).orElse(null);
+            if (session == null) {
+                return false;
+            }
+            return store.findTenantDetailById(session.tenantId())
+                    .map(t -> !t.active())
+                    .orElse(false);
+        } catch (Exception e) {
+            return false;
         }
     }
 

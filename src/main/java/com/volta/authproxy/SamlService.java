@@ -21,7 +21,14 @@ import java.util.Map;
 final class SamlService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    SamlIdentity parseIdentity(String samlResponseB64, SqlStore.IdpConfigRecord idp, boolean devMode, boolean skipSignature) {
+    SamlIdentity parseIdentity(
+            String samlResponseB64,
+            SqlStore.IdpConfigRecord idp,
+            boolean devMode,
+            boolean skipSignature,
+            String expectedAcsUrl,
+            String expectedRequestId
+    ) {
         if (samlResponseB64 == null || samlResponseB64.isBlank()) {
             throw new ApiException(400, "SAML_INVALID_RESPONSE", "SAMLResponse is required");
         }
@@ -64,6 +71,26 @@ final class SamlService {
             String issuer = textOf(doc, "Issuer");
             if (idp.issuer() != null && !idp.issuer().isBlank() && !idp.issuer().equals(issuer)) {
                 throw new ApiException(401, "SAML_INVALID_RESPONSE", "issuer mismatch");
+            }
+            String destination = attributeOf(doc, "Response", "Destination");
+            if (destination != null && !destination.isBlank()
+                    && expectedAcsUrl != null && !expectedAcsUrl.isBlank()
+                    && !expectedAcsUrl.equals(destination)) {
+                throw new ApiException(401, "SAML_INVALID_RESPONSE", "destination mismatch");
+            }
+            String recipient = attributeOf(doc, "SubjectConfirmationData", "Recipient");
+            if (recipient != null && !recipient.isBlank()
+                    && expectedAcsUrl != null && !expectedAcsUrl.isBlank()
+                    && !expectedAcsUrl.equals(recipient)) {
+                throw new ApiException(401, "SAML_INVALID_RESPONSE", "recipient mismatch");
+            }
+            String responseInResponseTo = attributeOf(doc, "Response", "InResponseTo");
+            String subjectInResponseTo = attributeOf(doc, "SubjectConfirmationData", "InResponseTo");
+            String inResponseTo = responseInResponseTo != null && !responseInResponseTo.isBlank() ? responseInResponseTo : subjectInResponseTo;
+            if (expectedRequestId != null && !expectedRequestId.isBlank()) {
+                if (inResponseTo == null || inResponseTo.isBlank() || !expectedRequestId.equals(inResponseTo)) {
+                    throw new ApiException(401, "SAML_INVALID_RESPONSE", "in_response_to mismatch");
+                }
             }
             String audience = textOf(doc, "Audience");
             if (idp.clientId() != null && !idp.clientId().isBlank() && !idp.clientId().equals(audience)) {
@@ -116,16 +143,17 @@ final class SamlService {
 
     RelayState decodeRelayState(String relayStateRaw) {
         if (relayStateRaw == null || relayStateRaw.isBlank()) {
-            return new RelayState(null, null);
+            return new RelayState(null, null, null);
         }
         try {
             byte[] decoded = Base64.getUrlDecoder().decode(relayStateRaw);
             JsonNode node = objectMapper.readTree(new String(decoded, StandardCharsets.UTF_8));
             String tenantId = node.path("tenant_id").isMissingNode() ? null : node.path("tenant_id").asText(null);
             String returnTo = node.path("return_to").isMissingNode() ? null : node.path("return_to").asText(null);
-            return new RelayState(tenantId, returnTo);
+            String requestId = node.path("request_id").isMissingNode() ? null : node.path("request_id").asText(null);
+            return new RelayState(tenantId, returnTo, requestId);
         } catch (Exception e) {
-            return new RelayState(null, relayStateRaw);
+            return new RelayState(null, relayStateRaw, null);
         }
     }
 
@@ -176,6 +204,6 @@ final class SamlService {
     record SamlIdentity(String email, String displayName, String issuer) {
     }
 
-    record RelayState(String tenantId, String returnTo) {
+    record RelayState(String tenantId, String returnTo, String requestId) {
     }
 }

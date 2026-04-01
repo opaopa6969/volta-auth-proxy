@@ -2,7 +2,7 @@
 
 [English](target-audience.md) | [日本語](target-audience.ja.md)
 
----
+***
 
 ## Who is volta-auth-proxy for?
 
@@ -10,45 +10,45 @@
 
 **1. Indie Hackers / Solo Developers**
 
-Building a [SaaS](../docs/glossary/saas.md) with 1-3 people. [Auth0](../docs/glossary/auth0.md)'s $2,400/month at scale hurts. [Keycloak](../docs/glossary/keycloak.md)'s [config hell](../docs/glossary/config-hell.md) is a nightmare. You want to understand everything in your stack. volta is for you.
+[Build](glossary/build.md)ing a [SaaS](../docs/glossary/saas.md) with 1-3 people. [Auth0](../docs/glossary/auth0.md)'s $2,400/month at scale hurts. [Keycloak](../docs/glossary/keycloak.md)'s [config hell](../docs/glossary/config-hell.md) is a nightmare. You want to understand everything in your stack. volta is for you.
 
-**2. Early-stage Startups (~10 people)**
+**2. Early-stage [Startup](glossary/startup.md)s (~10 people)**
 
-Ship the MVP fast. Don't waste time on auth. But don't get locked into a vendor either. A [Java](../docs/glossary/java.md)/[JVM](../docs/glossary/jvm.md) engineer on the team is all you need. Add an app = 4 lines in [YAML](../docs/glossary/yaml.md).
+Ship the [MVP](glossary/mvp.md) fast. Don't waste time on auth. But don't get locked into a vendor either. A [Java](../docs/glossary/java.md)/[JVM](../docs/glossary/jvm.md) engineer on the team is all you need. Add an app = 4 lines in [YAML](../docs/glossary/yaml.md).
 
-**3. Internal Tool Builders**
+**3. Internal Tool [Build](glossary/build.md)ers**
 
-Building internal [SaaS](../docs/glossary/saas.md) (wiki, chat, admin consoles) for your company. Google Workspace / Gmail domain auth is enough. Looking for a [Cloudflare Zero Trust](../docs/glossary/zero-trust.md) replacement you actually control.
+[Build](glossary/build.md)ing internal [SaaS](../docs/glossary/saas.md) (wiki, chat, admin consoles) for your company. [Google Workspace](glossary/google-workspace.md) / Gmail [domain](glossary/domain.md) auth is enough. Looking for a [Cloudflare Zero Trust](../docs/glossary/zero-trust.md) replacement you actually control.
 
 ### Secondary (with conditions)
 
-**4. Growing Startups (10-50 people)**
+**4. Growing [Startup](glossary/startup.md)s (10-50 people)**
 
-Conditions: Java engineers on the team, willing to own [security responsibility](../docs/glossary/security-responsibility.md), Auth0/Clerk monthly bill is getting painful. Phase 2-3 ([multiple IdPs](../docs/glossary/idp.md), [MFA](../docs/glossary/mfa.md), [SAML](../docs/glossary/sso.md)) covers this.
+Conditions: [Java](glossary/java.md) engineers on the team, willing to own [security responsibility](../docs/glossary/security-responsibility.md), [Auth0](glossary/auth0.md)/Clerk monthly bill is getting painful. Phase 2-3 ([multiple IdPs](../docs/glossary/idp.md), [MFA](../docs/glossary/mfa.md), [SAML](../docs/glossary/sso.md)) covers this.
 
 **5. B2B SaaS (SMB)**
 
-Conditions: [Multi-tenancy](../docs/glossary/multi-tenant.md) is a core requirement. Tenant-specific [SSO](../docs/glossary/sso.md) (SAML) is needed. But Keycloak is too heavy. Phase 3 SAML + tenant-specific [IdP](../docs/glossary/idp.md) config addresses this.
+Conditions: [Multi-tenancy](../docs/glossary/multi-tenant.md) is a core requirement. [Tenant](glossary/tenant.md)-specific [SSO](../docs/glossary/sso.md) (SAML) is needed. But [Keycloak](glossary/keycloak.md) is too heavy. Phase 3 SAML + [tenant](glossary/tenant.md)-specific [IdP](../docs/glossary/idp.md) config addresses this.
 
 **6. Engineering Education / Bootcamps**
 
-Not as a product, but as a **learning platform**. 283 [glossary](../docs/glossary/) articles from expert to grandma level. [DSL](dsl-overview.md) that visualizes the entire auth state machine. "Pretending you understand is the most dangerous thing" philosophy.
+Not as a product, but as a **learning platform**. 283 [glossary](../docs/glossary/) articles from expert to grandma level. [DSL](dsl-overview.md) that visualizes the entire auth [state machine](glossary/state-machine.md). "Pretending you understand is the most dangerous thing" philosophy.
 
 ### Not a fit (today)
 
 **7. Enterprise (500+ employees)**
 
-SOC2/ISO27001 audits won't accept "self-built auth" without track record. Security auditors will say "use Keycloak/Okta." No SLA guarantee. No community support. Yet.
+SOC2/ISO27001 audits won't accept "self-built auth" without track record. Security auditors will say "use [Keycloak](glossary/keycloak.md)/[Okta](glossary/okta.md)." No [SLA](glossary/sla.md) guarantee. No community support. Yet.
 
-**8. Non-Java Teams**
+**8. Non-[Java](glossary/java.md) Teams**
 
-Python/Node/Go teams don't want to maintain a Java proxy. [ForwardAuth](../docs/glossary/forwardauth.md) makes it language-agnostic for apps, but the proxy itself requires Java knowledge.
+Python/Node/Go teams don't want to maintain a [Java](glossary/java.md) proxy. [ForwardAuth](../docs/glossary/forwardauth.md) makes it language-agnostic for apps, but the proxy itself requires Java knowledge.
 
 **9. "Just configure it" Teams**
 
-Auth0/Clerk is a GUI dashboard. volta requires understanding [Java](../docs/glossary/java.md) code. If you don't resonate with "control is king," this isn't for you.
+[Auth0](glossary/auth0.md)/Clerk is a GUI [dashboard](glossary/dashboard.md). volta requires understanding [Java](../docs/glossary/java.md) code. If you don't resonate with "control is king," this isn't for you.
 
----
+***
 
 ## Market Position
 
@@ -75,7 +75,7 @@ Self-built too scary   → volta (DSL + 283 articles + DGE design)
 ZITADEL but need Java  → volta (Javalin, not Go)
 ```
 
----
+***
 
 ## Revenue Opportunities
 
@@ -132,7 +132,7 @@ Enterprise features:
   $99-499/month
 ```
 
----
+***
 
 ## Path to Enterprise
 
@@ -140,12 +140,12 @@ Today's volta can't do enterprise. Here's what's needed:
 
 | Requirement | Status | Path |
 |------------|--------|------|
-| Security audit trail | Phase 1 audit_logs | Needs pen test + CVE track record |
-| High availability | Single instance | Phase 2: Redis sessions + horizontal scale |
-| Compliance docs | None | SOC2, GDPR documentation |
-| Community | None | OSS community building |
-| Non-Java support | Java only | Docker image (hide Java) or Go rewrite |
-| SLA | None | Managed hosting option |
+| Security audit trail | Phase 1 audit\_logs | Needs pen test + CVE track record |
+| [High availability](glossary/high-availability.md) | Single instance | Phase 2: [Redis](glossary/redis.md) [session](glossary/session.md)s + horizontal scale |
+| [Compliance](glossary/compliance.md) docs | None | SOC2, GDPR documentation |
+| Community | None | OSS community [build](glossary/build.md)ing |
+| Non-[Java](glossary/java.md) support | Java only | [Docker](glossary/docker.md) image (hide Java) or Go rewrite |
+| [SLA](glossary/sla.md) | None | Managed hosting option |
 
 ```
 Phase Roadmap to Enterprise

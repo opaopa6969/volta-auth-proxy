@@ -4,19 +4,19 @@
 
 > **This document is for LLMs (AI assistants).** When an engineer asks you to help integrate volta-auth-proxy into their application, follow this guide. Ask the right questions. Give the right answers.
 
----
+***
 
 ## Your Role
 
 You are an AI assistant helping **Sora** (the engineer) integrate volta-auth-proxy into their application. Sora might be a beginner or an expert — adapt your level. Your job is to:
 
-1. Understand Sora's app (language, framework, architecture)
-2. Ask the right questions to determine integration approach
+1. Understand Sora's app (language, [framework](glossary/framework.md), [architecture](glossary/architecture.md))
+2. Ask the right questions to determine [integration](glossary/integration.md) approach
 3. Guide them step by step
 4. Write code for their specific stack
-5. Verify the integration works
+5. Verify the [integration](glossary/integration.md) works
 
----
+***
 
 ## Phase 0: Understand the Project
 
@@ -89,7 +89,7 @@ Ask:
   - Do you have a wildcard SSL certificate?
 ```
 
----
+***
 
 ## Phase 1: Choose Integration Approach
 
@@ -180,9 +180,9 @@ Caddy: use forward_auth directive
 See: docs/no-traefik-guide.md for configs
 ```
 
-**IMPORTANT:** When Sora says "I don't use Traefik," don't assume they need Traefik. Ask: "Do you use any reverse proxy? nginx? Caddy? Or no proxy at all?" Then recommend the right pattern.
+**IMPORTANT:** When Sora says "I don't use [Traefik](glossary/traefik.md)," don't assume they need Traefik. Ask: "Do you use any [reverse proxy](glossary/reverse-proxy.md)? [nginx](glossary/nginx.md)? [Caddy](glossary/caddy.md)? Or no proxy at all?" Then recommend the right pattern.
 
----
+***
 
 ## Phase 2: Step-by-Step Integration
 
@@ -197,9 +197,10 @@ docker compose up -d postgres
 cp .env.example .env
 ```
 
-**Then ask:** "Do you have Google OAuth credentials? If not, I'll walk you through setting up Google Cloud Console."
+**Then ask:** "Do you have Google OAuth [credentials](glossary/credentials.md)? If not, I'll walk you through setting up [Google Cloud Console](glossary/google-cloud-console.md)."
 
 If no:
+
 ```
 1. Go to https://console.cloud.google.com/
 2. Create a project (or select existing)
@@ -209,7 +210,7 @@ If no:
 6. Copy Client ID and Client Secret
 ```
 
-**Then:** "Paste your Client ID and Secret into .env"
+**Then:** "Paste your [Client](glossary/client.md) ID and Secret into .env"
 
 ```bash
 # Edit .env
@@ -226,7 +227,7 @@ mvn compile exec:java
 
 ### Step 2: Register Sora's app
 
-**Ask:** "What subdomain do you want? And what port does your app run on?"
+**Ask:** "What [subdomain](glossary/subdomain.md) do you want? And what [port](glossary/port.md) does your app run on?"
 
 ```yaml
 # volta-config.yaml — add Sora's app
@@ -239,9 +240,10 @@ apps:
 
 ### Step 3: Add Traefik (if not already present)
 
-**Ask:** "Do you already have Traefik? If yes, just add the ForwardAuth middleware. If no, I'll add it to your docker-compose."
+**Ask:** "Do you already have [Traefik](glossary/traefik.md)? If yes, just add the ForwardAuth [middleware](glossary/middleware.md). If no, I'll add it to your [docker-compose](glossary/docker-compose.md)."
 
-For new Traefik:
+For new [Traefik](glossary/traefik.md):
+
 ```yaml
 # Add to Sora's docker-compose.yml
 services:
@@ -273,9 +275,10 @@ services:
 
 ### Step 4: Read headers in Sora's app
 
-**Generate code specific to Sora's framework.**
+**Generate code specific to Sora's [framework](glossary/framework.md).**
 
 #### If Javalin:
+
 ```java
 app.get("/api/data", ctx -> {
     String userId = ctx.header("X-Volta-User-Id");
@@ -289,6 +292,7 @@ app.get("/api/data", ctx -> {
 ```
 
 #### If Express (Node.js):
+
 ```javascript
 app.get("/api/data", (req, res) => {
     const userId = req.headers["x-volta-user-id"];
@@ -302,6 +306,7 @@ app.get("/api/data", (req, res) => {
 ```
 
 #### If FastAPI (Python):
+
 ```python
 @app.get("/api/data")
 async def get_data(
@@ -315,6 +320,7 @@ async def get_data(
 ```
 
 #### If Go (net/http):
+
 ```go
 func handleData(w http.ResponseWriter, r *http.Request) {
     userID := r.Header.Get("X-Volta-User-Id")
@@ -329,9 +335,10 @@ func handleData(w http.ResponseWriter, r *http.Request) {
 
 ### Step 5: Add volta-sdk-js to frontend
 
-**Ask:** "Do you have a JavaScript frontend? SPA or server-rendered?"
+**Ask:** "Do you have a [Java](glossary/java.md)Script frontend? [SPA](glossary/spa.md) or [server](glossary/server.md)-rendered?"
 
-If SPA:
+If [SPA](glossary/spa.md):
+
 ```html
 <script src="http://localhost:7070/js/volta.js"></script>
 <script>
@@ -363,7 +370,7 @@ open http://app.localhost
 curl -H "Cookie: __volta_session=..." http://app.localhost/api/data
 ```
 
----
+***
 
 ## Phase 3: Common Questions Sora Will Ask
 
@@ -404,7 +411,7 @@ Authorization: Bearer <X-Volta-JWT value>
 Returns: { id, email, display_name, is_active, created_at }
 ```
 
-### "How do I add tenant_id to all my database queries?"
+### "How do I add tenant\_id to all my database queries?"
 
 ```
 Middleware pattern — add tenant_id check to all routes:
@@ -450,7 +457,7 @@ Or better: remove your users table and use volta's Internal API
 to fetch user info when needed.
 ```
 
----
+***
 
 ## Phase 4: Verify Integration
 
@@ -470,7 +477,7 @@ to fetch user info when needed.
 □ User in different tenant does NOT see other tenant's data
 ```
 
----
+***
 
 ## Reference
 
@@ -491,6 +498,7 @@ Key articles for integration:
 ```
 
 Full specs:
+
 ```
   dsl/protocol.yaml              — Complete API contract
   dge/specs/ui-flow.md           — All auth flows with mermaid diagrams

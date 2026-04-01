@@ -9,7 +9,7 @@ Handles [authentication](docs/glossary/authentication-vs-authorization.md), [ten
 
 > **Auth terminology is hard. But pretending you understand is the most dangerous thing.**
 > Every technical term in this document links to a [glossary article](docs/glossary/).
-> Click and read. It's not embarrassing. Knowing what you don't know is the most important thing.
+> Click and read. It's not embarrassing. Knowing what you don't know is the most im[port](docs/glossary/port.md)ant thing.
 > In the age of AI, education matters.
 
 > Every word is clickable. Every term is explained.
@@ -78,10 +78,10 @@ volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tr
 | Feature | Detail |
 |---------|--------|
 | [Tenant](docs/glossary/tenant.md) resolution | 4-level priority: [session](docs/glossary/session.md) > [subdomain](docs/glossary/subdomain.md) > email [domain](docs/glossary/domain.md) > [invitation](docs/glossary/invitation-flow.md)/manual (→ [see flow](dge/specs/ui-flow.md#flow-3-tenant-selection)) |
-| Free email handling | gmail.com, outlook.com etc automatically excluded from domain matching |
+| Free email handling | gmail.com, outlook.com etc automatically excluded from [domain](docs/glossary/domain.md) matching |
 | Multiple [membership](docs/glossary/membership.md) | One user can belong to multiple [tenants](docs/glossary/tenant.md) with different [roles](docs/glossary/role.md) |
 | [Tenant](docs/glossary/tenant.md) switching | In-[session](docs/glossary/session.md) switch via [API](docs/glossary/api.md). Page reload for clean [state](docs/glossary/state.md) (→ [see flow](dge/specs/ui-flow.md#flow-4-tenant-switch-during-session)) |
-| [Tenant](docs/glossary/tenant.md) [suspension](docs/glossary/suspension.md) | Suspended [tenant](docs/glossary/tenant.md) blocks all member access. Other tenant access preserved |
+| [Tenant](docs/glossary/tenant.md) [suspension](docs/glossary/suspension.md) | Suspended [tenant](docs/glossary/tenant.md) blocks all member access. Other [tenant](docs/glossary/tenant.md) access preserved |
 | [Tenant](docs/glossary/tenant.md) isolation | [API](docs/glossary/api.md) path tenantId must match [JWT](docs/glossary/jwt.md) [claim](docs/glossary/claim.md). Cross-tenant access structurally prevented |
 
 ### Invitation System
@@ -102,9 +102,9 @@ volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tr
 |---------|--------|
 | 4-level [hierarchy](docs/glossary/hierarchy.md) | OWNER > ADMIN > MEMBER > VIEWER |
 | Per-app [enforcement](docs/glossary/enforcement.md) | volta-config.[yaml](docs/glossary/yaml.md) defines allowed\_[role](docs/glossary/role.md)s per [App](docs/glossary/downstream-app.md). Enforced at [ForwardAuth](docs/glossary/forwardauth.md) ([📊](dge/specs/ui-flow.md#flow-2-returning-user---session-valid)) |
-| [Tenant](docs/glossary/tenant.md)-scoped | [Roles](docs/glossary/role.md) are per [tenant](docs/glossary/tenant.md). User can be ADMIN in [tenant](docs/glossary/tenant.md) A and VIEWER in tenant B |
+| [Tenant](docs/glossary/tenant.md)-scoped | [Roles](docs/glossary/role.md) are per [tenant](docs/glossary/tenant.md). User can be ADMIN in [tenant](docs/glossary/tenant.md) A and VIEWER in [tenant](docs/glossary/tenant.md) B |
 | OWNER protection | Last OWNER cannot be demoted or removed |
-| [Role](docs/glossary/role.md) management UI | Admin page for changing member roles. Drag-down with confirmation |
+| [Role](docs/glossary/role.md) management UI | Admin page for changing member [role](docs/glossary/role.md)s. Drag-down with confirmation |
 
 ### Security
 
@@ -115,7 +115,7 @@ volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tr
 | Key [encryption at rest](docs/glossary/encryption-at-rest.md) | Private keys AES-256-GCM [encrypted](docs/glossary/encryption.md) at rest in DB |
 | CSRF protection | [Token](docs/glossary/token.md)-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) [API](docs/glossary/api.md) exempt via [SameSite](docs/glossary/samesite.md) + [Content Negotiation](docs/glossary/content-type.md) |
 | [Rate limiting](docs/glossary/rate-limiting.md) | Per-IP for [login](docs/glossary/login.md) (10/min). Per-user for [API](docs/glossary/api.md) (200/min) |
-| [Session fixation](docs/glossary/session-fixation.md) | [Session](docs/glossary/session.md) ID [regenerate](docs/glossary/regenerate.md)d on every login |
+| [Session fixation](docs/glossary/session-fixation.md) | [Session](docs/glossary/session.md) ID [regenerate](docs/glossary/regenerate.md)d on every [login](docs/glossary/login.md) |
 | [Content negotiation](docs/glossary/content-negotiation.md) | [JSON](docs/glossary/json.md) requests never get 302 [redirect](docs/glossary/redirect.md)s. Prevents [SPA](docs/glossary/spa.md) fetch confusion |
 | [Audit log](docs/glossary/audit-log.md)ging | Every auth event: login, [logout](docs/glossary/logout.md), [role](docs/glossary/role.md) change, [invitation](docs/glossary/invitation-flow.md), [session](docs/glossary/session.md) [revoke](docs/glossary/revoke.md) |
 | [Cache-Control](docs/glossary/cache-control.md) | `no-store, private` on all auth [endpoint](docs/glossary/endpoint.md)s. Prevents back-button data leaks |
@@ -127,7 +127,7 @@ volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tr
 | [ForwardAuth](docs/glossary/forwardauth.md) | [Apps](docs/glossary/downstream-app.md) get identity via [HTTP](docs/glossary/http.md) [headers](docs/glossary/header.md). Zero auth code needed [📊](dge/specs/ui-flow.md#flow-2-returning-user---session-valid) |
 | [Internal API](docs/glossary/internal-api.md) | REST [API](docs/glossary/api.md) for user/[tenant](docs/glossary/tenant.md)/member CRUD [delegation](docs/glossary/delegation.md) |
 | volta-[sdk](docs/glossary/sdk.md)-js | [Browser](docs/glossary/browser.md) [SDK](docs/glossary/sdk.md) (~150 lines). Auto 401 refresh, [tenant](docs/glossary/tenant.md) switch, [logout](docs/glossary/logout.md) |
-| volta-sdk ([Java](docs/glossary/java.md)) | [Javalin](docs/glossary/javalin.md) [middleware](docs/glossary/middleware.md) for [JWT](docs/glossary/jwt.md) [verification](docs/glossary/verification.md) |
+| volta-[sdk](docs/glossary/sdk.md) ([Java](docs/glossary/java.md)) | [Javalin](docs/glossary/javalin.md) [middleware](docs/glossary/middleware.md) for [JWT](docs/glossary/jwt.md) [verification](docs/glossary/verification.md) |
 | Dev mode | `POST /dev/token` generates test [JWTs](docs/glossary/jwt.md) for local development |
 | [Health check](docs/glossary/health-check.md) | `GET /healthz` for monitoring |
 | Fast [startup](docs/glossary/startup.md) | ~200ms. Local dev cycle is instant |
@@ -203,7 +203,7 @@ java -jar target/volta-auth-proxy-0.1.0-SNAPSHOT.jar
 
 ### Google OAuth Setup
 
-**What happens at runtime** (once configured):
+**What happens at [runtime](docs/glossary/runtime.md)** (once configured):
 
 ```
   Browser          Traefik         volta-auth-proxy        Google
@@ -245,14 +245,14 @@ java -jar target/volta-auth-proxy-0.1.0-SNAPSHOT.jar
      │◄───────────────│                   │                   │
 ```
 
-**One-time setup in Google Cloud Console:**
+**One-time setup in [Google Cloud Console](docs/glossary/google-cloud-console.md):**
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create or select a project
 3. Navigate to [API](docs/glossary/api.md)s & Services > [Credentials](docs/glossary/credentials.md)
 4. Create [OAuth 2.0](docs/glossary/oauth2.md) [Client](docs/glossary/client.md) ID (Web application)
 5. Add authorized [redirect](docs/glossary/redirect.md) [URI](docs/glossary/url.md): `http://localhost:7070/callback`
-6. Copy [Client](docs/glossary/client.md) ID and Client Secret to [`.env`](docs/glossary/environment-variable.md)
+6. Copy [Client](docs/glossary/client.md) ID and [Client](docs/glossary/client.md) Secret to [`.env`](docs/glossary/environment-variable.md)
 
 ### Prerequisites
 
@@ -678,7 +678,7 @@ services:
 | [Template](docs/glossary/template.md) | [jte](docs/glossary/jte.md) 3.x | [Type-safe](docs/glossary/type-safe.md), [compile](docs/glossary/compile.md)-time checked |
 | [JWT](docs/glossary/jwt.md) | nimbus-jose-[jwt](docs/glossary/jwt.md) | [Java](docs/glossary/java.md) JOSE/[JWT](docs/glossary/jwt.md) de facto standard |
 | DB | [Postgres](docs/glossary/database.md) 16 | Reliable, JSONB for [audit log](docs/glossary/audit-log.md)s |
-| [Migration](docs/glossary/migration.md) | [Flyway](docs/glossary/flyway.md) | Auto-runs on startup |
+| [Migration](docs/glossary/migration.md) | [Flyway](docs/glossary/flyway.md) | Auto-runs on [startup](docs/glossary/startup.md) |
 | Pool | [HikariCP](docs/glossary/hikaricp.md) | Fast [connection pool](docs/glossary/connection-pool.md) |
 | Cache | [Caffeine](docs/glossary/caffeine-cache.md) | [In-memory](docs/glossary/in-memory.md), for [rate limiting](docs/glossary/rate-limiting.md) + [session](docs/glossary/session.md) cache |
 | [CSS](docs/glossary/css.md) | Single file `volta.css` | Mobile-first, [responsive](docs/glossary/responsive.md) |
@@ -784,7 +784,7 @@ oidc_flows (OIDC state/nonce tracking)
 |-------|---------|
 | `users` | User accounts (email, display\_name, google\_sub) |
 | `tenants` | Work[spa](docs/glossary/spa.md)ces (name, slug, email\_[domain](docs/glossary/domain.md), plan) |
-| `tenant_domains` | Multiple domains per [tenant](docs/glossary/tenant.md) |
+| `tenant_domains` | Multiple [domain](docs/glossary/domain.md)s per [tenant](docs/glossary/tenant.md) |
 | `memberships` | User-[tenant](docs/glossary/tenant.md) relationships ([role](docs/glossary/role.md), joined\_at) |
 | `sessions` | Active [sessions](docs/glossary/session.md) ([cookie](docs/glossary/cookie.md)-based, [sliding](docs/glossary/sliding-window-expiry.md) 8h) |
 | `signing_keys` | [JWT](docs/glossary/jwt.md) RSA key pairs (AES-256-GCM [encrypted](docs/glossary/encryption.md)) |
@@ -868,7 +868,7 @@ X-Volta-App-Id:       app-wiki
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/admin/keys` | OWNER | List [signing key](docs/glossary/signing-key.md)s |
-| POST | `/api/v1/admin/keys/rotate` | OWNER | Rotate signing key |
+| POST | `/api/v1/admin/keys/rotate` | OWNER | Rotate [signing key](docs/glossary/signing-key.md) |
 | POST | `/api/v1/admin/keys/{kid}/revoke` | OWNER | [Revoke](docs/glossary/revoke.md) signing key |
 
 **Development:**
@@ -1107,7 +1107,7 @@ Authorization: Bearer ...  -->  Treated as JSON
 | [Session](docs/glossary/session.md) | HMAC-SHA256 signed [cookie](docs/glossary/cookie.md). [HttpOnly](docs/glossary/httponly.md), Secure, [SameSite](docs/glossary/samesite.md)=Lax |
 | [Session fixation](docs/glossary/session-fixation.md) | [Session](docs/glossary/session.md) ID [regenerate](docs/glossary/regenerate.md)d on [login](docs/glossary/login.md) |
 | [CSRF](docs/glossary/csrf.md) | [Token](docs/glossary/token.md)-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) [API](docs/glossary/api.md) exempt |
-| [Rate limiting](docs/glossary/rate-limiting.md) | Per-IP for login (10/min), per-user for [API](docs/glossary/api.md) (200/min) |
+| [Rate limiting](docs/glossary/rate-limiting.md) | Per-IP for [login](docs/glossary/login.md) (10/min), per-user for [API](docs/glossary/api.md) (200/min) |
 | [Tenant](docs/glossary/tenant.md) isolation | Path [tenant](docs/glossary/tenant.md)Id must match [JWT](docs/glossary/jwt.md) volta\_tid |
 | OWNER protection | Last OWNER cannot be demoted |
 | Audit | All auth events logged with actor, IP, request\_id |
@@ -1123,14 +1123,14 @@ Authorization: Bearer ...  -->  Treated as JSON
 | `DB_HOST` | [localhost](docs/glossary/localhost.md) | [Postgres](docs/glossary/database.md) host |
 | `DB_PORT` | 54329 | [Postgres](docs/glossary/database.md) [port](docs/glossary/port.md) |
 | `DB_NAME` | volta\_auth | [Database](docs/glossary/database.md) name |
-| `DB_USER` | volta | Database user |
+| `DB_USER` | volta | [Database](docs/glossary/database.md) user |
 | `DB_PASSWORD` | volta | Database password |
 | `BASE_URL` | [http](docs/glossary/http.md)://[localhost](docs/glossary/localhost.md):7070 | Public [URL](docs/glossary/url.md) |
 | `GOOGLE_CLIENT_ID` | | Google [OAuth](docs/glossary/oauth2.md) [client](docs/glossary/client.md) ID |
-| `GOOGLE_CLIENT_SECRET` | | Google [OAuth](docs/glossary/oauth2.md) client secret |
-| `GOOGLE_REDIRECT_URI` | http://localhost:7070/callback | [Open redirect](docs/glossary/open-redirect.md)-safe [OAuth](docs/glossary/oauth2.md) [redirect](docs/glossary/redirect.md) [URI](docs/glossary/url.md) |
+| `GOOGLE_CLIENT_SECRET` | | Google [OAuth](docs/glossary/oauth2.md) [client](docs/glossary/client.md) secret |
+| `GOOGLE_REDIRECT_URI` | [http](docs/glossary/http.md)://[localhost](docs/glossary/localhost.md):7070/callback | [Open redirect](docs/glossary/open-redirect.md)-safe [OAuth](docs/glossary/oauth2.md) [redirect](docs/glossary/redirect.md) [URI](docs/glossary/url.md) |
 | `JWT_ISSUER` | volta-auth | [JWT](docs/glossary/jwt.md) issuer [claim](docs/glossary/claim.md) |
-| `JWT_AUDIENCE` | volta-apps | [JWT](docs/glossary/jwt.md) audience claim |
+| `JWT_AUDIENCE` | volta-apps | [JWT](docs/glossary/jwt.md) audience [claim](docs/glossary/claim.md) |
 | `JWT_TTL_SECONDS` | 300 | [JWT](docs/glossary/jwt.md) expiry (5 min) |
 | `JWT_KEY_ENCRYPTION_SECRET` | | AES-256 key for [encrypting](docs/glossary/encryption.md) [signing key](docs/glossary/signing-key.md)s |
 | `SESSION_TTL_SECONDS` | 28800 | [Session](docs/glossary/session.md) expiry (8 hours) |
@@ -1161,7 +1161,7 @@ Authorization: Bearer ...  -->  Treated as JSON
 | **Fraud detection/alerting** | [Phase](docs/glossary/phase-based-development.md) 3 | Suspicious [login](docs/glossary/login.md) detection (impossible travel, [credential stuffing](docs/glossary/credential-stuffing.md)). [Webhook](docs/glossary/webhook.md) alerts to admin. [Integration](docs/glossary/integration.md) with threat intelligence feeds |
 | **Device trust** | [Phase](docs/glossary/phase-based-development.md) 4 | Remember known devices. Challenge unknown devices |
 | **Mobile [SDK](docs/glossary/sdk.md)** | [Phase](docs/glossary/phase-based-development.md) 4 | Native iOS/Android [SDK](docs/glossary/sdk.md). Deep link support for invite flows. Biometric auth [integration](docs/glossary/integration.md) |
-| **[SAML](docs/glossary/sso.md) [SSO](docs/glossary/sso.md)** | [Phase](docs/glossary/phase-based-development.md) 3 | Enterprise customer [IdP](docs/glossary/idp.md) integration ([Active Directory](docs/glossary/active-directory.md) etc.) |
+| **[SAML](docs/glossary/sso.md) [SSO](docs/glossary/sso.md)** | [Phase](docs/glossary/phase-based-development.md) 3 | Enterprise customer [IdP](docs/glossary/idp.md) [integration](docs/glossary/integration.md) ([Active Directory](docs/glossary/active-directory.md) etc.) |
 | **SCIM** | [Phase](docs/glossary/phase-based-development.md) 4 | Automated user [provisioning](docs/glossary/provisioning.md) from [Okta](docs/glossary/okta.md), Azure AD etc. |
 
 Full specification: [`dge/specs/implementation-all-phases.md`](dge/specs/implementation-all-phases.md)
@@ -1182,7 +1182,7 @@ This project was designed using DGE (Dialogue-driven Gap Extraction) -- 106 desi
 | [`docs/no-traefik-guide.md`](docs/no-traefik-guide.md) | Running without [Traefik](docs/glossary/traefik.md): 3 patterns (no proxy, [nginx](docs/glossary/nginx.md), [Caddy](docs/glossary/caddy.md)) |
 | [`docs/target-audience.md`](docs/target-audience.md) | Target audience, market position, revenue op[port](docs/glossary/port.md)unities |
 | [`docs/dsl-overview.md`](docs/dsl-overview.md) | [DSL](docs/glossary/dsl.md) specification, [state machine](docs/glossary/state-machine.md), [policy engine](docs/glossary/policy-engine.md) driver strategy |
-| [`docs/dsl-validator-spec.md`](docs/dsl-validator-spec.md) | DSL validator (60+ checks) |
+| [`docs/dsl-validator-spec.md`](docs/dsl-validator-spec.md) | [DSL](docs/glossary/dsl.md) validator (60+ checks) |
 | [`dge/feedback/2026-03-31-volta-auth-proxy.md`](dge/feedback/2026-03-31-volta-auth-proxy.md) | DGE method feedback |
 | [`tasks/001-fix-critical-bugs-and-implement-templates.md`](tasks/001-fix-critical-bugs-and-implement-templates.md) | Current implementation task |
 | [`backlog/001-form-state-recovery.md`](backlog/001-form-state-recovery.md) | [Phase](docs/glossary/phase-based-development.md) 2: Form auto-save on [session](docs/glossary/session.md) expiry |

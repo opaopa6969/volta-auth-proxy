@@ -1,0 +1,10 @@
+# DDE — Document Deficit Extraction
+# https://github.com/unlaxer/dde-toolkit
+
+When the user says "DDE して", "ドキュメントレビュー", "用語集を作って":
+- Read .claude/skills/dde-session.md for instructions
+- Target document: argument or README.md
+- Output Gap list (A. terms / B. diagrams / C. reader gaps)
+- Save to dde/sessions/
+- Generate docs/glossary/<term>.md for undefined terms
+- Run: npx dde-link <file>

@@ -2,9 +2,9 @@
 
 [English](no-traefik-guide.md) | [日本語](no-traefik-guide.ja.md)
 
-> Traefik is recommended but NOT required. volta works without a reverse proxy.
+> [Traefik](glossary/traefik.md) is recommended but NOT required. volta works without a [reverse proxy](glossary/reverse-proxy.md).
 
----
+***
 
 ## 3 Deployment Patterns
 
@@ -24,12 +24,14 @@ Your App (port 8080)
 ```
 
 **How it works:**
+
 - volta handles all auth pages directly
-- Your app runs on a separate port
+- Your app runs on a separate [port](glossary/port.md)
 - Your frontend calls BOTH volta (auth) and your app (data)
-- No reverse proxy needed
+- No [reverse proxy](glossary/reverse-proxy.md) needed
 
 **Frontend code:**
+
 ```javascript
 // volta-sdk-js handles auth
 Volta.init({ gatewayUrl: "http://localhost:7070" });
@@ -41,7 +43,8 @@ const tasks = await Volta.fetch("http://localhost:8080/api/tasks");
 await Volta.logout();
 ```
 
-**Your app verifies JWT directly** (no ForwardAuth headers):
+**Your app verifies [JWT](glossary/jwt.md) directly** (no ForwardAuth [header](glossary/header.md)s):
+
 ```java
 VoltaAuth volta = VoltaAuth.builder()
     .jwksUrl("http://volta-auth-proxy:7070/.well-known/jwks.json")
@@ -58,18 +61,20 @@ app.get("/api/tasks", ctx -> {
 ```
 
 **Pros:**
+
 - Zero extra infrastructure
-- docker-compose: just volta + Postgres + your app
+- [docker-compose](glossary/docker-compose.md): just volta + Postgres + your app
 - Simplest possible setup
 
 **Cons:**
-- Two ports exposed (7070 + 8080) — need CORS
-- No automatic header injection (your app must verify JWT)
-- No subdomain routing
 
-**Best for:** development, prototyping, single-app deployments
+- Two [port](glossary/port.md)s exposed (7070 + 8080) — need CORS
+- No automatic [header](glossary/header.md) injection (your app must verify [JWT](glossary/jwt.md))
+- No [subdomain](glossary/subdomain.md) [routing](glossary/routing.md)
 
----
+**Best for:** development, prototyping, single-app [deployment](glossary/deployment.md)s
+
+***
 
 ### Pattern B: Traefik (Recommended for production)
 
@@ -84,15 +89,15 @@ volta-auth-proxy    Your App
 
 This is the standard pattern described in the main [README](../README.md).
 
-**Best for:** production, multiple apps, subdomain routing
+**Best for:** [production](glossary/production.md), multiple apps, [subdomain](glossary/subdomain.md) [routing](glossary/routing.md)
 
----
+***
 
 ### Pattern C: nginx / Caddy / Any Reverse Proxy
 
-ForwardAuth is not Traefik-specific. Any reverse proxy with auth delegation works.
+ForwardAuth is not [Traefik](glossary/traefik.md)-specific. Any [reverse proxy](glossary/reverse-proxy.md) with auth [delegation](glossary/delegation.md) works.
 
-#### nginx (auth_request)
+#### nginx (auth\_request)
 
 ```nginx
 server {
@@ -128,7 +133,7 @@ server {
 }
 ```
 
-#### Caddy (forward_auth)
+#### Caddy (forward\_auth)
 
 ```
 app.example.com {
@@ -147,9 +152,9 @@ app.example.com {
 }
 ```
 
-**Best for:** teams already using nginx or Caddy
+**Best for:** teams already using [nginx](glossary/nginx.md) or [Caddy](glossary/caddy.md)
 
----
+***
 
 ## Pattern A: Detailed Setup (No Reverse Proxy)
 
@@ -211,7 +216,7 @@ services:
 
 ### CORS Configuration
 
-Without a reverse proxy, your frontend makes cross-origin requests to volta. volta needs CORS headers:
+Without a [reverse proxy](glossary/reverse-proxy.md), your frontend makes [cross-origin](glossary/cross-origin.md) requests to volta. volta needs CORS [header](glossary/header.md)s:
 
 ```env
 # .env
@@ -242,7 +247,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
 
 ### Your App: JWT Verification
 
-Without ForwardAuth, your app must verify JWT itself:
+Without ForwardAuth, your app must verify [JWT](glossary/jwt.md) itself:
 
 ```java
 // Javalin
@@ -290,17 +295,17 @@ app.use("/api", async (req, res, next) => {
 });
 ```
 
----
+***
 
 ## Comparison
 
-| | Pattern A (no proxy) | Pattern B (Traefik) | Pattern C (nginx/Caddy) |
+| | Pattern A (no proxy) | Pattern B ([Traefik](glossary/traefik.md)) | Pattern C ([nginx](glossary/nginx.md)/[Caddy](glossary/caddy.md)) |
 |---|---|---|---|
 | **Infrastructure** | None | Traefik | nginx or Caddy |
 | **Setup complexity** | Lowest | Medium | Medium |
-| **Auth method** | JWT verification | ForwardAuth headers | ForwardAuth headers |
+| **Auth method** | [JWT](glossary/jwt.md) [verification](glossary/verification.md) | ForwardAuth [header](glossary/header.md)s | ForwardAuth headers |
 | **CORS needed** | Yes | No | No |
 | **Multiple apps** | Manual JWT | Automatic headers | Automatic headers |
-| **Subdomain routing** | No | Yes | Yes |
-| **Production ready** | Dev/small | Yes | Yes |
+| **[Subdomain](glossary/subdomain.md) [routing](glossary/routing.md)** | No | Yes | Yes |
+| **[Production](glossary/production.md) ready** | Dev/small | Yes | Yes |
 | **volta philosophy** | "Just works" | "Config aggregation" | "Your choice" |

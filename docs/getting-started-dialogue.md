@@ -4,25 +4,25 @@
 
 > Two engineers walk into a conference room. One works at volta. The other just wants to add auth to their app.
 
----
+***
 
 ## Cast
 
 **Rin (volta engineer):** Knows volta-auth-proxy inside out. Patient. Likes diagrams.
 
-**Kai (app developer):** Building a project management SaaS. Has a Javalin app. Needs multi-tenant auth. Has heard of OAuth but never implemented it.
+**Kai (app developer):** [Build](glossary/build.md)ing a project management SaaS. Has a [Javalin](glossary/javalin.md) app. Needs [multi-tenant](glossary/multi-tenant.md) auth. Has heard of OAuth but never implemented it.
 
----
+***
 
 ## Scene 1: "I just want login to work"
 
-**Kai:** OK so I have this Javalin app. Users need to log in. I've been putting it off because auth is scary. I looked at Auth0 but it's expensive. Keycloak looks like a nightmare. Can volta help?
+**Kai:** OK so I have this [Javalin](glossary/javalin.md) app. Users need to log in. I've been putting it off because auth is scary. I looked at [Auth0](glossary/auth0.md) but it's expensive. [Keycloak](glossary/keycloak.md) looks like a nightmare. Can volta help?
 
 **Rin:** What does your app do?
 
-**Kai:** Project management. Teams create workspaces, invite members, manage tasks. Each workspace is separate — you shouldn't see another team's data.
+**Kai:** Project management. Teams create work[spa](glossary/spa.md)ces, invite members, manage tasks. Each workspace is separate — you shouldn't see another team's data.
 
-**Rin:** That's [multi-tenant](glossary/multi-tenant.md). Each workspace is a [tenant](glossary/tenant.md). volta was literally built for this. Here's what your architecture will look like:
+**Rin:** That's [multi-tenant](glossary/multi-tenant.md). Each work[spa](glossary/spa.md)ce is a [tenant](glossary/tenant.md). volta was literally built for this. Here's what your [architecture](glossary/architecture.md) will look like:
 
 ```
 Browser
@@ -35,7 +35,7 @@ volta-auth-proxy       Your app
 
 **Kai:** Wait, two services? I thought volta was "tight coupling, no apologies."
 
-**Rin:** "Tight coupling" means volta's *config* is in one place. Your app and volta are separate services, but Traefik connects them. Your app never handles login, never verifies passwords, never manages sessions. volta does all of that.
+**Rin:** "Tight coupling" means volta's *config* is in one place. Your app and volta are separate services, but [Traefik](glossary/traefik.md) connects them. Your app never handles [login](glossary/login.md), never verifies passwords, never manages [session](glossary/session.md)s. volta does all of that.
 
 **Kai:** So what does my app actually do?
 
@@ -45,7 +45,7 @@ volta-auth-proxy       Your app
 
 **Rin:** That's it.
 
----
+***
 
 ## Scene 2: "Show me the headers"
 
@@ -69,7 +69,7 @@ X-Volta-Display-Name: Kai Tanaka
 X-Volta-JWT:          eyJhbGciOiJSUzI1NiIs...
 ```
 
-**Kai:** So I just read `X-Volta-Tenant-Id` and filter my database queries by that?
+**Kai:** So I just read `X-Volta-Tenant-Id` and filter my [database](glossary/database.md) queries by that?
 
 **Rin:** Exactly.
 
@@ -86,12 +86,12 @@ app.get("/api/tasks", ctx -> {
 });
 ```
 
-**Kai:** That's... really simple. But how do I know the headers aren't fake? Someone could just send `X-Volta-User-Id: admin` manually.
+**Kai:** That's... really simple. But how do I know the [header](glossary/header.md)s aren't fake? Someone could just send `X-Volta-User-Id: admin` manually.
 
 **Rin:** Two layers of protection:
 
-1. **Network isolation:** Your app only accepts requests from Traefik's internal network. No one can reach your app directly.
-2. **[JWT](glossary/jwt.md) verification:** If you want extra security, verify the `X-Volta-JWT` header. It's cryptographically signed.
+1. **[Network isolation](glossary/network-isolation.md):** Your app only accepts requests from [Traefik](glossary/traefik.md)'s internal [network](glossary/network.md). No one can reach your app directly.
+2. **[JWT](glossary/jwt.md) [verification](glossary/verification.md):** If you want extra security, verify the `X-Volta-JWT` [header](glossary/header.md). It's cryptographically signed.
 
 ```java
 // Optional but recommended: verify the JWT
@@ -110,7 +110,7 @@ app.get("/api/tasks", ctx -> {
 });
 ```
 
----
+***
 
 ## Scene 3: "How do I set this up?"
 
@@ -144,7 +144,7 @@ apps:
 
 **Kai:** That's it? Four lines?
 
-**Rin:** Four lines. volta generates the Traefik config automatically.
+**Rin:** Four lines. volta generates the [Traefik](glossary/traefik.md) config automatically.
 
 ### Step 3: Add Traefik
 
@@ -182,18 +182,18 @@ app.get("/api/tasks", ctx -> {
 
 **Rin:** That's really it.
 
----
+***
 
 ## Scene 4: "What about invitations?"
 
-**Kai:** OK but how do users join a workspace? I need invitations.
+**Kai:** OK but how do users join a work[spa](glossary/spa.md)ce? I need invitations.
 
-**Rin:** volta handles that too. You don't write any invitation code. volta has a built-in invitation system:
+**Rin:** volta handles that too. You don't write any [invitation code](glossary/invitation-code.md). volta has a built-in invitation system:
 
 1. Admin opens `https://auth.example.com/admin/invitations`
 2. Creates an invitation link
-3. Shares it via Slack or email
-4. New user clicks the link → Google login → consent screen → joins workspace
+3. Shares it via [Sla](glossary/sla.md)ck or email
+4. New user clicks the link → Google [login](glossary/login.md) → [consent screen](glossary/consent-screen.md) → joins work[spa](glossary/spa.md)ce
 
 ```
 Invitation Flow
@@ -217,7 +217,7 @@ Admin                volta               Google              New User
   |          Next request: X-Volta-Tenant-Id includes new user  |
 ```
 
-Your app doesn't know any of this happened. Next time that user accesses your app, the `X-Volta-Tenant-Id` header just includes them.
+Your app doesn't know any of this happened. Next time that user accesses your app, the `X-Volta-Tenant-Id` [header](glossary/header.md) just includes them.
 
 **Kai:** What if I want to show a "Members" page in my app?
 
@@ -243,17 +243,17 @@ app.get("/app/team", ctx -> {
 });
 ```
 
-**Kai:** So volta is like... the single source of truth for users and tenants, and my app just asks volta when it needs that info?
+**Kai:** So volta is like... the [single source of truth](glossary/single-source-of-truth.md) for users and [tenant](glossary/tenant.md)s, and my app just asks volta when it needs that info?
 
-**Rin:** Exactly. Your app owns tasks and projects. volta owns users, tenants, roles, and sessions. Clean separation.
+**Rin:** Exactly. Your app owns tasks and projects. volta owns users, [tenant](glossary/tenant.md)s, [role](glossary/role.md)s, and [session](glossary/session.md)s. Clean separation.
 
----
+***
 
 ## Scene 5: "What about the frontend?"
 
-**Kai:** My app has a [JavaScript](glossary/javascript.md) frontend. What happens when the user's session expires?
+**Kai:** My app has a [JavaScript](glossary/javascript.md) frontend. What happens when the user's [session](glossary/session.md) expires?
 
-**Rin:** Add volta-sdk-js. One script tag.
+**Rin:** Add volta-[sdk](glossary/sdk.md)-js. One script tag.
 
 ```html
 <script src="http://volta-auth-proxy:7070/js/volta.js"></script>
@@ -272,11 +272,11 @@ const res = await fetch("/api/tasks");
 const res = await Volta.fetch("/api/tasks");
 ```
 
-**Kai:** It automatically refreshes the session?
+**Kai:** It automatically refreshes the [session](glossary/session.md)?
 
-**Rin:** Yes. If the [JWT](glossary/jwt.md) expires (every 5 minutes), the SDK silently refreshes it. The user never sees a login screen during normal use. If the session truly expires (after 8 hours), the SDK redirects to login and brings them back to where they were.
+**Rin:** Yes. If the [JWT](glossary/jwt.md) expires (every 5 minutes), the [SDK](glossary/sdk.md) silently refreshes it. The user never sees a [login](glossary/login.md) screen during normal use. If the [session](glossary/session.md) truly expires (after 8 hours), the SDK [redirect](glossary/redirect.md)s to login and brings them back to where they were.
 
-**Kai:** What about tenant switching? Some users belong to multiple workspaces.
+**Kai:** What about [tenant](glossary/tenant.md) switching? Some users belong to multiple work[spa](glossary/spa.md)ces.
 
 **Rin:**
 
@@ -286,7 +286,7 @@ await Volta.switchTenant("other-workspace-id");
 // Page automatically reloads with new tenant context
 ```
 
----
+***
 
 ## Scene 6: "What about roles?"
 
@@ -318,15 +318,15 @@ app.delete("/api/tasks/{id}", ctx -> {
 });
 ```
 
-**Kai:** And the role assignment happens in volta?
+**Kai:** And the [role](glossary/role.md) assignment happens in volta?
 
-**Rin:** Yes. `https://auth.example.com/admin/members` — admins can change roles there. Your app just reads `X-Volta-Roles` and enforces business rules.
+**Rin:** Yes. `https://auth.example.com/admin/members` — admins can change [role](glossary/role.md)s there. Your app just reads `X-Volta-Roles` and enforces business rules.
 
----
+***
 
 ## Scene 7: "What DON'T I need to build?"
 
-**Kai:** Let me make sure I understand. What do I NOT need to build?
+**Kai:** Let me make sure I understand. What do I NOT need to [build](glossary/build.md)?
 
 **Rin:**
 
@@ -354,11 +354,11 @@ You DO build:
   ✅ Role-based access checks in your business logic
 ```
 
-**Kai:** That's... a lot of stuff I don't have to build.
+**Kai:** That's... a lot of stuff I don't have to [build](glossary/build.md).
 
 **Rin:** That's the point. volta handles the auth infrastructure. You focus on what makes your app unique.
 
----
+***
 
 ## Scene 8: "One last question"
 
@@ -366,19 +366,19 @@ You DO build:
 
 **Rin:** Good question. volta is the [ForwardAuth](glossary/forwardauth.md) checkpoint. If volta is down:
 
-- New requests can't be authenticated → Traefik returns 401
-- Users with cached pages might see data but can't make API calls
+- New requests can't be authenticated → [Traefik](glossary/traefik.md) returns 401
+- Users with cached pages might see data but can't make [API](glossary/api.md) calls
 - Your app itself stays up — it just can't verify new requests
 
-For Phase 1 (single instance), this is a known [trade-off](glossary/tradeoff.md). Phase 2 adds Redis sessions + horizontal scaling for high availability.
+For Phase 1 (single instance), this is a known [trade-off](glossary/tradeoff.md). Phase 2 adds [Redis](glossary/redis.md) [session](glossary/session.md)s + [horizontal scaling](glossary/horizontal-scaling.md) for [high availability](glossary/high-availability.md).
 
 **Kai:** Honestly, for my scale right now, that's fine. I'd rather have simple auth that I understand than complex auth that I don't.
 
 **Rin:** That's the volta philosophy. [Choose the hell you understand](glossary/native-implementation.md).
 
-**Kai:** One more thing. I don't use Traefik. Do I HAVE to?
+**Kai:** One more thing. I don't use [Traefik](glossary/traefik.md). Do I HAVE to?
 
-**Rin:** No. Traefik is recommended but not required. You have 3 options:
+**Rin:** No. [Traefik](glossary/traefik.md) is recommended but not required. You have 3 options:
 
 ```
 Pattern A: No proxy at all (simplest for dev)
@@ -396,9 +396,9 @@ See the full [No Traefik Guide](no-traefik-guide.md) for details.
 
 **Kai:** Pattern A sounds perfect for prototyping.
 
-**Rin:** Exactly. Start with A, add Traefik when you go to production.
+**Rin:** Exactly. Start with A, add [Traefik](glossary/traefik.md) when you go to [production](glossary/production.md).
 
----
+***
 
 **Kai:** OK, NOW when do I start?
 
@@ -410,6 +410,6 @@ git clone git@github.com:opaopa6969/volta-auth-proxy.git
 
 Right now.
 
----
+***
 
 > **Every term in this conversation is clickable.** If you don't know what something means, click it. [That's not embarrassing — that's learning.](../README.md)

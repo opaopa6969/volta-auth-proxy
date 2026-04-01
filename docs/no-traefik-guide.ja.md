@@ -2,9 +2,9 @@
 
 [English](no-traefik-guide.md) | [日本語](no-traefik-guide.ja.md)
 
-> Traefik は推奨だが必須ではない。volta はリバースプロキシなしで動く。
+> [Traefik](glossary/traefik.md) は推奨だが必須ではない。volta はリバースプロキシなしで動く。
 
----
+***
 
 ## 3 つのデプロイパターン
 
@@ -24,12 +24,14 @@ volta-auth-proxy（ポート 7070）
 ```
 
 **仕組み:**
+
 - volta が認証ページを直接提供
 - アプリは別ポートで動く
-- フロントエンドが volta（認証）とアプリ（データ）の 2 つの API を叩く
+- フロントエンドが volta（認証）とアプリ（データ）の 2 つの [API](glossary/api.md) を叩く
 - リバースプロキシ不要
 
-**アプリは JWT を直接検証**（ForwardAuth ヘッダなし）:
+**アプリは [JWT](glossary/jwt.md) を直接検証**（ForwardAuth ヘッダなし）:
+
 ```java
 VoltaAuth volta = VoltaAuth.builder()
     .jwksUrl("http://volta-auth-proxy:7070/.well-known/jwks.json")
@@ -42,7 +44,7 @@ app.before("/api/*", volta.middleware());
 
 **向いてるケース:** 開発、プロトタイプ、単一アプリ
 
----
+***
 
 ### パターン B: Traefik（本番推奨）
 
@@ -50,23 +52,23 @@ app.before("/api/*", volta.middleware());
 
 **向いてるケース:** 本番、複数アプリ、サブドメインルーティング
 
----
+***
 
 ### パターン C: nginx / Caddy / 任意のリバースプロキシ
 
-ForwardAuth は Traefik 固有ではない。auth_request (nginx) や forward_auth (Caddy) でも同じ。
+ForwardAuth は [Traefik](glossary/traefik.md) 固有ではない。auth\_request ([nginx](glossary/nginx.md)) や forward\_auth ([Caddy](glossary/caddy.md)) でも同じ。
 
-nginx と Caddy の設定例は[英語版](no-traefik-guide.md)を参照。
+[nginx](glossary/nginx.md) と [Caddy](glossary/caddy.md) の設定例は[英語版](no-traefik-guide.md)を参照。
 
----
+***
 
 ## 比較表
 
-| | パターン A (プロキシなし) | パターン B (Traefik) | パターン C (nginx/Caddy) |
+| | パターン A (プロキシなし) | パターン B ([Traefik](glossary/traefik.md)) | パターン C ([nginx](glossary/nginx.md)/[Caddy](glossary/caddy.md)) |
 |---|---|---|---|
 | **追加インフラ** | なし | Traefik | nginx or Caddy |
 | **セットアップ** | 最も簡単 | 中程度 | 中程度 |
-| **認証方法** | JWT 検証 | ForwardAuth ヘッダ | ForwardAuth ヘッダ |
+| **認証方法** | [JWT](glossary/jwt.md) 検証 | ForwardAuth ヘッダ | ForwardAuth ヘッダ |
 | **CORS** | 必要 | 不要 | 不要 |
 | **複数アプリ** | JWT 手動 | ヘッダ自動 | ヘッダ自動 |
 | **サブドメイン** | なし | あり | あり |

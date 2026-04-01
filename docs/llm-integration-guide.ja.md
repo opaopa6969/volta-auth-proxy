@@ -4,7 +4,7 @@
 
 > **このドキュメントは LLM（AI アシスタント）向けです。** エンジニアが volta-auth-proxy をアプリに組み込む際、このガイドに従って支援してください。正しい質問をし、正しい答えを返す。
 
----
+***
 
 ## あなたの役割
 
@@ -16,7 +16,7 @@
 4. ソラのスタックに合ったコードを書く
 5. 統合が動くか検証する
 
----
+***
 
 ## Phase 0: プロジェクトを理解する
 
@@ -89,7 +89,7 @@
   - ワイルドカード SSL 証明書はある？
 ```
 
----
+***
 
 ## Phase 1: 統合方法を選ぶ
 
@@ -135,7 +135,7 @@
   - 手間は多いが、リバースプロキシなしで動く
 ```
 
----
+***
 
 ## Phase 2: ステップバイステップ統合
 
@@ -170,35 +170,35 @@ apps:
 
 ### Step 6: テスト
 
----
+***
 
 ## Phase 3: ソラがよく聞く質問
 
 ### 「最初のテナントはどう作るの？」
 
-→ DEV_MODE=true で /dev/token を使う
+→ DEV\_MODE=true で /dev/[token](glossary/token.md) を使う
 
 ### 「ロールチェックはどうするの？」
 
-→ X-Volta-Roles ヘッダを split(",") して contains チェック
+→ X-Volta-[Role](glossary/role.md)s ヘッダを split(",") して contains チェック
 
 ### 「ヘッダ以外のユーザー情報が欲しいときは？」
 
-→ Internal API: GET /api/v1/users/me
+→ Internal [API](glossary/api.md): GET /[api](glossary/api.md)/v1/users/me
 
-### 「全 DB クエリに tenant_id を入れるにはどうする？」
+### 「全 DB クエリに tenant\_id を入れるにはどうする？」
 
-→ ミドルウェアパターンで全ルートに tenant_id チェックを追加
+→ ミドルウェアパターンで全ルートに [tenant](glossary/tenant.md)\_id チェックを追加
 
 ### 「バックグラウンドジョブからはどう呼ぶの？」
 
-→ VOLTA_SERVICE_TOKEN を使う
+→ VOLTA\_SERVICE\_TOKEN を使う
 
 ### 「既にユーザーテーブルがあるんだけど？」
 
-→ volta_user_id カラムを追加して参照。ユーザーの重複管理はしない
+→ volta\_user\_id カラムを追加して参照。ユーザーの重複管理はしない
 
----
+***
 
 ## Phase 4: 統合の検証
 
@@ -217,7 +217,7 @@ apps:
 □ 別テナントのユーザーは他テナントのデータが見えない
 ```
 
----
+***
 
 ## リファレンス
 
@@ -238,6 +238,7 @@ volta-auth-proxy/docs/glossary/  (327 記事, EN + JA)
 ```
 
 全仕様:
+
 ```
   dsl/protocol.yaml                    — 完全な API 契約
   dge/specs/ui-flow.md                 — 全認証フロー（mermaid 図）

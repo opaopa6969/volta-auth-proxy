@@ -354,7 +354,31 @@ For Phase 1 (single instance), this is a known [trade-off](glossary/tradeoff.md)
 
 **Rin:** That's the volta philosophy. [Choose the hell you understand](glossary/native-implementation.md).
 
-**Kai:** When do I start?
+**Kai:** One more thing. I don't use Traefik. Do I HAVE to?
+
+**Rin:** No. Traefik is recommended but not required. You have 3 options:
+
+```
+Pattern A: No proxy at all (simplest for dev)
+  → volta on port 7070, your app on port 8080
+  → Frontend calls both. Your app verifies JWT directly.
+
+Pattern B: Traefik (what we just discussed)
+  → ForwardAuth headers. Recommended for production.
+
+Pattern C: nginx / Caddy / anything
+  → nginx auth_request, Caddy forward_auth. Same idea as Traefik.
+```
+
+See the full [No Traefik Guide](no-traefik-guide.md) for details.
+
+**Kai:** Pattern A sounds perfect for prototyping.
+
+**Rin:** Exactly. Start with A, add Traefik when you go to production.
+
+---
+
+**Kai:** OK, NOW when do I start?
 
 **Rin:**
 

@@ -432,6 +432,7 @@ Authorization: Bearer ...           → JSON 扱い
 | [`dge/specs/ui-flow.md`](dge/specs/ui-flow.md) | 画面遷移図（mermaid）-- [📊 ユーザー状態](dge/specs/ui-flow.md#user-state-model), [ForwardAuth](dge/specs/ui-flow.md#flow-2-returning-user---session-valid), [招待](dge/specs/ui-flow.md#flow-1-invite-link---first-login), [テナント選択](dge/specs/ui-flow.md#flow-3-tenant-selection), [ログアウト](dge/specs/ui-flow.md#flow-6-logout), [エラー回復](dge/specs/ui-flow.md#error-recovery-flow) |
 | [`docs/getting-started-dialogue.ja.md`](docs/getting-started-dialogue.ja.md) | **はじめよう: volta エンジニアと App 開発者の会話** |
 | [`docs/llm-integration-guide.ja.md`](docs/llm-integration-guide.ja.md) | **AI アシスタント向け: エンジニアの volta 統合を支援するガイド** |
+| [`docs/no-traefik-guide.ja.md`](docs/no-traefik-guide.ja.md) | Traefik なしで動かす: 3 パターン（プロキシなし, nginx, Caddy） |
 | [`docs/target-audience.ja.md`](docs/target-audience.ja.md) | ターゲット層、マーケットポジション、収益機会 |
 | [`docs/dsl-overview.ja.md`](docs/dsl-overview.ja.md) | DSL 仕様、状態マシン、ポリシーエンジンドライバー戦略 |
 | [`docs/dsl-validator-spec.md`](docs/dsl-validator-spec.md) | DSL バリデーター（60+ チェック） |

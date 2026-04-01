@@ -349,7 +349,31 @@ Phase 1（単一インスタンス）ではこれは既知の[トレードオフ
 
 **リン:** それが volta の哲学。[理解できる地獄を選ぶ](glossary/native-implementation.ja.md)。
 
-**カイ:** いつ始める？
+**カイ:** もう一つ。Traefik 使ってないんだけど、必須？
+
+**リン:** いいえ。Traefik は推奨だけど必須じゃない。3 つの選択肢がある:
+
+```
+パターン A: プロキシなし（開発に最適）
+  → volta はポート 7070、アプリはポート 8080
+  → フロントが両方を叩く。アプリが JWT を直接検証。
+
+パターン B: Traefik（さっき話したやつ）
+  → ForwardAuth ヘッダ。本番推奨。
+
+パターン C: nginx / Caddy / 何でも
+  → nginx auth_request、Caddy forward_auth。Traefik と同じ考え方。
+```
+
+詳細は [Traefik なしガイド](no-traefik-guide.ja.md) を参照。
+
+**カイ:** パターン A、プロトタイプには最高だね。
+
+**リン:** そう。A で始めて、本番で Traefik を追加する。
+
+---
+
+**カイ:** OK、じゃあいつ始める？
 
 **リン:**
 

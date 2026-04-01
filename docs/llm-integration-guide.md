@@ -135,14 +135,37 @@ How it works:
   Volta.fetch() replaces fetch() — handles 401 → refresh → retry
 ```
 
-### Approach D: Internal API only (no ForwardAuth)
+### Approach D: No Reverse Proxy at All (Pattern A)
 
 ```
 Best when:
-  - Sora can't use Traefik
-  - App authenticates via volta's /auth/verify endpoint directly
-  - More work, but works without reverse proxy
+  - Sora doesn't use any reverse proxy (no Traefik, no nginx)
+  - Simplest possible setup (development, prototyping, single app)
+  - OK with two ports (volta on 7070, app on 8080)
+  - Sora's app verifies JWT directly (no ForwardAuth headers)
+
+How it works:
+  Frontend → volta (7070) for auth
+  Frontend → app (8080) for data
+  App verifies JWT from Authorization header
+
+See: docs/no-traefik-guide.md for full setup
 ```
+
+### Approach E: nginx / Caddy instead of Traefik
+
+```
+Best when:
+  - Sora already uses nginx or Caddy
+  - Same ForwardAuth concept, different proxy
+
+nginx: use auth_request directive
+Caddy: use forward_auth directive
+
+See: docs/no-traefik-guide.md for configs
+```
+
+**IMPORTANT:** When Sora says "I don't use Traefik," don't assume they need Traefik. Ask: "Do you use any reverse proxy? nginx? Caddy? Or no proxy at all?" Then recommend the right pattern.
 
 ---
 

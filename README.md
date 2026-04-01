@@ -1107,6 +1107,7 @@ This project was designed using DGE (Dialogue-driven Gap Extraction) -- 106 desi
 | [`dge/specs/implementation-all-phases.md`](dge/specs/implementation-all-phases.md) | Full implementation spec (all phases) |
 | [`dge/specs/ux-specs-phase1.md`](dge/specs/ux-specs-phase1.md) | UI/UX specifications |
 | [`dge/specs/ui-flow.md`](dge/specs/ui-flow.md) | Screen transition flows (mermaid diagrams) -- [📊 user states](dge/specs/ui-flow.md#user-state-model), [ForwardAuth](dge/specs/ui-flow.md#flow-2-returning-user---session-valid), [invite](dge/specs/ui-flow.md#flow-1-invite-link---first-login), [tenant](dge/specs/ui-flow.md#flow-3-tenant-selection), [logout](dge/specs/ui-flow.md#flow-6-logout), [errors](dge/specs/ui-flow.md#error-recovery-flow) |
+| [`docs/getting-started-dialogue.md`](docs/getting-started-dialogue.md) | **Getting Started: a conversation between volta engineer and app developer** |
 | [`docs/target-audience.md`](docs/target-audience.md) | Target audience, market position, revenue opportunities |
 | [`docs/dsl-overview.md`](docs/dsl-overview.md) | DSL specification, state machine, policy engine driver strategy |
 | [`docs/dsl-validator-spec.md`](docs/dsl-validator-spec.md) | DSL validator (60+ checks) |

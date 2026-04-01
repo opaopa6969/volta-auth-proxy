@@ -1,6 +1,10 @@
 @param String title
 @param java.util.Map<String, String> inviteContext
 @param String startUrl
+@param boolean googleEnabled
+@param boolean githubEnabled
+@param boolean microsoftEnabled
+@param String baseParams
 <!doctype html>
 <html lang="ja">
 <head>
@@ -16,8 +20,16 @@
         <p><strong>${inviteContext.get("tenantName")}</strong> に招待されています。</p>
         <p class="muted">${inviteContext.get("inviterName")} さん / ロール: ${inviteContext.get("role")}</p>
     @endif
-    <p>Google アカウントで認証します。</p>
-    <a class="button" href="${startUrl}">Google でログイン</a>
+    <p>アカウントでログインしてください。</p>
+    @if(googleEnabled)
+        <a class="button button-google" href="/login?start=1&provider=GOOGLE${baseParams}">Google でログイン</a>
+    @endif
+    @if(githubEnabled)
+        <a class="button button-github" href="/login?start=1&provider=GITHUB${baseParams}">GitHub でログイン</a>
+    @endif
+    @if(microsoftEnabled)
+        <a class="button button-microsoft" href="/login?start=1&provider=MICROSOFT${baseParams}">Microsoft でログイン</a>
+    @endif
 </main>
 </body>
 </html>

@@ -153,7 +153,8 @@ public final class Main {
             String inviteCode = ctx.queryParam("invite");
             String returnTo = HttpSupport.isAllowedReturnTo(returnToRaw, config.allowedRedirectDomains()) ? returnToRaw : null;
             if ("1".equals(ctx.queryParam("start"))) {
-                ctx.redirect(oidcService.createAuthorizationUrl(returnTo, inviteCode));
+                String provider = resolveProvider(ctx.queryParam("provider"), config);
+                ctx.redirect(oidcService.createAuthorizationUrl(returnTo, inviteCode, provider));
                 return;
             }
             Map<String, String> inviteContext = null;
@@ -169,13 +170,18 @@ public final class Main {
                     );
                 }
             }
-            String startUrl = "/login?start=1"
-                    + (returnTo != null ? "&return_to=" + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8) : "")
+            String baseParams = (returnTo != null ? "&return_to=" + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8) : "")
                     + (inviteCode != null ? "&invite=" + java.net.URLEncoder.encode(inviteCode, java.nio.charset.StandardCharsets.UTF_8) : "");
+            // startUrl used for the default (first enabled) provider button — kept for backwards-compat
+            String startUrl = "/login?start=1" + baseParams;
             ctx.render("auth/login.jte", model(
                     "title", "ログイン",
                     "inviteContext", inviteContext,
-                    "startUrl", startUrl
+                    "startUrl", startUrl,
+                    "googleEnabled",    config.isGoogleEnabled(),
+                    "githubEnabled",    config.isGithubEnabled(),
+                    "microsoftEnabled", config.isMicrosoftEnabled(),
+                    "baseParams",       baseParams
             ));
         });
 
@@ -1690,9 +1696,23 @@ public final class Main {
     }
 
     private static void ensureOidcConfig(AppConfig config) {
-        if (config.googleClientId().isBlank() || config.googleClientSecret().isBlank()) {
-            throw new IllegalArgumentException("GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are required");
+        if (!config.isGoogleEnabled() && !config.isGithubEnabled() && !config.isMicrosoftEnabled()) {
+            throw new IllegalArgumentException("At least one IdP must be configured: GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID, or MICROSOFT_CLIENT_ID");
         }
+    }
+
+    private static String resolveProvider(String requested, AppConfig config) {
+        if (requested != null) {
+            String p = requested.toUpperCase(java.util.Locale.ROOT);
+            if ("GITHUB".equals(p) && config.isGithubEnabled()) return "GITHUB";
+            if ("MICROSOFT".equals(p) && config.isMicrosoftEnabled()) return "MICROSOFT";
+            if ("GOOGLE".equals(p) && config.isGoogleEnabled()) return "GOOGLE";
+        }
+        // Fall back to first enabled provider
+        if (config.isGoogleEnabled()) return "GOOGLE";
+        if (config.isGithubEnabled()) return "GITHUB";
+        if (config.isMicrosoftEnabled()) return "MICROSOFT";
+        throw new IllegalArgumentException("No IdP configured");
     }
 
     private static String requireQuery(Context ctx, String key) {
@@ -1745,7 +1765,7 @@ public final class Main {
         UUID sessionId = authService.issueSession(principal, sessionReturnTo, clientIp(ctx), ctx.userAgent());
         setSessionCookie(ctx, sessionId, config.sessionTtlSeconds());
         auditService.log(ctx, "LOGIN_SUCCESS", principal, "SESSION", sessionId.toString(), Map.of(
-                "via", "google_oidc",
+                "via", identity.provider().toLowerCase() + "_oidc",
                 "invite", identity.inviteCode() != null
         ));
 

@@ -13,6 +13,11 @@ public record AppConfig(
         String googleClientId,
         String googleClientSecret,
         String googleRedirectUri,
+        String githubClientId,
+        String githubClientSecret,
+        String microsoftClientId,
+        String microsoftClientSecret,
+        String microsoftTenantId,
         String allowedRedirectDomains,
         boolean devMode,
         String serviceToken,
@@ -55,6 +60,11 @@ public record AppConfig(
                 get("GOOGLE_CLIENT_ID", ""),
                 get("GOOGLE_CLIENT_SECRET", ""),
                 get("GOOGLE_REDIRECT_URI", "http://localhost:7070/callback"),
+                get("GITHUB_CLIENT_ID", ""),
+                get("GITHUB_CLIENT_SECRET", ""),
+                get("MICROSOFT_CLIENT_ID", ""),
+                get("MICROSOFT_CLIENT_SECRET", ""),
+                get("MICROSOFT_TENANT_ID", "common"),
                 get("ALLOWED_REDIRECT_DOMAINS", "localhost,127.0.0.1"),
                 getBoolean("DEV_MODE", false),
                 get("VOLTA_SERVICE_TOKEN", ""),
@@ -85,6 +95,18 @@ public record AppConfig(
                 get("ELASTICSEARCH_URL", ""),
                 get("STRIPE_WEBHOOK_SECRET", "")
         );
+    }
+
+    public boolean isGoogleEnabled() {
+        return googleClientId != null && !googleClientId.isBlank();
+    }
+
+    public boolean isGithubEnabled() {
+        return githubClientId != null && !githubClientId.isBlank();
+    }
+
+    public boolean isMicrosoftEnabled() {
+        return microsoftClientId != null && !microsoftClientId.isBlank();
     }
 
     public String jdbcUrl() {

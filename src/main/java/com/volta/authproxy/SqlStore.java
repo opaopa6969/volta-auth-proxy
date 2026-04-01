@@ -425,8 +425,8 @@ public final class SqlStore {
     public void saveOidcFlow(OidcFlowRecord flow) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     INSERT INTO oidc_flows(state, nonce, code_verifier, return_to, invite_code, expires_at)
-                     VALUES (?, ?, ?, ?, ?, ?)
+                     INSERT INTO oidc_flows(state, nonce, code_verifier, return_to, invite_code, expires_at, provider)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)
                      """)) {
             ps.setString(1, flow.state());
             ps.setString(2, flow.nonce());
@@ -434,6 +434,7 @@ public final class SqlStore {
             ps.setString(4, flow.returnTo());
             ps.setString(5, flow.inviteCode());
             ps.setTimestamp(6, Timestamp.from(flow.expiresAt()));
+            ps.setString(7, flow.provider() != null ? flow.provider() : "GOOGLE");
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -446,7 +447,7 @@ public final class SqlStore {
             try {
                 Optional<OidcFlowRecord> result;
                 try (PreparedStatement select = conn.prepareStatement("""
-                        SELECT state, nonce, code_verifier, return_to, invite_code, expires_at
+                        SELECT state, nonce, code_verifier, return_to, invite_code, expires_at, provider
                         FROM oidc_flows
                         WHERE state = ?
                         FOR UPDATE
@@ -462,7 +463,8 @@ public final class SqlStore {
                                     rs.getString("code_verifier"),
                                     rs.getString("return_to"),
                                     rs.getString("invite_code"),
-                                    rs.getTimestamp("expires_at").toInstant()
+                                    rs.getTimestamp("expires_at").toInstant(),
+                                    rs.getString("provider")
                             ));
                         }
                     }

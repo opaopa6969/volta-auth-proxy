@@ -50,11 +50,12 @@ record InvitationRecord(
 
 record OidcFlowRecord(
         String state,
-        String nonce,
-        String codeVerifier,
+        String nonce,        // null for GitHub (no id_token)
+        String codeVerifier, // null for GitHub (no PKCE)
         String returnTo,
         String inviteCode,
-        Instant expiresAt
+        Instant expiresAt,
+        String provider      // GOOGLE | GITHUB | MICROSOFT
 ) {
 }
 

@@ -20,6 +20,46 @@ DSL (specification)  →  Java code (implementation)
 
 The DSL was designed through [DGE](../dge/sessions/) sessions (106 gaps found and resolved) and refined through 3 rounds of tribunal reviews (final score: 10/10).
 
+### DSL and Implementation: the relationship
+
+The DSL does NOT replace Java code. They run in parallel:
+
+```
+Current:
+  DSL (YAML) = specification (what SHOULD happen)
+  Java code  = implementation (what DOES happen)
+  Humans/AI  = read both and verify they match
+
+NOT the goal (at least not now):
+  DSL → auto-generates Java code
+  DSL → runtime engine executes directly
+```
+
+**Why not auto-generate or execute directly?**
+
+1. **The Java code works.** Phase 1-4 implemented, tests pass. No reason to break it.
+2. **DSL runtime doesn't exist yet.** Building one is a project in itself.
+3. **DSL's purpose is specification, not execution.** Confirmed by tribunal review: the 3 goals are AI specification, test generation, and documentation — not runtime execution.
+4. **"Control is king."** Adding a DSL runtime layer means debugging in 2 places (DSL + Java). Right now you debug Java only. Simpler.
+
+**What the DSL IS good for right now:**
+
+- Specification that AI (Codex, Claude) can read to generate correct code
+- Source of truth for all auth states, transitions, guards, errors
+- Auto-generation of test cases (future: all state transitions as test scenarios)
+- Auto-generation of documentation (mermaid diagrams, error tables)
+- Foundation for Phase 4 policy engine driver generation (jCasbin model.conf)
+
+### Roadmap: DSL usage over time
+
+```
+Now:       DSL = spec. Java = hand-written. Human/AI verifies match.
+Phase 2:   DSL validator checks Java ↔ DSL consistency in CI.
+Phase 3:   DSL generates test cases (all state transitions covered).
+Phase 4:   DSL generates policy engine driver (jCasbin model.conf).
+Future:    DSL runtime (if ever needed — YAGNI until then).
+```
+
 ---
 
 ## DSL Files

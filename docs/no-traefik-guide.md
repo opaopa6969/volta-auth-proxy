@@ -153,6 +153,35 @@ app.example.com {
 
 ## Pattern A: Detailed Setup (No Reverse Proxy)
 
+```
+Pattern A: Runtime Data Flow
+
+  Browser (port 3000)
+       |
+       |  1. Volta.init({ gatewayUrl: "http://localhost:7070" })
+       |
+       |------ GET /login --------> volta-auth-proxy (port 7070)
+       |                                   |
+       |                                   |-- Google OAuth flow
+       |                                   |<- token + session
+       |<----- session cookie -------------|
+       |
+       |------ Volta.fetch("http://localhost:8080/api/tasks")
+       |              |
+       |              | (Volta.js adds Authorization: Bearer <JWT>)
+       |              |
+       |              +-----------> Your App (port 8080)
+       |                                   |
+       |                                   | app.before: verify JWT
+       |                                   | via JWKS endpoint:
+       |                                   |   GET :7070/.well-known/jwks.json
+       |                                   |
+       |                                   | VoltaUser user = VoltaAuth.getUser(ctx)
+       |                                   | tenantId = user.getTenantId()
+       |                                   |
+       |<----- JSON response (tenant-scoped data) -------------|
+```
+
 ### docker-compose.yml
 
 ```yaml

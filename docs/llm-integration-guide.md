@@ -95,6 +95,21 @@ Ask:
 
 Based on Sora's answers, recommend ONE approach:
 
+```
+Decision Tree: Which integration approach?
+
+Does Sora use a reverse proxy?
+├── Yes → Which one?
+│         ├── Traefik  → Approach B: ForwardAuth + Headers  ★ Recommended
+│         ├── nginx    → Approach E: nginx auth_request
+│         └── Caddy    → Approach E: Caddy forward_auth
+└── No  → Does Sora want the simplest setup?
+          ├── Yes (dev/prototype)    → Approach D: No proxy, JWT verification
+          └── No (add proxy is OK?) →
+                ├── Java app?        → Approach B: Add Traefik + volta-sdk
+                └── SPA frontend?   → Approach C: volta-sdk-js
+```
+
 ### Approach A: ForwardAuth + Headers (Recommended for most)
 
 ```

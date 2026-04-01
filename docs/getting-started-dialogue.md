@@ -195,6 +195,28 @@ app.get("/api/tasks", ctx -> {
 3. Shares it via Slack or email
 4. New user clicks the link → Google login → consent screen → joins workspace
 
+```
+Invitation Flow
+
+Admin                volta               Google              New User
+  |                    |                    |                    |
+  |-- POST /invitations|                    |                    |
+  |   (creates link)   |                    |                    |
+  |<-- invite URL -----|                    |                    |
+  |                    |                    |                    |
+  |== shares link via Slack/email =========================>|
+  |                    |                    |                    |
+  |                    |<-- GET /invite/:token ----------------|
+  |                    |-- redirect to Google login ----------->|
+  |                    |                    |<-- login ---------|
+  |                    |                    |--- code --------->|
+  |                    |<-- callback (code) --------------------|
+  |                    |-- verifies, creates membership         |
+  |                    |-- redirect to app -------------------->|
+  |                    |                    |                    |
+  |          Next request: X-Volta-Tenant-Id includes new user  |
+```
+
 Your app doesn't know any of this happened. Next time that user accesses your app, the `X-Volta-Tenant-Id` header just includes them.
 
 **Kai:** What if I want to show a "Members" page in my app?

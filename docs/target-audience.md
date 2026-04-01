@@ -147,6 +147,22 @@ Today's volta can't do enterprise. Here's what's needed:
 | Non-Java support | Java only | Docker image (hide Java) or Go rewrite |
 | SLA | None | Managed hosting option |
 
+```
+Phase Roadmap to Enterprise
+
+Phase 1 (Now)          Phase 2                Phase 3               Phase 4
+─────────────────      ─────────────────      ─────────────────     ─────────────────
+Google OIDC            Multiple IdPs           SAML / SSO            SOC2 ready
+Single-tenant          Multi-IdP routing       Tenant-specific IdP   Pen test results
+JWT RS256              Redis sessions          Attribute-based AC    HA + SLA
+Audit logs             Horizontal scale        MFA                   Enterprise support
+ForwardAuth            HA cluster              SCIM provisioning     Compliance docs
+─────────────────      ─────────────────      ─────────────────     ─────────────────
+Indie Hackers          Early Startups          B2B SaaS (SMB)        Enterprise (500+)
+Internal Tools         Growing Startups        Multi-tenant B2B      SOC2 audits pass
+Solo dev teams         10-50 people            Tenant SSO needed     Okta/Auth0 replace
+```
+
 ### The Design + AI Advantage
 
 ```

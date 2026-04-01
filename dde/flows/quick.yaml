@@ -1,0 +1,91 @@
+name: quick
+display_name: "⚡ クイック — 用語を抽出して単語帳を作る"
+
+trigger_keywords: ["DDE して", "DDE", "ドキュメントレビュー", "用語集を作って", "単語帳を作って", "リンクが足りない"]
+
+defaults:
+  exclude_dirs: ["dde", "dge", "node_modules", ".git", ".claude"]
+  article_intent: educational   # educational / reference / deep-dive
+
+workflow:
+  steps:
+    - id: resume_check
+      display_name: "前回セッションの確認"
+      note: "dde/sessions/ の最新ファイルを読んで未完了の作業を検出。新規なら skip"
+    - id: scan_glossary
+      display_name: "既存 glossary をスキャン"
+      note: "docs/glossary/ の既存記事一覧を収集。相互リンク候補 + 抽出除外リストに使う"
+    - id: select_docs
+      display_name: "対象ドキュメント群を選択"
+      mode: confirm
+    - id: reader_context
+      display_name: "読者コンテキスト設定"
+      mode: confirm
+      note: "誰が読むか（記事のトーンに使用。抽出フィルターには使わない）"
+    - id: lang
+      display_name: "言語設定"
+      mode: confirm
+      note: "en / ja / both。both の場合は <slug>.md + <slug>.ja.md を生成"
+    - id: article_intent
+      display_name: "記事のインテント設定"
+      mode: confirm
+      note: "educational / reference / deep-dive、または自由記述"
+    - id: extract
+      display_name: "用語抽出（LLM）— 全レベル対象"
+      actor: llm
+    - id: confirm_terms
+      display_name: "用語一覧を確認"
+      mode: confirm
+    - id: articleize
+      display_name: "記事生成（LLM）— educational narrative"
+      actor: llm
+    - id: save
+      display_name: "単語帳保存"
+    - id: link
+      display_name: "dde-link 実行（CLI）"
+      actor: cli
+
+must_rules:
+  - id: save
+    text: "生成した記事は保存（無条件）"
+  - id: output_table
+    text: "抽出した用語を一覧テーブルで出力してからユーザーに確認"
+  - id: choices
+    text: "記事生成後に番号付き選択肢を提示（省略しない）"
+  - id: crosslink_existing_only
+    text: "「さらに学ぶために」は docs/glossary/ に実在するファイル + 同一バッチ生成記事のみリンク可。存在しないファイルへのリンク禁止"
+  - id: scan_glossary_first
+    text: "セッション開始時に docs/glossary/ をスキャンして既存記事リストを作る（抽出除外 + 相互リンク候補に使用）"
+
+extract:
+  actor: llm
+  scope: document_group
+  filter: "レベルで絞らない。誰かが分からない可能性がある用語を全て抽出（docs/glossary/ に既存記事があれば除外）"
+  output: "用語一覧テーブル（用語 / 出現ドキュメント / 重要度）"
+
+articleize:
+  actor: llm
+  per: term
+  format: educational_narrative
+  output_dir: docs/glossary/
+  filename_rule: "en → <slug>.md / ja → <slug>.ja.md / both → 両方生成"
+  multilang:
+    en:   "<slug>.md"
+    ja:   "<slug>.ja.md"
+    both: "両ファイル生成。dictionary.yaml に en/ja キーで用語マッピングを追加"
+  intents:
+    educational: "読んだ人が背景・動機・仕組みごと理解できる記事。例え話・図・なぜ？を含む。分量は目的に従って自然に決める"
+    reference:   "定義・使い方・例を簡潔に。調べたい人向けのクイックリファレンス"
+    deep-dive:   "実装詳細・コード例・エッジケース・トレードオフまで網羅"
+
+output_dir: dde/sessions/
+
+post_actions:
+  - id: more_docs
+    display_name: "別のドキュメント群も処理する"
+  - id: run_link
+    display_name: "dde-link でリンクを付ける（まだの場合）"
+  - id: diagrams
+    display_name: "図が必要な箇所を検出する"
+  - id: later
+    display_name: "後で"

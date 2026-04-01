@@ -12,23 +12,23 @@
 
 1-3 人で [SaaS](../docs/glossary/saas.ja.md) を作っている。[Auth0](../docs/glossary/auth0.ja.md) の月額 $2,400 が痛い。[Keycloak](../docs/glossary/keycloak.ja.md) の[設定地獄](../docs/glossary/config-hell.ja.md)は悪夢。スタックの全てを理解したい。volta はそんなあなたのため。
 
-**2. アーリーステージのスタートアップ（~10 人）**
+**2. アーリーステージの[スタートアップ](glossary/startup.ja.md)（~10 人）**
 
 [MVP](glossary/mvp.md) を爆速で出したい。認証に時間をかけたくない。でも[ベンダーロックイン](../docs/glossary/vendor-lock-in.ja.md)は避けたい。チームに [Java](../docs/glossary/java.ja.md)/[JVM](../docs/glossary/jvm.ja.md) エンジニアが 1 人いれば十分。App 追加 = [YAML](../docs/glossary/yaml.ja.md) に 4 行。
 
 **3. 社内ツールビルダー**
 
-社内向け SaaS（wiki、チャット、管理画面）を量産している。[Google Workspace](glossary/google-workspace.md) / Gmail ドメイン認証で十分。[Cloudflare Zero Trust](../docs/glossary/zero-trust.ja.md) の代替を探している。
+社内向け [SaaS](glossary/saas.ja.md)（wiki、チャット、管理画面）を量産している。[Google Workspace](glossary/google-workspace.md) / Gmail [ドメイン](glossary/domain.ja.md)認証で十分。[Cloudflare Zero Trust](../docs/glossary/zero-trust.ja.md) の代替を探している。
 
 ### 条件付きターゲット
 
-**4. 成長中のスタートアップ（10-50 人）**
+**4. 成長中の[スタートアップ](glossary/startup.ja.md)（10-50 人）**
 
 条件: [Java](glossary/java.md) エンジニアがいる。[セキュリティの責任](../docs/glossary/security-responsibility.ja.md)を負える覚悟がある。[Auth0](glossary/auth0.md)/Clerk の月額が痛い。Phase 2-3（複数 [IdP](../docs/glossary/idp.ja.md)、[MFA](../docs/glossary/mfa.ja.md)、[SAML](../docs/glossary/sso.ja.md)）でカバー。
 
-**5. B2B SaaS（中小企業向け）**
+**5. B2B [SaaS](glossary/saas.ja.md)（中小企業向け）**
 
-条件: [マルチテナント](../docs/glossary/multi-tenant.ja.md)が核心要件。テナント別 [SSO](../docs/glossary/sso.ja.md)（SAML）が必要。でも [Keycloak](glossary/keycloak.md) は重すぎる。Phase 3 の SAML + テナント別 IdP 設定で対応。
+条件: [マルチテナント](../docs/glossary/multi-tenant.ja.md)が核心要件。テナント別 [SSO](../docs/glossary/sso.ja.md)（SAML）が必要。でも [Keycloak](glossary/keycloak.md) は重すぎる。Phase 3 の SAML + テナント別 [IdP](glossary/idp.ja.md) 設定で対応。
 
 **6. エンジニア教育 / ブートキャンプ**
 
@@ -42,11 +42,11 @@ SOC2/ISO27001 の監査で「自前認証」は実績なしでは通らない。
 
 **8. 非 [Java](glossary/java.md) チーム**
 
-Python/Node/Go チームは [Java](glossary/java.md) のプロキシを保守したくない。[ForwardAuth](../docs/glossary/forwardauth.ja.md) で App 側は言語非依存だが、プロキシ自体の保守には Java 知識が必要。
+Python/Node/Go チームは [Java](glossary/java.md) のプロキシを保守したくない。[ForwardAuth](../docs/glossary/forwardauth.ja.md) で App 側は言語非依存だが、プロキシ自体の保守には [Java](glossary/java.ja.md) 知識が必要。
 
 **9. 「設定だけで動かしたい」チーム**
 
-[Auth0](glossary/auth0.md)/Clerk は GUI ダッシュボード。volta は [Java](glossary/java.md) コードの理解が必要。「制御しやすいは正義」に共感しない人には向かない。
+[Auth0](glossary/auth0.md)/Clerk は GUI [ダッシュボード](glossary/dashboard.ja.md)。volta は [Java](glossary/java.md) コードの理解が必要。「制御しやすいは正義」に共感しない人には向かない。
 
 ***
 
@@ -64,7 +64,7 @@ Python/Node/Go チームは [Java](glossary/java.md) のプロキシを保守し
               最小構成 →
 ```
 
-volta は**セルフホスト × 最小構成**。最も軽く、最も制御しやすい選択肢。[トレードオフ](../docs/glossary/tradeoff.ja.md): セキュリティの責任は自分で負う。
+volta は**セルフホスト × [最小構成](glossary/minimum-viable-architecture.ja.md)**。最も軽く、最も制御しやすい選択肢。[トレードオフ](../docs/glossary/tradeoff.ja.md): [セキュリティの責任](glossary/security-responsibility.ja.md)は自分で負う。
 
 ### 競合の隙間
 
@@ -140,11 +140,11 @@ volta Enterprise:
 
 | 要件 | 現状 | 対応策 |
 |------|------|--------|
-| セキュリティ監査実績 | Phase 1 の audit\_logs | ペネトレーションテスト + CVE 対応実績 |
-| 高可用性 | 単一インスタンス | Phase 2: [Redis](glossary/redis.md) セッション + 水平スケール |
-| コンプライアンス文書 | なし | SOC2、GDPR ドキュメント作成 |
+| セキュリティ監査実績 | Phase 1 の audit\_logs | [ペネトレーションテスト](glossary/penetration-test.ja.md) + CVE 対応実績 |
+| [高可用性](glossary/high-availability.ja.md) | 単一インスタンス | Phase 2: [Redis](glossary/redis.md) セッション + 水平スケール |
+| [コンプライアンス](glossary/compliance.ja.md)文書 | なし | SOC2、GDPR ドキュメント作成 |
 | コミュニティ | なし | OSS コミュニティ構築 |
-| 非 [Java](glossary/java.md) 対応 | Java のみ | [Docker](glossary/docker.md) イメージ配布（Java を隠す）or Go 書き直し |
+| 非 [Java](glossary/java.md) 対応 | [Java](glossary/java.ja.md) のみ | [Docker](glossary/docker.md) イメージ配布（Java を隠す）or Go 書き直し |
 | [SLA](glossary/sla.md) | なし | マネージドホスティング |
 
 ### 設計力 + AI の優位性

@@ -1,0 +1,1293 @@
+# dde-link dictionary
+# 日本語グロッサリー用語マッピング
+# 自動生成
+
+abac.md:
+  ja:
+    - "ABAC"
+    - "ABAC（属性ベースアクセス制御）"
+
+absolute-timeout.md:
+  ja:
+    - "絶対タイムアウト"
+
+access-token.md:
+  ja:
+    - "Access Token"
+    - "Access Token（アクセストークン / OAuth 2.0）"
+
+active-directory.md:
+  ja:
+    - "Active Directory"
+
+api-versioning.md:
+  ja:
+    - "API バージョニング"
+
+api.md:
+  ja:
+    - "API"
+    - "API（Application Programming Interface）"
+
+app-integration.md:
+  ja:
+    - "App連携"
+
+architecture.md:
+  ja:
+    - "アーキテクチャ"
+
+audit-log.md:
+  ja:
+    - "Audit Log"
+    - "Audit Log（監査ログ）"
+
+auth0.md:
+  ja:
+    - "Auth0"
+
+authentication-vs-authorization.md:
+  ja:
+    - "認証 vs. 認可"
+    - "認証 vs. 認可（Authentication vs. Authorization）"
+
+authorization-code-flow.md:
+  ja:
+    - "認可コードフロー"
+
+auto-key-generation.md:
+  ja:
+    - "自動鍵生成"
+
+backchannel-logout.md:
+  ja:
+    - "Backchannel Logout"
+    - "Backchannel Logout（バックチャネルログアウト）"
+
+base64.md:
+  ja:
+    - "Base64"
+
+bearer-scheme.md:
+  ja:
+    - "Bearer スキーム"
+
+billing.md:
+  ja:
+    - "課金"
+    - "課金（ビリング）"
+
+browser-back-button-cache.md:
+  ja:
+    - "ブラウザの「戻る」ボタンとキャッシュ"
+
+browser.md:
+  ja:
+    - "ブラウザ"
+
+brute-force.md:
+  ja:
+    - "ブルートフォース攻撃"
+
+build-only-what-you-need.md:
+  ja:
+    - "今必要なものだけ作る"
+
+build.md:
+  ja:
+    - "ビルド"
+
+business-logic.md:
+  ja:
+    - "ビジネスロジック"
+    - "ビジネスロジック（Business Logic）"
+
+cache-control.md:
+  ja:
+    - "Cache-Control ヘッダ"
+
+caddy.md:
+  ja:
+    - "Caddy"
+
+caffeine-cache.md:
+  ja:
+    - "Caffeine"
+    - "Caffeine（インメモリキャッシュ）"
+
+cel.md:
+  ja:
+    - "CEL"
+    - "CEL（Common Expression Language：共通式言語）"
+
+ci-cd.md:
+  ja:
+    - "CI/CD"
+    - "CI/CD（継続的インテグレーション / 継続的デリバリー）"
+
+claim.md:
+  ja:
+    - "クレーム"
+
+client-credentials.md:
+  ja:
+    - "Client Credentials"
+    - "Client Credentials（OAuth 2.0グラントタイプ）"
+
+client.md:
+  ja:
+    - "クライアント"
+
+clone.md:
+  ja:
+    - "クローン"
+
+cloudflare-zero-trust.md:
+  ja:
+    - "Cloudflare Zero Trust"
+
+compile.md:
+  ja:
+    - "コンパイル"
+
+complexity-of-configuration.md:
+  ja:
+    - "設定の複雑さ"
+
+compliance.md:
+  ja:
+    - "コンプライアンス"
+
+concurrent-session-limit.md:
+  ja:
+    - "同時セッション数制限"
+
+config-hell.md:
+  ja:
+    - "設定地獄"
+    - "設定地獄（Configuration Hell）"
+
+configuration-vs-code.md:
+  ja:
+    - "設定 vs コード"
+    - "設定 vs コード（Configuration vs Code）"
+
+connection-pool.md:
+  ja:
+    - "コネクションプール"
+
+consent-screen.md:
+  ja:
+    - "同意画面"
+    - "同意画面（Consent Screen）"
+
+content-negotiation.md:
+  ja:
+    - "Content Negotiation"
+    - "Content Negotiation（コンテンツネゴシエーション）"
+
+content-type.md:
+  ja:
+    - "Content-Type"
+
+cookie.md:
+  ja:
+    - "Cookie"
+
+cors.md:
+  ja:
+    - "CORS"
+    - "CORS (Cross-Origin Resource Sharing / オリジン間リソース共有)"
+
+crdb.md:
+  ja:
+    - "CockroachDB"
+    - "CockroachDB（CRDB）"
+
+credential-stuffing.md:
+  ja:
+    - "クレデンシャルスタッフィング"
+
+credentials.md:
+  ja:
+    - "認証情報"
+    - "認証情報（クレデンシャル）"
+
+cross-origin.md:
+  ja:
+    - "クロスオリジン"
+
+cross-tenant-access.md:
+  ja:
+    - "クロステナントアクセス"
+
+crud.md:
+  ja:
+    - "CRUD"
+
+crypto-random.md:
+  ja:
+    - "暗号的乱数"
+    - "暗号的乱数（Crypto-Random）"
+
+cryptographic-signature.md:
+  ja:
+    - "暗号署名"
+
+csrf.md:
+  ja:
+    - "CSRF"
+    - "CSRF (Cross-Site Request Forgery)"
+
+css.md:
+  ja:
+    - "CSS"
+
+dashboard.md:
+  ja:
+    - "ダッシュボード"
+    - "ダッシュボード（認証コンテキスト）"
+
+data-leakage-via-cache.md:
+  ja:
+    - "キャッシュによるデータ漏洩"
+
+database-migration.md:
+  ja:
+    - "データベースマイグレーション"
+    - "データベースマイグレーション（Database Migration）"
+
+database.md:
+  ja:
+    - "データベース"
+
+debugging.md:
+  ja:
+    - "デバッグ"
+    - "デバッグ（Debugging）"
+
+delegation.md:
+  ja:
+    - "Delegation"
+    - "Delegation（委譲）"
+
+dependencies.md:
+  ja:
+    - "依存関係"
+    - "依存関係（Dependencies）"
+
+deployment.md:
+  ja:
+    - "デプロイメント"
+
+digital-signature.md:
+  ja:
+    - "デジタル署名"
+
+discovery-document.md:
+  ja:
+    - "ディスカバリドキュメント"
+    - "ディスカバリドキュメント（.well-known/openid-configuration）"
+
+docker-compose.md:
+  ja:
+    - "Docker Compose"
+
+docker-label.md:
+  ja:
+    - "Docker ラベル"
+
+docker-volume.md:
+  ja:
+    - "Docker ボリューム"
+
+docker.md:
+  ja:
+    - "Docker"
+
+domain.md:
+  ja:
+    - "ドメイン"
+
+downstream-app.md:
+  ja:
+    - "下流アプリ"
+    - "下流アプリ（Downstream App）"
+
+dsl.md:
+  ja:
+    - "DSL"
+    - "DSL（ドメイン固有言語）"
+
+elasticsearch.md:
+  ja:
+    - "Elasticsearch"
+
+encryption-at-rest.md:
+  ja:
+    - "保存時暗号化"
+    - "保存時暗号化（Encryption at Rest）"
+
+encryption.md:
+  ja:
+    - "暗号化"
+    - "暗号化（Encryption）"
+
+endpoint.md:
+  ja:
+    - "エンドポイント"
+
+enforcement.md:
+  ja:
+    - "Enforcement"
+    - "Enforcement（強制）"
+
+environment-variable.md:
+  ja:
+    - "環境変数"
+    - "環境変数（Environment Variable）"
+
+external-dependency.md:
+  ja:
+    - "外部依存関係"
+    - "外部依存関係（External Dependency）"
+
+external-vs-internal.md:
+  ja:
+    - "外部 vs 内部"
+
+fat-jar.md:
+  ja:
+    - "Fat JAR"
+    - "Fat JAR（ファットJAR）"
+
+fault-propagation.md:
+  ja:
+    - "障害伝播"
+    - "障害伝播（Fault Propagation）"
+
+flyway.md:
+  ja:
+    - "Flyway"
+
+forwardauth.md:
+  ja:
+    - "ForwardAuth"
+
+framework.md:
+  ja:
+    - "フレームワーク"
+
+free-email-domains.md:
+  ja:
+    - "フリーメールドメイン問題"
+
+freemarker.md:
+  ja:
+    - "FreeMarker"
+
+frontend-backend.md:
+  ja:
+    - "フロントエンドとバックエンド"
+
+git.md:
+  ja:
+    - "Git"
+
+google-cloud-console.md:
+  ja:
+    - "Google Cloud Console"
+
+google-workspace.md:
+  ja:
+    - "Google Workspace"
+
+graceful-transition.md:
+  ja:
+    - "グレースフル・トランジション"
+
+greenfield.md:
+  ja:
+    - "グリーンフィールド"
+
+guard.md:
+  ja:
+    - "Guard"
+    - "Guard（ガード）"
+
+hash-function.md:
+  ja:
+    - "ハッシュ関数"
+    - "ハッシュ関数（SHA-256）"
+
+header.md:
+  ja:
+    - "HTTPヘッダー"
+
+health-check.md:
+  ja:
+    - "ヘルスチェック"
+
+hierarchy.md:
+  ja:
+    - "Hierarchy"
+    - "Hierarchy（階層）"
+
+high-availability.md:
+  ja:
+    - "高可用性"
+    - "高可用性（High Availability）"
+
+hikaricp.md:
+  ja:
+    - "HikariCP"
+
+hmac.md:
+  ja:
+    - "HMAC"
+
+horizontal-scaling.md:
+  ja:
+    - "水平スケーリング"
+
+hs256.md:
+  ja:
+    - "HS256"
+    - "HS256 (HMAC with SHA-256)"
+
+html.md:
+  ja:
+    - "HTML"
+
+http-status-codes.md:
+  ja:
+    - "HTTPステータスコード"
+    - "HTTPステータスコード（HTTP Status Codes）"
+
+http.md:
+  ja:
+    - "HTTP"
+
+httponly.md:
+  ja:
+    - "HttpOnly"
+    - "HttpOnly（Cookie フラグ）"
+
+iam.md:
+  ja:
+    - "IAM"
+    - "IAM（ID・アクセス管理）"
+
+id-token.md:
+  ja:
+    - "id_token"
+    - "id_token (OIDC アイデンティティトークン)"
+
+idaas.md:
+  ja:
+    - "IDaaS"
+    - "IDaaS（Identity as a Service）"
+
+idempotency.md:
+  ja:
+    - "冪等性"
+    - "冪等性（べきとうせい）"
+
+identity-gateway.md:
+  ja:
+    - "アイデンティティゲートウェイ"
+
+idp.md:
+  ja:
+    - "IdP"
+    - "IdP (Identity Provider / アイデンティティプロバイダ)"
+
+in-memory.md:
+  ja:
+    - "インメモリ"
+
+ingestion.md:
+  ja:
+    - "インジェスション"
+    - "インジェスション（データ取り込み）"
+
+integration.md:
+  ja:
+    - "インテグレーション"
+    - "インテグレーション（統合）"
+
+interface-extension-point.md:
+  ja:
+    - "インターフェース / 拡張ポイント"
+
+internal-api.md:
+  ja:
+    - "内部API"
+    - "内部API（Internal API）"
+
+interstitial.md:
+  ja:
+    - "Interstitial"
+    - "Interstitial（インタースティシャル）"
+
+invalidation.md:
+  ja:
+    - "無効化"
+    - "無効化（Invalidation）"
+
+invariant.md:
+  ja:
+    - "Invariant"
+    - "Invariant（不変条件）"
+
+invitation-code.md:
+  ja:
+    - "招待コード"
+
+invitation-flow.md:
+  ja:
+    - "招待フロー"
+    - "招待フロー（Invitation Flow）"
+
+java.md:
+  ja:
+    - "Java"
+
+javalin.md:
+  ja:
+    - "Javalin"
+
+javascript.md:
+  ja:
+    - "JavaScript"
+
+jcasbin.md:
+  ja:
+    - "jCasbin"
+
+json.md:
+  ja:
+    - "JSON"
+
+jte.md:
+  ja:
+    - "jte"
+    - "jte（Java Template Engine）"
+
+jvm.md:
+  ja:
+    - "JVM"
+    - "JVM（Java仮想マシン）"
+
+jwks.md:
+  ja:
+    - "JWKS / JWK"
+    - "JWKS / JWK (JSON Web Key Set)"
+
+jwt-decode-howto.md:
+  ja:
+    - "JWT のデコード方法"
+
+jwt-header.md:
+  ja:
+    - "JWT ヘッダー"
+
+jwt-payload.md:
+  ja:
+    - "JWT ペイロード"
+
+jwt-signature.md:
+  ja:
+    - "JWT 署名"
+
+jwt-vs-session.md:
+  ja:
+    - "JWT vs セッション"
+
+jwt.md:
+  ja:
+    - "JWT"
+    - "JWT (JSON Web Token)"
+
+kafka.md:
+  ja:
+    - "Kafka"
+
+key-cryptographic.md:
+  ja:
+    - "暗号鍵"
+
+key-rotation.md:
+  ja:
+    - "鍵ローテーション"
+
+keycloak.md:
+  ja:
+    - "Keycloak"
+
+latency.md:
+  ja:
+    - "レイテンシ"
+    - "レイテンシ（Latency）"
+
+library.md:
+  ja:
+    - "ライブラリ"
+
+load-balancer.md:
+  ja:
+    - "ロードバランサ"
+
+localhost.md:
+  ja:
+    - "localhost"
+
+login.md:
+  ja:
+    - "ログイン"
+
+logout.md:
+  ja:
+    - "ログアウト"
+
+lts.md:
+  ja:
+    - "LTS"
+    - "LTS（長期サポート）"
+
+m2m.md:
+  ja:
+    - "M2M"
+    - "M2M（マシン間通信）"
+
+mau.md:
+  ja:
+    - "MAU"
+    - "MAU（月間アクティブユーザー）"
+
+maven.md:
+  ja:
+    - "Maven"
+
+membership.md:
+  ja:
+    - "Membership"
+    - "Membership（メンバーシップ）"
+
+mermaid.md:
+  ja:
+    - "Mermaid"
+
+mfa.md:
+  ja:
+    - "MFA / 2FA"
+    - "MFA / 2FA（多要素認証）"
+
+microservice.md:
+  ja:
+    - "マイクロサービス"
+    - "マイクロサービス（Microservice）"
+
+middleware.md:
+  ja:
+    - "ミドルウェア"
+
+migration.md:
+  ja:
+    - "マイグレーション"
+    - "マイグレーション（データベースマイグレーション）"
+
+minimum-viable-architecture.md:
+  ja:
+    - "最小構成"
+    - "最小構成（Minimum Viable Architecture）"
+
+multi-tenant.md:
+  ja:
+    - "マルチテナンシー"
+
+mvp.md:
+  ja:
+    - "MVP"
+    - "MVP（Minimum Viable Product：実用最小限の製品）"
+
+native-implementation.md:
+  ja:
+    - "自前実装 / ネイティブ実装"
+
+network-hop.md:
+  ja:
+    - "ネットワークホップ"
+    - "ネットワークホップ（Network Hop）"
+
+network-isolation.md:
+  ja:
+    - "ネットワーク分離"
+
+network.md:
+  ja:
+    - "ネットワーク"
+
+nginx.md:
+  ja:
+    - "nginx"
+
+no-store-vs-no-cache.md:
+  ja:
+    - "no-store と no-cache の違い"
+
+nonce.md:
+  ja:
+    - "Nonce"
+    - "Nonce（ナンス / 一回限りの数値）"
+
+oathkeeper.md:
+  ja:
+    - "Oathkeeper"
+    - "Oathkeeper（Ory Oathkeeper）"
+
+oauth2.md:
+  ja:
+    - "OAuth 2.0"
+
+oidc-provider.md:
+  ja:
+    - "OIDCプロバイダ"
+
+oidc.md:
+  ja:
+    - "OIDC"
+    - "OIDC (OpenID Connect)"
+
+okta.md:
+  ja:
+    - "Okta"
+
+opa.md:
+  ja:
+    - "OPA"
+    - "OPA (Open Policy Agent)"
+
+open-redirect.md:
+  ja:
+    - "オープンリダイレクト"
+
+open-source.md:
+  ja:
+    - "オープンソース"
+
+organizations.md:
+  ja:
+    - "Organizations"
+    - "Organizations（Auth0/Clerkの機能）"
+
+ory-stack.md:
+  ja:
+    - "Ory Stack"
+
+outbox-pattern.md:
+  ja:
+    - "Outboxパターン"
+
+pagination.md:
+  ja:
+    - "ページネーション"
+
+payload.md:
+  ja:
+    - "ペイロード"
+
+penetration-test.md:
+  ja:
+    - "ペネトレーションテスト"
+
+phase-based-development.md:
+  ja:
+    - "フェーズベース開発"
+    - "フェーズベース開発（Phase-Based Development）"
+
+pkce.md:
+  ja:
+    - "PKCE"
+    - "PKCE (Proof Key for Code Exchange)"
+
+policy-engine.md:
+  ja:
+    - "Policy Engine"
+    - "Policy Engine（ポリシーエンジン）"
+
+port.md:
+  ja:
+    - "ポート番号"
+
+private-vs-public.md:
+  ja:
+    - "private と public の違い"
+    - "private と public の違い（Cache-Control）"
+
+process.md:
+  ja:
+    - "プロセス"
+
+production.md:
+  ja:
+    - "本番環境"
+    - "本番環境（Production）"
+
+propagation.md:
+  ja:
+    - "伝搬"
+    - "伝搬（Propagation）"
+
+protocol.md:
+  ja:
+    - "プロトコル"
+
+provisioning.md:
+  ja:
+    - "プロビジョニング"
+
+proxy-types.md:
+  ja:
+    - "プロキシの種類：フォワード、リバース、認証"
+    - "プロキシの種類：フォワード、リバース、認証（Proxy Types）"
+
+public-key-cryptography.md:
+  ja:
+    - "公開鍵暗号"
+
+qr-code.md:
+  ja:
+    - "QR コード"
+
+rate-limiting.md:
+  ja:
+    - "Rate Limiting"
+    - "Rate Limiting（レート制限）"
+
+rbac.md:
+  ja:
+    - "RBAC"
+    - "RBAC（ロールベースアクセス制御）"
+
+realm-json.md:
+  ja:
+    - "realm.json"
+
+realm.md:
+  ja:
+    - "レルム"
+    - "レルム（Keycloak Realm）"
+
+redirect-uri.md:
+  ja:
+    - "リダイレクト URI"
+
+redirect.md:
+  ja:
+    - "リダイレクト"
+
+redis.md:
+  ja:
+    - "Redis"
+
+refresh-token.md:
+  ja:
+    - "Refresh Token"
+    - "Refresh Token（リフレッシュトークン）"
+
+regenerate.md:
+  ja:
+    - "再生成"
+    - "再生成（Regenerate）"
+
+replay-attack.md:
+  ja:
+    - "リプレイ攻撃"
+
+repository.md:
+  ja:
+    - "リポジトリ"
+
+request-body.md:
+  ja:
+    - "リクエストボディ"
+    - "リクエストボディ（Request Body）"
+
+responsive.md:
+  ja:
+    - "レスポンシブWebデザイン"
+
+retry.md:
+  ja:
+    - "リトライ"
+    - "リトライ（再試行）"
+
+reverse-proxy.md:
+  ja:
+    - "リバースプロキシ"
+    - "リバースプロキシ（Reverse Proxy）"
+
+revoke.md:
+  ja:
+    - "無効化"
+    - "無効化（Revoke）"
+
+role.md:
+  ja:
+    - "ロール"
+    - "ロール（Role）"
+
+routing.md:
+  ja:
+    - "ルーティング"
+
+row-level-security.md:
+  ja:
+    - "行レベルセキュリティ"
+    - "行レベルセキュリティ（RLS）"
+
+rs256.md:
+  ja:
+    - "RS256"
+    - "RS256 (RSA Signature with SHA-256)"
+
+runtime.md:
+  ja:
+    - "ランタイム"
+
+saas.md:
+  ja:
+    - "SaaS"
+    - "SaaS（Software as a Service）"
+
+samesite.md:
+  ja:
+    - "SameSite"
+    - "SameSite（Cookie 属性）"
+
+schema.md:
+  ja:
+    - "スキーマ"
+
+scim.md:
+  ja:
+    - "SCIM"
+    - "SCIM（System for Cross-domain Identity Management）"
+
+scopes.md:
+  ja:
+    - "スコープ"
+
+sdk.md:
+  ja:
+    - "SDK"
+    - "SDK（Software Development Kit）"
+
+security-responsibility.md:
+  ja:
+    - "セキュリティの責任"
+
+self-hosting.md:
+  ja:
+    - "セルフホスティング"
+
+self-signed.md:
+  ja:
+    - "自己署名"
+
+sendgrid.md:
+  ja:
+    - "SendGrid"
+
+server.md:
+  ja:
+    - "サーバー"
+
+service-token.md:
+  ja:
+    - "Service Token"
+    - "Service Token（サービストークン）"
+
+session-expiry.md:
+  ja:
+    - "セッション有効期限"
+
+session-fixation.md:
+  ja:
+    - "Session Fixation"
+    - "Session Fixation（セッション固定攻撃）"
+
+session-hijacking.md:
+  ja:
+    - "セッションハイジャック"
+
+session-management.md:
+  ja:
+    - "セッション管理"
+
+session-storage-strategies.md:
+  ja:
+    - "セッション保存戦略"
+
+session.md:
+  ja:
+    - "Session"
+    - "Session（セッション）"
+
+signed-cookie.md:
+  ja:
+    - "署名Cookie"
+
+signing-key.md:
+  ja:
+    - "署名鍵"
+
+silent-refresh.md:
+  ja:
+    - "サイレントリフレッシュ"
+
+single-process.md:
+  ja:
+    - "シングルプロセス"
+    - "シングルプロセス（Single Process）"
+
+single-source-of-truth.md:
+  ja:
+    - "Single Source of Truth"
+    - "Single Source of Truth（唯一の情報源）"
+
+sla.md:
+  ja:
+    - "SLA"
+    - "SLA（Service Level Agreement：サービスレベル契約）"
+
+sliding-window-expiry.md:
+  ja:
+    - "スライディングウィンドウ有効期限"
+
+sliding-window.md:
+  ja:
+    - "スライディングウインドウ"
+
+soc2.md:
+  ja:
+    - "SOC 2"
+    - "SOC 2（Service Organization Control 2）"
+
+spa.md:
+  ja:
+    - "SPA"
+    - "SPA（シングルページアプリケーション）"
+
+sql.md:
+  ja:
+    - "SQL"
+
+ssl-tls.md:
+  ja:
+    - "SSL/TLS"
+
+sso.md:
+  ja:
+    - "SSO"
+    - "SSO (Single Sign-On / シングルサインオン)"
+
+stack-trace.md:
+  ja:
+    - "スタックトレース"
+    - "スタックトレース（Stack Trace）"
+
+startup.md:
+  ja:
+    - "スタートアップ"
+    - "スタートアップ（サービス起動）"
+
+state-machine.md:
+  ja:
+    - "State Machine"
+    - "State Machine（状態マシン）"
+
+state.md:
+  ja:
+    - "State パラメータ"
+    - "State パラメータ (OAuth / OIDC)"
+
+stripe.md:
+  ja:
+    - "Stripe"
+
+subdomain.md:
+  ja:
+    - "サブドメイン"
+
+supertokens.md:
+  ja:
+    - "SuperTokens"
+
+suspension.md:
+  ja:
+    - "サスペンション"
+    - "サスペンション（一時停止）"
+
+template.md:
+  ja:
+    - "テンプレート"
+
+tenant-lifecycle.md:
+  ja:
+    - "テナントライフサイクル"
+
+tenant-resolution.md:
+  ja:
+    - "テナント解決"
+
+tenant.md:
+  ja:
+    - "Tenant / マルチテナンシー"
+
+tight-coupling-vs-loose-coupling.md:
+  ja:
+    - "密結合 vs 疎結合"
+    - "密結合 vs 疎結合（Tight Coupling vs Loose Coupling）"
+
+token-theft.md:
+  ja:
+    - "トークン窃取"
+
+token.md:
+  ja:
+    - "トークン"
+
+totp.md:
+  ja:
+    - "TOTP"
+    - "TOTP（時間ベースワンタイムパスワード）"
+
+tradeoff.md:
+  ja:
+    - "トレードオフ"
+    - "トレードオフ（Trade-off）"
+
+traefik.md:
+  ja:
+    - "Traefik"
+
+transition.md:
+  ja:
+    - "Transition"
+    - "Transition（遷移）"
+
+type-safe.md:
+  ja:
+    - "型安全"
+
+upstream.md:
+  ja:
+    - "アップストリーム"
+
+url.md:
+  ja:
+    - "URL"
+
+uuid.md:
+  ja:
+    - "UUID"
+    - "UUID（汎用一意識別子）"
+
+vanilla-javascript.md:
+  ja:
+    - "バニラJavaScript"
+
+variable.md:
+  ja:
+    - "変数"
+
+vendor-lock-in.md:
+  ja:
+    - "ベンダーロックイン"
+
+verification.md:
+  ja:
+    - "検証"
+
+webauthn.md:
+  ja:
+    - "WebAuthn / FIDO2 / パスキー"
+
+webhook.md:
+  ja:
+    - "Webhook"
+    - "Webhook（ウェブフック）"
+
+what-is-authentication.md:
+  ja:
+    - "認証とは、実際には何なのか？"
+
+what-is-best-practice.md:
+  ja:
+    - "「ベストプラクティス」とは、実際には何なのか？"
+
+what-is-developer-experience.md:
+  ja:
+    - "開発者体験とは、実際には何なのか？"
+    - "開発者体験（DX）とは、実際には何なのか？"
+
+what-is-enterprise-grade.md:
+  ja:
+    - "「エンタープライズグレード」とは、実際には何なのか？"
+
+what-is-production-ready.md:
+  ja:
+    - "「本番環境対応」とは、実際には何なのか？"
+
+what-is-scalability.md:
+  ja:
+    - "スケーラビリティとは、実際には何なのか？"
+
+what-is-security.md:
+  ja:
+    - "セキュリティとは、実際には何なのか？"
+
+what-is-stateless.md:
+  ja:
+    - "ステートレスとは、実際には何なのか？"
+
+what-is-tech-debt.md:
+  ja:
+    - "技術的負債とは、実際には何なのか？"
+
+what-is-zero-trust.md:
+  ja:
+    - "ゼロトラストとは、実際には何なのか？"
+
+whitelist.md:
+  ja:
+    - "ホワイトリスト"
+
+wildcard-certificate.md:
+  ja:
+    - "ワイルドカード証明書"
+
+xss.md:
+  ja:
+    - "XSS"
+    - "XSS (Cross-Site Scripting / クロスサイトスクリプティング)"
+
+yagni.md:
+  ja:
+    - "YAGNI"
+    - "YAGNI（You Aren't Gonna Need It）"
+
+yaml.md:
+  ja:
+    - "YAML"
+
+zero-trust.md:
+  ja:
+    - "ゼロトラスト"
+
+zitadel.md:
+  ja:
+    - "ZITADEL"
+

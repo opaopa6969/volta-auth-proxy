@@ -2,7 +2,7 @@
 
 [English](no-traefik-guide.md) | [日本語](no-traefik-guide.ja.md)
 
-> [Traefik](glossary/traefik.md) は推奨だが必須ではない。volta はリバースプロキシなしで動く。
+> [Traefik](glossary/traefik.md) は推奨だが必須ではない。volta は[リバースプロキシ](glossary/reverse-proxy.ja.md)なしで動く。
 
 ***
 
@@ -28,9 +28,9 @@ volta-auth-proxy（ポート 7070）
 - volta が認証ページを直接提供
 - アプリは別ポートで動く
 - フロントエンドが volta（認証）とアプリ（データ）の 2 つの [API](glossary/api.md) を叩く
-- リバースプロキシ不要
+- [リバースプロキシ](glossary/reverse-proxy.ja.md)不要
 
-**アプリは [JWT](glossary/jwt.md) を直接検証**（ForwardAuth ヘッダなし）:
+**アプリは [JWT](glossary/jwt.md) を直接[検証](glossary/verification.ja.md)**（[ForwardAuth](glossary/forwardauth.ja.md) ヘッダなし）:
 
 ```java
 VoltaAuth volta = VoltaAuth.builder()
@@ -50,13 +50,13 @@ app.before("/api/*", volta.middleware());
 
 メインの [README](../README.ja.md) で説明しているパターン。
 
-**向いてるケース:** 本番、複数アプリ、サブドメインルーティング
+**向いてるケース:** 本番、複数アプリ、[サブドメイン](glossary/subdomain.ja.md)[ルーティング](glossary/routing.ja.md)
 
 ***
 
 ### パターン C: nginx / Caddy / 任意のリバースプロキシ
 
-ForwardAuth は [Traefik](glossary/traefik.md) 固有ではない。auth\_request ([nginx](glossary/nginx.md)) や forward\_auth ([Caddy](glossary/caddy.md)) でも同じ。
+[ForwardAuth](glossary/forwardauth.ja.md) は [Traefik](glossary/traefik.md) 固有ではない。auth\_request ([nginx](glossary/nginx.md)) や forward\_auth ([Caddy](glossary/caddy.md)) でも同じ。
 
 [nginx](glossary/nginx.md) と [Caddy](glossary/caddy.md) の設定例は[英語版](no-traefik-guide.md)を参照。
 
@@ -66,10 +66,10 @@ ForwardAuth は [Traefik](glossary/traefik.md) 固有ではない。auth\_reques
 
 | | パターン A (プロキシなし) | パターン B ([Traefik](glossary/traefik.md)) | パターン C ([nginx](glossary/nginx.md)/[Caddy](glossary/caddy.md)) |
 |---|---|---|---|
-| **追加インフラ** | なし | Traefik | nginx or Caddy |
+| **追加インフラ** | なし | [Traefik](glossary/traefik.ja.md) | [nginx](glossary/nginx.ja.md) or [Caddy](glossary/caddy.ja.md) |
 | **セットアップ** | 最も簡単 | 中程度 | 中程度 |
-| **認証方法** | [JWT](glossary/jwt.md) 検証 | ForwardAuth ヘッダ | ForwardAuth ヘッダ |
-| **CORS** | 必要 | 不要 | 不要 |
-| **複数アプリ** | JWT 手動 | ヘッダ自動 | ヘッダ自動 |
-| **サブドメイン** | なし | あり | あり |
+| **認証方法** | [JWT](glossary/jwt.md) [検証](glossary/verification.ja.md) | [ForwardAuth](glossary/forwardauth.ja.md) ヘッダ | ForwardAuth ヘッダ |
+| **[CORS](glossary/cors.ja.md)** | 必要 | 不要 | 不要 |
+| **複数アプリ** | [JWT](glossary/jwt.ja.md) 手動 | ヘッダ自動 | ヘッダ自動 |
+| **[サブドメイン](glossary/subdomain.ja.md)** | なし | あり | あり |
 | **本番向き** | 開発/小規模 | はい | はい |

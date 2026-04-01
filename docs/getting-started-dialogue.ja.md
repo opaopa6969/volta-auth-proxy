@@ -10,19 +10,19 @@
 
 **リン（volta エンジニア）:** volta-auth-proxy を知り尽くしている。忍耐強い。図が好き。
 
-**カイ（アプリ開発者）:** プロジェクト管理 SaaS を作っている。[Javalin](glossary/javalin.md) アプリがある。マルチテナント認証が必要。OAuth は聞いたことあるけど実装したことない。
+**カイ（アプリ開発者）:** プロジェクト管理 [SaaS](glossary/saas.ja.md) を作っている。[Javalin](glossary/javalin.md) アプリがある。マルチテナント認証が必要。OAuth は聞いたことあるけど実装したことない。
 
 ***
 
 ## Scene 1: 「とりあえずログインさせたい」
 
-**カイ:** [Javalin](glossary/javalin.md) でアプリ作ってるんだけど、ユーザーのログインが必要で。ずっと後回しにしてた。認証って怖くて。[Auth0](glossary/auth0.md) は高いし、[Keycloak](glossary/keycloak.md) は設定地獄っぽいし。volta で何とかなる？
+**カイ:** [Javalin](glossary/javalin.md) でアプリ作ってるんだけど、ユーザーの[ログイン](glossary/login.ja.md)が必要で。ずっと後回しにしてた。認証って怖くて。[Auth0](glossary/auth0.md) は高いし、[Keycloak](glossary/keycloak.md) は[設定地獄](glossary/config-hell.ja.md)っぽいし。volta で何とかなる？
 
 **リン:** アプリは何をするもの？
 
 **カイ:** プロジェクト管理。チームがワークスペースを作って、メンバーを招待して、タスクを管理する。ワークスペースごとにデータは分離したい。
 
-**リン:** それは[マルチテナント](glossary/multi-tenant.ja.md)。各ワークスペースが[テナント](glossary/tenant.ja.md)。volta はまさにそのために作られた。アーキテクチャはこうなる:
+**リン:** それは[マルチテナント](glossary/multi-tenant.ja.md)。各ワークスペースが[テナント](glossary/tenant.ja.md)。volta はまさにそのために作られた。[アーキテクチャ](glossary/architecture.ja.md)はこうなる:
 
 ```
 ブラウザ
@@ -35,7 +35,7 @@ volta-auth-proxy       あなたのアプリ
 
 **カイ:** えっ、2 つのサービス？ volta って「密結合上等」って言ってなかった？
 
-**リン:** 「密結合」は volta の*設定*が 1 箇所にあるという意味。あなたのアプリと volta は別のサービスだけど、[Traefik](glossary/traefik.md) が繋いでくれる。あなたのアプリはログイン処理も、パスワード検証も、セッション管理も一切やらない。volta が全部やる。
+**リン:** 「密結合」は volta の*設定*が 1 箇所にあるという意味。あなたのアプリと volta は別のサービスだけど、[Traefik](glossary/traefik.md) が繋いでくれる。あなたのアプリは[ログイン](glossary/login.ja.md)処理も、パスワード[検証](glossary/verification.ja.md)も、[セッション管理](glossary/session-management.ja.md)も一切やらない。volta が全部やる。
 
 **カイ:** じゃあ僕のアプリは何をするの？
 
@@ -90,8 +90,8 @@ app.get("/api/tasks", ctx -> {
 
 **リン:** 2 層の防御がある:
 
-1. **ネットワーク分離:** アプリは [Traefik](glossary/traefik.md) の内部ネットワークからだけアクセスを受ける。外から直接アクセスできない
-2. **[JWT](glossary/jwt.ja.md) 検証:** もっと安全にしたければ、`X-Volta-JWT` ヘッダを検証する。暗号署名されてる
+1. **[ネットワーク分離](glossary/network-isolation.ja.md):** アプリは [Traefik](glossary/traefik.md) の内部[ネットワーク](glossary/network.ja.md)からだけアクセスを受ける。外から直接アクセスできない
+2. **[JWT](glossary/jwt.ja.md) [検証](glossary/verification.ja.md):** もっと安全にしたければ、`X-Volta-JWT` ヘッダを検証する。[暗号署名](glossary/cryptographic-signature.ja.md)されてる
 
 ```java
 // オプション（推奨）: JWT 検証
@@ -185,12 +185,12 @@ app.get("/api/tasks", ctx -> {
 
 **カイ:** でもユーザーはどうやってワークスペースに参加するの？ 招待機能が要るよね。
 
-**リン:** volta がそれもやる。招待コードを書く必要はない。volta には招待システムが組み込まれてる:
+**リン:** volta がそれもやる。[招待コード](glossary/invitation-code.ja.md)を書く必要はない。volta には招待システムが組み込まれてる:
 
 1. 管理者が `https://auth.example.com/admin/invitations` を開く
 2. 招待リンクを作成
 3. [Sla](glossary/sla.md)ck やメールで共有
-4. 新メンバーがリンクをクリック → Google ログイン → 同意画面 → ワークスペース参加
+4. 新メンバーがリンクをクリック → Google [ログイン](glossary/login.ja.md) → [同意画面](glossary/consent-screen.ja.md) → ワークスペース参加
 
 あなたのアプリはこれが起きたことを知る必要がない。次にそのユーザーがアプリにアクセスしたとき、`X-Volta-Tenant-Id` ヘッダに含まれてるだけ。
 
@@ -219,7 +219,7 @@ app.get("/app/team", ctx -> {
 
 **カイ:** つまり volta がユーザーとテナントの唯一の情報源で、僕のアプリは必要なときに volta に聞けばいい？
 
-**リン:** その通り。あなたのアプリはタスクとプロジェクトを持つ。volta はユーザー、テナント、ロール、セッションを持つ。きれいに分離。
+**リン:** その通り。あなたのアプリはタスクとプロジェクトを持つ。volta はユーザー、テナント、[ロール](glossary/role.ja.md)、セッションを持つ。きれいに分離。
 
 ***
 
@@ -248,7 +248,7 @@ const res = await Volta.fetch("/api/tasks");
 
 **カイ:** 勝手にセッション更新してくれるの？
 
-**リン:** そう。[JWT](glossary/jwt.ja.md) が期限切れ（5 分ごと）になったら、[SDK](glossary/sdk.md) がバックグラウンドでリフレッシュする。通常利用中はログイン画面を見ない。セッション自体が切れたら（8 時間後）、ログインに飛ばして元の画面に戻す。
+**リン:** そう。[JWT](glossary/jwt.ja.md) が期限切れ（5 分ごと）になったら、[SDK](glossary/sdk.md) がバックグラウンドでリフレッシュする。通常利用中は[ログイン](glossary/login.ja.md)画面を見ない。セッション自体が切れたら（8 時間後）、ログインに飛ばして元の画面に戻す。
 
 **カイ:** テナント切替は？ 複数ワークスペースに所属するユーザーもいるし。
 
@@ -291,9 +291,9 @@ app.delete("/api/tasks/{id}", ctx -> {
 });
 ```
 
-**カイ:** ロールの割り当ては volta 側でやるの？
+**カイ:** [ロール](glossary/role.ja.md)の割り当ては volta 側でやるの？
 
-**リン:** そう。`https://auth.example.com/admin/members` — 管理者がロールを変更できる。あなたのアプリは `X-Volta-Roles` を読んでビジネスルールを適用するだけ。
+**リン:** そう。`https://auth.example.com/admin/members` — 管理者が[ロール](glossary/role.ja.md)を変更できる。あなたのアプリは `X-Volta-Roles` を読んでビジネスルールを適用するだけ。
 
 ***
 
@@ -341,9 +341,9 @@ app.delete("/api/tasks/{id}", ctx -> {
 
 - 新しいリクエストは認証できない → [Traefik](glossary/traefik.md) が 401 を返す
 - キャッシュされたページは見えるかもだけど [API](glossary/api.md) は呼べない
-- アプリ自体は動いてる — 新しいリクエストの検証ができないだけ
+- アプリ自体は動いてる — 新しいリクエストの[検証](glossary/verification.ja.md)ができないだけ
 
-Phase 1（単一インスタンス）ではこれは既知の[トレードオフ](glossary/tradeoff.ja.md)。Phase 2 で [Redis](glossary/redis.md) セッション + 水平スケーリングで高可用性を実現。
+Phase 1（単一インスタンス）ではこれは既知の[トレードオフ](glossary/tradeoff.ja.md)。Phase 2 で [Redis](glossary/redis.md) セッション + [水平スケーリング](glossary/horizontal-scaling.ja.md)で[高可用性](glossary/high-availability.ja.md)を実現。
 
 **カイ:** 正直、今の僕の規模なら大丈夫。理解できないシンプルな認証より、理解できるシンプルな認証がいい。
 

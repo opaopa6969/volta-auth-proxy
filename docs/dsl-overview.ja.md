@@ -3,13 +3,13 @@
 [English](dsl-overview.md) | [日本語](dsl-overview.ja.md)
 
 > volta [DSL](glossary/dsl.md) は認証動作の **唯一の真実の源 ([single source of truth](glossary/single-source-of-truth.md))**。
-> 実装はドライバー。DSL が仕様。
+> 実装はドライバー。[DSL](glossary/dsl.ja.md) が仕様。
 
 ***
 
 ## volta DSL とは？
 
-volta-auth-proxy は全ての認証動作を 4 つの YAML ファイルで定義します。ロジックをコード・設定・ドキュメントに散らばらせません。
+volta-auth-proxy は全ての認証動作を 4 つの [YAML](glossary/yaml.ja.md) ファイルで定義します。ロジックをコード・設定・ドキュメントに散らばらせません。
 
 ```
 DSL（仕様）  →  Java コード（実装）
@@ -38,9 +38,9 @@ DSL（仕様）  →  Java コード（実装）
 **なぜ自動生成や直接実行をしないのか？**
 
 1. **[Java](glossary/java.md) コードは動いている。** Phase 1-4 実装済み、テスト通過。壊す理由がない
-2. **[DSL](glossary/dsl.md) ランタイムがまだ存在しない。** 作ること自体が 1 プロジェクト
-3. **[DSL](glossary/dsl.md) の目的は仕様であり実行ではない。** tribunal review で確定: 3 つの目的は AI 仕様伝達・テスト生成・ドキュメント生成。ランタイム実行ではない
-4. **「制御しやすいは正義」** [DSL](glossary/dsl.md) ランタイム層を挟むとデバッグが 2 箇所に。今は [Java](glossary/java.md) だけ見ればいい
+2. **[DSL](glossary/dsl.md) [ランタイム](glossary/runtime.ja.md)がまだ存在しない。** 作ること自体が 1 プロジェクト
+3. **[DSL](glossary/dsl.md) の目的は仕様であり実行ではない。** tribunal review で確定: 3 つの目的は AI 仕様伝達・テスト生成・ドキュメント生成。[ランタイム](glossary/runtime.ja.md)実行ではない
+4. **「制御しやすいは正義」** [DSL](glossary/dsl.md) [ランタイム](glossary/runtime.ja.md)層を挟むと[デバッグ](glossary/debugging.ja.md)が 2 箇所に。今は [Java](glossary/java.md) だけ見ればいい
 
 **今の [DSL](glossary/dsl.md) の価値:**
 
@@ -48,7 +48,7 @@ DSL（仕様）  →  Java コード（実装）
 - 全認証状態・遷移・ガード・エラーの唯一の定義場所
 - テストケースの自動生成基盤（将来: 全状態遷移をカバー）
 - ドキュメントの自動生成（[mermaid](glossary/mermaid.md) 図、エラーテーブル）
-- Phase 4 ポリシーエンジンドライバー生成の基盤（jCasbin model.conf）
+- Phase 4 ポリシーエンジンドライバー生成の基盤（[jCasbin](glossary/jcasbin.ja.md) model.conf）
 
 ### ロードマップ: DSL の活用段階
 
@@ -67,7 +67,7 @@ Phase 4:  DSL からポリシーエンジンドライバー生成（jCasbin mode
 | ファイル | 目的 | バージョン |
 |---------|------|-----------|
 | [`dsl/auth-machine.yaml`](../dsl/auth-machine.yaml) | 状態マシン — 8 状態、全遷移、ガード、アクション、エラー | v3.2 |
-| [`dsl/protocol.yaml`](../dsl/protocol.yaml) | App との契約 — [ForwardAuth](glossary/forwardauth.ja.md) ヘッダ、[JWT](glossary/jwt.ja.md) 仕様、[API](glossary/api.ja.md) エンドポイント、データモデル | v2 |
+| [`dsl/protocol.yaml`](../dsl/protocol.yaml) | App との契約 — [ForwardAuth](glossary/forwardauth.ja.md) ヘッダ、[JWT](glossary/jwt.ja.md) 仕様、[API](glossary/api.ja.md) [エンドポイント](glossary/endpoint.ja.md)、データモデル | v2 |
 | [`dsl/policy.yaml`](../dsl/policy.yaml) | 認可 — [ロール](glossary/role.ja.md)階層、権限、制約、[テナント](glossary/tenant.ja.md)分離、[レート制限](glossary/rate-limiting.ja.md)、[CSRF](glossary/csrf.ja.md)、監査 | v1 |
 | [`dsl/errors.yaml`](../dsl/errors.yaml) | エラーレジストリ — 全エラーコード、メッセージ（en/ja）、リカバリーアクション | v2 |
 
@@ -76,7 +76,7 @@ Phase 4:  DSL からポリシーエンジンドライバー生成（jCasbin mode
 | ファイル | 目的 |
 |---------|------|
 | [`dsl/auth-machine-phase2-4.yaml`](../dsl/auth-machine-phase2-4.yaml) | 追加状態: [MFA](glossary/mfa.ja.md), [SAML](glossary/sso.ja.md), [M2M](glossary/m2m.md), [Webhook](glossary/webhook.md) |
-| [`dsl/volta-config.schema.yaml`](../dsl/volta-config.schema.yaml) | volta-config.[yaml](glossary/yaml.md) の JSON [Schema](glossary/schema.md) バリデーション |
+| [`dsl/volta-config.schema.yaml`](../dsl/volta-config.schema.yaml) | volta-config.[yaml](glossary/yaml.md) の [JSON](glossary/json.ja.md) [Schema](glossary/schema.md) バリデーション |
 
 ***
 
@@ -107,7 +107,7 @@ guard: "session.valid && tenant.active && membership.role in ['ADMIN', 'OWNER']"
 ```
 
 演算子: `&&`, `||`, `!`, `==`, `!=`, `>`, `<`, `>=`, `<=`, `in`
-テンプレート式: `"{request.return_to || config.default_app_url}"`（`||` = coalesce）
+[テンプレート](glossary/template.ja.md)式: `"{request.return_to || config.default_app_url}"`（`||` = coalesce）
 
 ### 遷移の優先順位
 
@@ -123,7 +123,7 @@ callback_success:          { priority: 5 }  # 成功は最後
 
 ### グローバル遷移
 
-ログアウトとセッション切れは全認証済み状態に適用:
+[ログアウト](glossary/logout.ja.md)とセッション切れは全認証済み状態に適用:
 
 ```yaml
 global_transitions:
@@ -184,7 +184,7 @@ X-Volta-App-Id:       string（オプション）
 
 ### Internal API
 
-App 委譲用の 17 エンドポイント。全仕様は [protocol.yaml](../dsl/protocol.yaml) を参照。
+App 委譲用の 17 [エンドポイント](glossary/endpoint.ja.md)。全仕様は [protocol.yaml](../dsl/protocol.yaml) を参照。
 
 ***
 
@@ -231,9 +231,9 @@ interface PolicyEvaluator {
 | Phase | ドライバー | 種別 | 依存 |
 |-------|-----------|------|------|
 | **Phase 1-3** | `JavaPolicyEvaluator` | Pure [Java](glossary/java.md) 直接評価 | なし |
-| **Phase 4 案 A** | `CasbinPolicyEvaluator` | [jCasbin](https://github.com/casbin/jcasbin) | Pure Java, [Maven](glossary/maven.md) Central |
+| **Phase 4 案 A** | `CasbinPolicyEvaluator` | [jCasbin](https://github.com/casbin/jcasbin) | Pure [Java](glossary/java.ja.md), [Maven](glossary/maven.md) Central |
 | **Phase 4 案 B** | `CedarPolicyEvaluator` | [Cedar Java](https://github.com/cedar-policy/cedar-java) | JNI (Rust ネイティブ) |
-| **Phase 4 案 C** | `OpaPolicyEvaluator` | [OPA](https://www.openpolicyagent.org/) サイドカー | 別プロセス (Go) |
+| **Phase 4 案 C** | `OpaPolicyEvaluator` | [OPA](https://www.openpolicyagent.org/) サイドカー | 別[プロセス](glossary/process.ja.md) (Go) |
 
 ### DSL → ドライバー変換
 
@@ -248,18 +248,18 @@ volta policy.yaml
 
 ### ドライバー比較
 
-| | jCasbin | Cedar [Java](glossary/java.md) | [OPA](glossary/opa.md) サイドカー |
+| | [jCasbin](glossary/jcasbin.ja.md) | Cedar [Java](glossary/java.md) | [OPA](glossary/opa.md) サイドカー |
 |---|---|---|---|
-| **Pure Java** | はい | いいえ (JNI) | いいえ (HTTP) |
-| **追加インフラ** | なし | なし | OPA プロセス |
+| **Pure [Java](glossary/java.ja.md)** | はい | いいえ (JNI) | いいえ ([HTTP](glossary/http.ja.md)) |
+| **追加インフラ** | なし | なし | [OPA](glossary/opa.ja.md) [プロセス](glossary/process.ja.md) |
 | **性能** | マイクロ秒 | マイクロ秒 | 1-5ms (HTTP) |
-| **RBAC** | はい | はい | はい |
-| **ABAC** | はい | はい | はい |
+| **[RBAC](glossary/rbac.ja.md)** | はい | はい | はい |
+| **[ABAC](glossary/abac.ja.md)** | はい | はい | はい |
 | **Deny ルール** | はい | はい（第一級） | はい |
 | **volta 哲学との適合** | 最高 | 良い | 低い |
 | **成熟度** | CNCF Incubating | AWS 本番 | CNCF Graduated |
 
-**Phase 4 推奨: jCasbin** — Pure [Java](glossary/java.md)、追加インフラなし、「密結合上等」哲学に合致。
+**Phase 4 推奨: [jCasbin](glossary/jcasbin.ja.md)** — Pure [Java](glossary/java.md)、追加インフラなし、「密結合上等」哲学に合致。
 
 ***
 
@@ -267,10 +267,10 @@ volta policy.yaml
 
 [バリデーター仕様書](dsl-validator-spec.md)で 60+ のチェックを 5 カテゴリで定義:
 
-1. **構造** — ファイルごとのスキーマ検証
+1. **構造** — ファイルごとの[スキーマ](glossary/schema.ja.md)[検証](glossary/verification.ja.md)
 2. **ファイル間参照** — errors.[yaml](glossary/yaml.md) が唯一の定義場所
 3. **状態マシン不変条件** — 到達可能性、デッドロック、優先順位
-4. **ガード式** — 変数解決、構文検証
+4. **ガード式** — [変数](glossary/variable.ja.md)解決、構文[検証](glossary/verification.ja.md)
 5. **完全性** — 監査イベント、コンテキスト使用、エラーコード網羅
 
 ***

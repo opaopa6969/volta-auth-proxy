@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Orchestrates the OAuth2/OIDC login flow across multiple identity providers.
@@ -18,8 +19,11 @@ import java.util.Map;
  * logic lives in {@link IdpProvider} implementations ({@link GoogleIdp},
  * {@link GitHubIdp}, {@link MicrosoftIdp}, …).
  *
- * <p>To add a new provider, implement {@link IdpProvider}, then register it
- * in {@link #buildRegistry}.
+ * <p>To add a new provider, implement {@link IdpProvider}, register it in
+ * {@link #ALL_PROVIDERS}, and add an entry to {@code volta-config.yaml}.
+ *
+ * <p>The enabled provider list can be reloaded at runtime without restart via
+ * {@link #reload(VoltaConfig)} — safe to call from a SIGHUP handler.
  */
 public final class OidcService {
 
@@ -27,39 +31,70 @@ public final class OidcService {
     private final SqlStore store;
     private final HttpClient http;
     private final ObjectMapper mapper;
-    private final Map<String, IdpProvider> registry;
 
-    public OidcService(AppConfig config, SqlStore store) {
-        this.config   = config;
-        this.store    = store;
-        this.http     = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
-        this.mapper   = new ObjectMapper();
-        this.registry = buildRegistry();
+    /** All providers known to this build. Never changes at runtime. */
+    private static final Map<String, IdpProvider> ALL_PROVIDERS;
+    static {
+        Map<String, IdpProvider> m = new LinkedHashMap<>();
+        for (IdpProvider p : List.of(new GoogleIdp(), new GitHubIdp(), new MicrosoftIdp())) {
+            m.put(p.id(), p);
+        }
+        ALL_PROVIDERS = Collections.unmodifiableMap(m);
+    }
+
+    /** Hot-swappable list of enabled providers (order = login-page order). */
+    private final AtomicReference<List<IdpProvider>> enabledRef;
+
+    public OidcService(AppConfig config, SqlStore store, VoltaConfig voltaConfig) {
+        this.config     = config;
+        this.store      = store;
+        this.http       = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+        this.mapper     = new ObjectMapper();
+        this.enabledRef = new AtomicReference<>(computeEnabled(voltaConfig));
+    }
+
+    // -------------------------------------------------------------------------
+    // Hot reload
+    // -------------------------------------------------------------------------
+
+    /**
+     * Replace the enabled provider list atomically.
+     * Safe to call from any thread (e.g. a SIGHUP signal handler).
+     */
+    public void reload(VoltaConfig voltaConfig) {
+        enabledRef.set(computeEnabled(voltaConfig));
     }
 
     // -------------------------------------------------------------------------
     // Provider registry
     // -------------------------------------------------------------------------
 
-    /**
-     * Register all known providers here.
-     * Only enabled providers (credentials present) are active at runtime.
-     */
-    private static Map<String, IdpProvider> buildRegistry() {
-        Map<String, IdpProvider> map = new LinkedHashMap<>();
-        for (IdpProvider p : List.of(new GoogleIdp(), new GitHubIdp(), new MicrosoftIdp())) {
-            map.put(p.id(), p);
-        }
-        return Collections.unmodifiableMap(map);
+    /** Returns all providers that are currently enabled. */
+    public List<IdpProvider> enabledProviders() {
+        return enabledRef.get();
     }
 
-    /** Returns all providers that are enabled in the current config. */
-    public List<IdpProvider> enabledProviders() {
+    /**
+     * Compute the enabled provider list from config.
+     *
+     * <p>If {@code volta-config.yaml} contains an {@code idp:} section, use it
+     * for ordering and enablement. Otherwise fall back to ENV-var detection.
+     */
+    private List<IdpProvider> computeEnabled(VoltaConfig voltaConfig) {
+        if (voltaConfig.hasIdpSection()) {
+            List<IdpProvider> result = new ArrayList<>();
+            for (VoltaConfig.IdpEntry entry : voltaConfig.idp()) {
+                IdpProvider p = ALL_PROVIDERS.get(entry.id());
+                if (p != null && entry.isEnabled()) result.add(p);
+            }
+            return List.copyOf(result);
+        }
+        // Fallback: ENV-based detection (backward compatible, no volta-config.yaml)
         List<IdpProvider> result = new ArrayList<>();
-        for (IdpProvider p : registry.values()) {
+        for (IdpProvider p : ALL_PROVIDERS.values()) {
             if (p.isEnabled(config)) result.add(p);
         }
-        return result;
+        return List.copyOf(result);
     }
 
     // -------------------------------------------------------------------------
@@ -77,8 +112,8 @@ public final class OidcService {
         IdpProvider idp = resolveProvider(providerId);
 
         String state    = SecurityUtils.randomUrlSafe(32);
-        String nonce    = idp.requiresNonce()  ? SecurityUtils.randomUrlSafe(32) : null;
-        String verifier = idp.requiresPkce()   ? SecurityUtils.randomUrlSafe(32) : null;
+        String nonce    = idp.requiresNonce() ? SecurityUtils.randomUrlSafe(32) : null;
+        String verifier = idp.requiresPkce()  ? SecurityUtils.randomUrlSafe(32) : null;
 
         store.saveOidcFlow(new OidcFlowRecord(
                 state, nonce, verifier, returnTo, inviteCode,
@@ -104,7 +139,9 @@ public final class OidcService {
         if (flow.expiresAt().isBefore(Instant.now())) {
             throw new IllegalArgumentException("Login session expired");
         }
-        IdpProvider idp = registry.get(flow.provider());
+        // Look up from ALL_PROVIDERS (not just enabled) to complete in-flight flows
+        // that were started before a reload removed that provider.
+        IdpProvider idp = ALL_PROVIDERS.get(flow.provider());
         if (idp == null) {
             throw new IllegalArgumentException("Unknown provider in flow: " + flow.provider());
         }
@@ -116,14 +153,16 @@ public final class OidcService {
     // -------------------------------------------------------------------------
 
     private IdpProvider resolveProvider(String id) {
+        List<IdpProvider> enabled = enabledRef.get();
         if (id != null) {
-            IdpProvider p = registry.get(id.toUpperCase(java.util.Locale.ROOT));
-            if (p != null && p.isEnabled(config)) return p;
+            String upper = id.toUpperCase(java.util.Locale.ROOT);
+            for (IdpProvider p : enabled) {
+                if (p.id().equals(upper)) return p;
+            }
         }
-        // First enabled provider as default
-        for (IdpProvider p : registry.values()) {
-            if (p.isEnabled(config)) return p;
-        }
-        throw new IllegalStateException("No IdP configured. Set GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID, or MICROSOFT_CLIENT_ID.");
+        if (!enabled.isEmpty()) return enabled.getFirst();
+        throw new IllegalStateException(
+                "No IdP configured. Add an idp: section to volta-config.yaml "
+                + "or set GOOGLE_CLIENT_ID / GITHUB_CLIENT_ID / MICROSOFT_CLIENT_ID.");
     }
 }

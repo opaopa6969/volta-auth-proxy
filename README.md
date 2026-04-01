@@ -2,6 +2,8 @@
 
 [English](README.md) | [Japanese (日本語)](README.ja.md)
 
+**[Multi-tenant](docs/glossary/multi-tenant.md) auth. One [HTTP header](docs/glossary/header.md). That's it.**
+
 [Multi-tenant](docs/glossary/multi-tenant.md) [identity gateway](docs/glossary/identity-gateway.md) for [SaaS](docs/glossary/saas.md).
 Handles [authentication](docs/glossary/authentication-vs-authorization.md), [tenant](docs/glossary/tenant.md)s, [role](docs/glossary/role.md)s, [invitations](docs/glossary/invitation-flow.md) so [downstream](docs/glossary/downstream-app.md) apps don't have to.
 
@@ -15,6 +17,63 @@ Handles [authentication](docs/glossary/authentication-vs-authorization.md), [ten
 > Every word is clickable. Every term is explained.
 > Whether you're a grandmother or a new engineer, click and you'll understand.
 > It's hell to write, but heaven to read.
+
+## Who this is for
+
+- You're building a [BtoB SaaS](docs/glossary/saas.md)
+- You need [multi-tenant](docs/glossary/multi-tenant.md) [authentication](docs/glossary/authentication-vs-authorization.md)
+- You're tired of [Keycloak](docs/glossary/keycloak.md) or [Auth0](docs/glossary/auth0.md)
+- But you don't want to write [auth](docs/glossary/authentication-vs-authorization.md) from scratch
+
+**→ Just read [HTTP headers](docs/glossary/header.md). That's all your apps need to do.**
+
+> **New here?** [はじめよう：会話で学ぶ volta-auth-proxy](docs/getting-started-dialogue.ja.md)
+
+***
+
+## How it works
+
+```
+Browser ──→ Traefik ──────────────────────────────────→ App
+                  │                                      ↑
+                  └──→ volta (ForwardAuth check) ────────┘
+                                  │
+                         auth + tenant resolution
+                                  │
+                      X-Volta-User-Id: abc123
+                      X-Volta-Tenant-Id: t456
+                      X-Volta-Role: MEMBER
+```
+
+Every request is checked by volta before reaching your app.
+Volta validates the session, resolves the tenant, and writes the result as headers.
+**Your app reads headers. Zero auth code.**
+
+***
+
+## Quick Start (5 min)
+
+```bash
+# 1. Clone
+git clone https://github.com/your-org/volta-auth-proxy
+cd volta-auth-proxy
+
+# 2. Create a Google OAuth app, set redirect URI to http://localhost:7070/callback
+#    https://console.cloud.google.com/ → Credentials → OAuth 2.0 Client IDs
+export GOOGLE_CLIENT_ID=your-client-id
+export GOOGLE_CLIENT_SECRET=your-client-secret
+
+# 3. Start the database
+docker-compose up -d
+
+# 4. Start volta
+mvn compile exec:java
+
+# 5. Open in browser
+open http://localhost:7070/login
+```
+
+***
 
 ## Phase 2-4 integrations implemented
 
@@ -685,23 +744,6 @@ services:
 | [JS](docs/glossary/javascript.md) | `volta.js` (~150 lines) | Vanilla [JavaScript](docs/glossary/javascript.md). No [framework](docs/glossary/framework.md) |
 
 ***
-
-## Quick Start
-
-```bash
-# 1. Start Postgres
-docker compose up -d postgres
-
-# 2. Copy and edit environment
-cp .env.example .env
-# Edit .env: set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, etc.
-
-# 3. Build and run
-mvn compile exec:java
-
-# 4. Open
-open http://localhost:7070/login
-```
 
 ### Prerequisites
 

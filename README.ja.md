@@ -2,6 +2,8 @@
 
 [English](README.md) | [Japanese (日本語)](README.ja.md)
 
+**マルチテナント認証を、[HTTP ヘッダ](docs/glossary/header.ja.md)1つで。**
+
 [マルチテナント](docs/glossary/multi-tenant.ja.md) [SaaS](docs/glossary/saas.ja.md) 向け [Identity Gateway](docs/glossary/identity-gateway.ja.md)。
 [認証](docs/glossary/authentication-vs-authorization.ja.md)・テナント管理・[ロール](docs/glossary/role.ja.md)・[招待](docs/glossary/invitation-flow.ja.md)を一手に引き受け、[下流](docs/glossary/downstream-app.ja.md)の [App](docs/glossary/downstream-app.ja.md) は何もしなくてよくなります。
 
@@ -15,6 +17,62 @@
 > 全ての単語がクリッカブル。全ての用語に解説あり。
 > おばあちゃんでも新人エンジニアでも、クリックすれば分かる。
 > 書くのは地獄。読むのは天国。
+
+## こんな人のためのもの
+
+- BtoB [SaaS](docs/glossary/saas.ja.md) を作っている
+- [マルチテナント](docs/glossary/multi-tenant.ja.md)[認証](docs/glossary/authentication-vs-authorization.ja.md)が必要
+- [Keycloak](docs/glossary/keycloak.ja.md) や [Auth0](docs/glossary/auth0.ja.md) に疲れた
+- でも認証を自作したくない
+
+**→ [HTTP ヘッダ](docs/glossary/header.ja.md)を読むだけで認証が使えます**
+
+> **はじめての方へ** → [はじめよう：会話で学ぶ volta-auth-proxy](docs/getting-started-dialogue.ja.md)
+
+***
+
+## どう動くか
+
+```
+Browser ──→ Traefik ──────────────────────────────────→ App
+                  │                                      ↑
+                  └──→ volta (ForwardAuth チェック) ─────┘
+                                  │
+                         認証・テナント解決
+                                  │
+                      X-Volta-User-Id: abc123
+                      X-Volta-Tenant-Id: t456
+                      X-Volta-Role: MEMBER
+```
+
+リクエストが来るたびに Traefik が volta に問い合わせます。
+volta がセッションを確認し、テナントを解決し、ヘッダに書き込みます。
+**アプリはヘッダを読むだけ。認証コードは1行も書かなくてよい。**
+
+***
+
+## Quick Start（5分）
+
+```bash
+# 1. リポジトリをクローン
+git clone https://github.com/your-org/volta-auth-proxy
+cd volta-auth-proxy
+
+# 2. Google OAuth アプリを作成し、リダイレクト URI を設定
+#    https://console.cloud.google.com/ → 認証情報 → OAuth 2.0 クライアント ID
+#    リダイレクト URI: http://localhost:7070/callback
+export GOOGLE_CLIENT_ID=your-client-id
+export GOOGLE_CLIENT_SECRET=your-client-secret
+
+# 3. DB を起動
+docker-compose up -d
+
+# 4. volta を起動
+mvn compile exec:java
+
+# 5. ブラウザで確認
+open http://localhost:7070/login
+```
 
 ***
 

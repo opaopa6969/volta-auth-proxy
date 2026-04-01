@@ -30,7 +30,8 @@ public final class Main {
         SessionStore sessionStore = SessionStore.create(config, store);
         JwtService jwtService = new JwtService(config, store);
         AuthService authService = new AuthService(config, store, jwtService, sessionStore);
-        OidcService oidcService = new OidcService(config, store);
+        VoltaConfig voltaConfig = ConfigLoader.load(config.appConfigPath());
+        OidcService oidcService = new OidcService(config, store, voltaConfig);
         SamlService samlService = new SamlService();
         AppRegistry appRegistry = new AppRegistry(config);
         AuditSink auditSink = AuditSink.create(config);
@@ -1647,6 +1648,19 @@ public final class Main {
 
         app.get("/scim/v2/Groups", ctx -> ctx.json(Map.of("schemas", List.of("urn:ietf:params:scim:api:messages:2.0:ListResponse"), "Resources", List.of())));
         app.post("/scim/v2/Groups", ctx -> ctx.status(201).json(Map.of("id", SecurityUtils.newUuid().toString(), "displayName", "group")));
+
+        // SIGHUP: reload IdP list without restart
+        try {
+            sun.misc.Signal.handle(new sun.misc.Signal("HUP"), sig -> {
+                VoltaConfig reloaded = ConfigLoader.load(config.appConfigPath());
+                oidcService.reload(reloaded);
+                System.out.println("[volta] IdP registry reloaded via SIGHUP ("
+                        + oidcService.enabledProviders().stream()
+                              .map(IdpProvider::id).toList() + ")");
+            });
+        } catch (IllegalArgumentException ignored) {
+            // SIGHUP not available on this OS (Windows)
+        }
 
         outboxWorker.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {

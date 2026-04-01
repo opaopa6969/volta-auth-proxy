@@ -1,0 +1,152 @@
+# volta-auth-proxy — demo stack
+#
+# Usage:
+#   cp .env.demo.example .env.demo
+#   # Edit .env.demo: set at least GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET
+#   docker compose -f docker-compose.demo.yml --env-file .env.demo up --build
+#
+# After startup:
+#   App (demo)     → http://localhost
+#   Traefik UI     → http://localhost:8080
+#   Mailpit (SMTP) → http://localhost:8025
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Traefik — reverse proxy + ForwardAuth
+  # ---------------------------------------------------------------------------
+  traefik:
+    image: traefik:v3.3
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --log.level=WARN
+    ports:
+      - "80:80"
+      - "8080:8080"   # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - volta_demo
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB:       volta_auth
+      POSTGRES_USER:     volta
+      POSTGRES_PASSWORD: volta
+    volumes:
+      - volta_demo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U volta -d volta_auth"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - volta_demo
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Mailpit — catches outbound email in dev
+  # ---------------------------------------------------------------------------
+  mailpit:
+    image: axllent/mailpit:v1.22
+    ports:
+      - "8025:8025"   # web UI
+    networks:
+      - volta_demo
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # volta-auth-proxy
+  # ---------------------------------------------------------------------------
+  volta:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PORT:                   7070
+      BASE_URL:               ${BASE_URL:-http://localhost}
+      # Database
+      DB_HOST:                postgres
+      DB_PORT:                5432
+      DB_NAME:                volta_auth
+      DB_USER:                volta
+      DB_PASSWORD:            volta
+      # Session
+      SESSION_STORE:          postgres
+      SESSION_TTL_SECONDS:    ${SESSION_TTL_SECONDS:-28800}
+      # Identity providers — set the ones you want to enable
+      GOOGLE_CLIENT_ID:       ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET:   ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID:       ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET:   ${GITHUB_CLIENT_SECRET:-}
+      MICROSOFT_CLIENT_ID:    ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_TENANT_ID:    ${MICROSOFT_TENANT_ID:-common}
+      # Misc
+      DEV_MODE:               ${DEV_MODE:-true}
+      ALLOW_SELF_SERVICE_TENANT: "true"
+      SUPPORT_CONTACT:        ${SUPPORT_CONTACT:-demo@example.com}
+      NOTIFICATION_CHANNEL:   smtp
+      SMTP_HOST:              mailpit
+      SMTP_PORT:              1025
+      SMTP_FROM:              volta-demo@example.com
+    volumes:
+      # Mount volta-config.yaml so you can edit IdP list without rebuilding
+      - ./volta-config.yaml:/app/volta-config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      # Route volta's own paths directly (no ForwardAuth on these)
+      - "traefik.http.routers.volta.rule=PathPrefix(`/login`) || PathPrefix(`/callback`) || PathPrefix(`/auth`) || PathPrefix(`/mfa`) || PathPrefix(`/.well-known`) || PathPrefix(`/css`) || PathPrefix(`/api`) || PathPrefix(`/oauth`) || PathPrefix(`/scim`)"
+      - "traefik.http.routers.volta.priority=10"
+      - "traefik.http.routers.volta.entrypoints=web"
+      - "traefik.http.services.volta.loadbalancer.server.port=7070"
+      # ForwardAuth middleware — all demo-app requests are checked here
+      - "traefik.http.middlewares.volta-auth.forwardauth.address=http://volta:7070/auth/verify"
+      - "traefik.http.middlewares.volta-auth.forwardauth.authResponseHeaders=X-Volta-User-Id,X-Volta-Email,X-Volta-Tenant-Id,X-Volta-Tenant-Slug,X-Volta-Roles,X-Volta-Display-Name,X-Volta-JWT,X-Volta-App-Id"
+      - "traefik.http.middlewares.volta-auth.forwardauth.trustForwardHeader=true"
+    networks:
+      - volta_demo
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Demo application
+  # ---------------------------------------------------------------------------
+  demo:
+    build:
+      context: demo
+      dockerfile: Dockerfile
+    environment:
+      PORT:           3000
+      # Comma-separated list of providers to show in the re-auth panel.
+      # Only providers with credentials set above will actually work.
+      DEMO_PROVIDERS: ${DEMO_PROVIDERS:-GOOGLE,GITHUB,MICROSOFT}
+    depends_on:
+      - volta
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.demo.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.demo.priority=1"
+      - "traefik.http.routers.demo.entrypoints=web"
+      - "traefik.http.routers.demo.middlewares=volta-auth"
+      - "traefik.http.services.demo.loadbalancer.server.port=3000"
+    networks:
+      - volta_demo
+    restart: unless-stopped
+
+networks:
+  volta_demo:
+    driver: bridge
+
+volumes:
+  volta_demo_pgdata:

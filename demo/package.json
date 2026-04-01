@@ -1,0 +1,13 @@
+{
+  "name": "volta-demo-app",
+  "version": "1.0.0",
+  "description": "Demo app for volta-auth-proxy — shows auth state and lets you toggle settings",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.0",
+    "qrcode": "^1.5.3"
+  }
+}

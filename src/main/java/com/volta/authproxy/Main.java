@@ -863,6 +863,19 @@ public final class Main {
                     ctx.status(403);
                     return;
                 }
+                // ForwardAuth: Traefik sets X-Forwarded-Host + X-Forwarded-Uri.
+                // Return 302 to /login so the browser is redirected instead of
+                // receiving a raw 401.
+                String fwdHost  = ctx.header("X-Forwarded-Host");
+                String fwdUri   = ctx.header("X-Forwarded-Uri");
+                String fwdProto = ctx.header("X-Forwarded-Proto");
+                if (fwdHost != null && fwdUri != null) {
+                    String proto    = fwdProto != null ? fwdProto : "http";
+                    String returnTo = proto + "://" + fwdHost + fwdUri;
+                    ctx.redirect("/login?return_to=" + java.net.URLEncoder.encode(
+                            returnTo, java.nio.charset.StandardCharsets.UTF_8));
+                    return;
+                }
                 ctx.status(401);
                 return;
             }

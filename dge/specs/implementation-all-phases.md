@@ -1006,29 +1006,75 @@ POST   /scim/v2/Groups
 ライブラリ: 自前 or Apache SCIMple
 ```
 
-### 4-2. Policy Engine
+### 4-2. Policy Engine — DSL ドライバー戦略
+
+volta DSL（policy.yaml）がマスター。評価エンジンはドライバーとして差し替え可能。
+
+```java
+interface PolicyEvaluator {
+    boolean evaluate(PolicyRequest request);
+}
+
+// Phase 1-3: Java 直接評価
+class JavaPolicyEvaluator implements PolicyEvaluator { ... }
+
+// Phase 4: ドライバー差し替え
+class CasbinPolicyEvaluator implements PolicyEvaluator { ... }
+class CedarPolicyEvaluator implements PolicyEvaluator { ... }
+class OpaPolicyEvaluator implements PolicyEvaluator { ... }
+```
 
 ```
-RBAC 4 ロールでは足りなくなった場合:
+推奨: jCasbin（Phase 4 第一候補）
+  - Pure Java。Maven Central から依存追加のみ
+  - RBAC + ABAC 対応
+  - インメモリ評価（マイクロ秒オーダー）
+  - 外部プロセス/インフラ不要
+  - 「密結合上等」哲学に最も合致
+  - CNCF Incubating
 
-選択肢 A: Ory Keto (Zanzibar 風)
-選択肢 B: Cedar (AWS 製, Rust)
-選択肢 C: 自前のシンプルな ABAC
+代替案 B: Cedar Java
+  - AWS 本番実績（Amazon Verified Permissions）
+  - permit / forbid の deny ルール（第一級）
+  - 静的スキーマ検証
+  - JNI 依存（Rust ネイティブ）
 
-CREATE TABLE policies (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id   UUID REFERENCES tenants(id),
-  resource    VARCHAR(100) NOT NULL,
-  action      VARCHAR(50) NOT NULL,
-  condition   JSONB,
-  effect      VARCHAR(10) NOT NULL DEFAULT 'allow',  -- allow | deny
-  priority    INT NOT NULL DEFAULT 0,
-  is_active   BOOLEAN NOT NULL DEFAULT true
+代替案 C: OPA サイドカー
+  - Rego の全表現力
+  - CNCF Graduated、最も成熟
+  - 別プロセス必要 → 「密結合上等」に反する
+```
+
+DSL → ドライバー変換:
+```
+volta policy.yaml
+  → Phase 4A: model.conf + policy.csv → jCasbin 評価
+  → Phase 4B: Cedar ポリシー → cedar-java (JNI) 評価
+  → Phase 4C: Rego → OPA サーバー (HTTP) 評価
+```
+
+DB テーブル（jCasbin adapter 用）:
+```sql
+CREATE TABLE casbin_rules (
+  id          BIGSERIAL PRIMARY KEY,
+  ptype       VARCHAR(10) NOT NULL,
+  v0          VARCHAR(255),
+  v1          VARCHAR(255),
+  v2          VARCHAR(255),
+  v3          VARCHAR(255),
+  v4          VARCHAR(255),
+  v5          VARCHAR(255)
 );
+```
 
 SDK 拡張:
-  volta.can("edit", "document", { ownerId: "..." })
 ```
+volta.can("edit", "document", { ownerId: "..." })
+→ PolicyEvaluator.evaluate() に委譲
+→ ドライバーが jCasbin / Cedar / OPA で評価
+```
+
+全仕様: [docs/dsl-overview.md](../../docs/dsl-overview.md)
 
 ### 4-3. Billing / Plan 管理
 

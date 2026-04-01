@@ -430,6 +430,8 @@ Authorization: Bearer ...           → JSON 扱い
 | [`dge/specs/implementation-all-phases.md`](dge/specs/implementation-all-phases.md) | 全 [Phase](docs/glossary/phase-based-development.ja.md) 実装仕様 |
 | [`dge/specs/ux-specs-phase1.md`](dge/specs/ux-specs-phase1.md) | UI/UX 仕様 |
 | [`dge/specs/ui-flow.md`](dge/specs/ui-flow.md) | 画面遷移図（mermaid）-- [📊 ユーザー状態](dge/specs/ui-flow.md#user-state-model), [ForwardAuth](dge/specs/ui-flow.md#flow-2-returning-user---session-valid), [招待](dge/specs/ui-flow.md#flow-1-invite-link---first-login), [テナント選択](dge/specs/ui-flow.md#flow-3-tenant-selection), [ログアウト](dge/specs/ui-flow.md#flow-6-logout), [エラー回復](dge/specs/ui-flow.md#error-recovery-flow) |
+| [`docs/dsl-overview.ja.md`](docs/dsl-overview.ja.md) | DSL 仕様、状態マシン、ポリシーエンジンドライバー戦略 |
+| [`docs/dsl-validator-spec.md`](docs/dsl-validator-spec.md) | DSL バリデーター（60+ チェック） |
 | [`dge/feedback/2026-03-31-volta-auth-proxy.md`](dge/feedback/2026-03-31-volta-auth-proxy.md) | DGE method フィードバック |
 | [`tasks/001-fix-critical-bugs-and-implement-templates.md`](tasks/001-fix-critical-bugs-and-implement-templates.md) | 現在の実装タスク |
 | [`backlog/001-form-state-recovery.md`](backlog/001-form-state-recovery.md) | [Phase](docs/glossary/phase-based-development.ja.md) 2: フォーム自動保存 |

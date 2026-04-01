@@ -1076,10 +1076,10 @@ Authorization: Bearer ...  -->  Treated as JSON
 
 | [Phase](docs/glossary/phase-based-development.md) | Status | What |
 |-------|--------|------|
-| **[Phase](docs/glossary/phase-based-development.md) 1: Core** | In progress | Google [OIDC](docs/glossary/oidc.md), [tenants](docs/glossary/tenant.md), [roles](docs/glossary/role.md), [invitations](docs/glossary/invitation-flow.md), [ForwardAuth](docs/glossary/forwardauth.md), [Internal API](docs/glossary/internal-api.md) |
-| [Phase](docs/glossary/phase-based-development.md) 2: Scale | Planned | Multiple [IdPs](docs/glossary/idp.md) (GitHub, Microsoft), M2M ([Client Credentials](docs/glossary/client-credentials.md)), Redis [sessions](docs/glossary/session.md), Webhooks, **Passkeys ([WebAuthn](docs/glossary/webauthn.md)/FIDO2)** |
-| [Phase](docs/glossary/phase-based-development.md) 3: Enterprise | Planned | [SAML](docs/glossary/sso.md), email notifications, **[MFA](docs/glossary/mfa.md)/2FA ([TOTP](docs/glossary/totp.md), [WebAuthn](docs/glossary/webauthn.md))**, i18n, admin UI expansion, **Conditional access (risk-based auth)**, **Fraud alert integration** |
-| [Phase](docs/glossary/phase-based-development.md) 4: Platform | Planned | SCIM, Policy Engine, Billing (Stripe), GDPR data export/deletion, **Device trust**, **Mobile [SDK](docs/glossary/sdk.md) (iOS/Android)** |
+| **[Phase](docs/glossary/phase-based-development.md) 1: Core** | **Implemented** | Google [OIDC](docs/glossary/oidc.md), [tenants](docs/glossary/tenant.md), [roles](docs/glossary/role.md), [invitations](docs/glossary/invitation-flow.md), [ForwardAuth](docs/glossary/forwardauth.md), [Internal API](docs/glossary/internal-api.md) |
+| **[Phase](docs/glossary/phase-based-development.md) 2: Scale** | **Implemented** | Multiple [IdPs](docs/glossary/idp.md) (GitHub, Microsoft), M2M ([Client Credentials](docs/glossary/client-credentials.md)), Redis [sessions](docs/glossary/session.md), Webhooks, **Passkeys ([WebAuthn](docs/glossary/webauthn.md)/FIDO2)** |
+| **[Phase](docs/glossary/phase-based-development.md) 3: Enterprise** | **Implemented** | [SAML](docs/glossary/sso.md), email notifications, **[MFA](docs/glossary/mfa.md)/2FA ([TOTP](docs/glossary/totp.md), [WebAuthn](docs/glossary/webauthn.md))**, i18n, admin UI expansion, **Conditional access (risk-based auth)**, **Fraud alert integration** |
+| **[Phase](docs/glossary/phase-based-development.md) 4: Platform** | **Implemented** | SCIM, Policy Engine, Billing (Stripe), GDPR data export/deletion, **Device trust**, **Mobile [SDK](docs/glossary/sdk.md) (iOS/Android)** |
 
 ### Auth Trend Roadmap
 
@@ -1108,6 +1108,7 @@ This project was designed using DGE (Dialogue-driven Gap Extraction) -- 106 desi
 | [`dge/specs/ux-specs-phase1.md`](dge/specs/ux-specs-phase1.md) | UI/UX specifications |
 | [`dge/specs/ui-flow.md`](dge/specs/ui-flow.md) | Screen transition flows (mermaid diagrams) -- [📊 user states](dge/specs/ui-flow.md#user-state-model), [ForwardAuth](dge/specs/ui-flow.md#flow-2-returning-user---session-valid), [invite](dge/specs/ui-flow.md#flow-1-invite-link---first-login), [tenant](dge/specs/ui-flow.md#flow-3-tenant-selection), [logout](dge/specs/ui-flow.md#flow-6-logout), [errors](dge/specs/ui-flow.md#error-recovery-flow) |
 | [`docs/getting-started-dialogue.md`](docs/getting-started-dialogue.md) | **Getting Started: a conversation between volta engineer and app developer** |
+| [`docs/llm-integration-guide.md`](docs/llm-integration-guide.md) | **For AI assistants: how to help engineers integrate volta** |
 | [`docs/target-audience.md`](docs/target-audience.md) | Target audience, market position, revenue opportunities |
 | [`docs/dsl-overview.md`](docs/dsl-overview.md) | DSL specification, state machine, policy engine driver strategy |
 | [`docs/dsl-validator-spec.md`](docs/dsl-validator-spec.md) | DSL validator (60+ checks) |

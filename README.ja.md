@@ -311,10 +311,10 @@ app.get("/api/data", ctx -> {
 
 | [Phase](docs/glossary/phase-based-development.ja.md) | 状態 | 内容 |
 |-------|------|------|
-| **[Phase](docs/glossary/phase-based-development.ja.md) 1: Core** | 開発中 | Google [OIDC](docs/glossary/oidc.ja.md), [テナント](docs/glossary/tenant.ja.md), [ロール](docs/glossary/role.ja.md), [招待](docs/glossary/invitation-flow.ja.md), [ForwardAuth](docs/glossary/forwardauth.ja.md), [Internal API](docs/glossary/internal-api.ja.md) |
-| [Phase](docs/glossary/phase-based-development.ja.md) 2: Scale | 計画中 | 複数 [IdP](docs/glossary/idp.ja.md) (GitHub, Microsoft), M2M ([Client Credentials](docs/glossary/client-credentials.ja.md)), Redis [セッション](docs/glossary/session.ja.md), Webhook, **パスキー ([WebAuthn](docs/glossary/webauthn.ja.md)/FIDO2)** |
-| [Phase](docs/glossary/phase-based-development.ja.md) 3: Enterprise | 計画中 | [SAML](docs/glossary/sso.ja.md), メール通知, **[MFA](docs/glossary/mfa.ja.md)/2FA ([TOTP](docs/glossary/totp.ja.md), [WebAuthn](docs/glossary/webauthn.ja.md))**, i18n, 管理 UI 拡張, **条件付きアクセス (リスクベース認証)** |
-| [Phase](docs/glossary/phase-based-development.ja.md) 4: Platform | 計画中 | SCIM, Policy Engine, Billing (Stripe), GDPR データエクスポート/削除, **デバイストラスト** |
+| **[Phase](docs/glossary/phase-based-development.ja.md) 1: Core** | **実装済み** | Google [OIDC](docs/glossary/oidc.ja.md), [テナント](docs/glossary/tenant.ja.md), [ロール](docs/glossary/role.ja.md), [招待](docs/glossary/invitation-flow.ja.md), [ForwardAuth](docs/glossary/forwardauth.ja.md), [Internal API](docs/glossary/internal-api.ja.md) |
+| **[Phase](docs/glossary/phase-based-development.ja.md) 2: Scale** | **実装済み** | 複数 [IdP](docs/glossary/idp.ja.md) (GitHub, Microsoft), M2M ([Client Credentials](docs/glossary/client-credentials.ja.md)), Redis [セッション](docs/glossary/session.ja.md), Webhook, **パスキー ([WebAuthn](docs/glossary/webauthn.ja.md)/FIDO2)** |
+| **[Phase](docs/glossary/phase-based-development.ja.md) 3: Enterprise** | **実装済み** | [SAML](docs/glossary/sso.ja.md), メール通知, **[MFA](docs/glossary/mfa.ja.md)/2FA ([TOTP](docs/glossary/totp.ja.md), [WebAuthn](docs/glossary/webauthn.ja.md))**, i18n, 管理 UI 拡張, **条件付きアクセス (リスクベース認証)** |
+| **[Phase](docs/glossary/phase-based-development.ja.md) 4: Platform** | **実装済み** | SCIM, Policy Engine, Billing (Stripe), GDPR データエクスポート/削除, **デバイストラスト** |
 
 ### 認証トレンドへの対応計画
 
@@ -431,6 +431,7 @@ Authorization: Bearer ...           → JSON 扱い
 | [`dge/specs/ux-specs-phase1.md`](dge/specs/ux-specs-phase1.md) | UI/UX 仕様 |
 | [`dge/specs/ui-flow.md`](dge/specs/ui-flow.md) | 画面遷移図（mermaid）-- [📊 ユーザー状態](dge/specs/ui-flow.md#user-state-model), [ForwardAuth](dge/specs/ui-flow.md#flow-2-returning-user---session-valid), [招待](dge/specs/ui-flow.md#flow-1-invite-link---first-login), [テナント選択](dge/specs/ui-flow.md#flow-3-tenant-selection), [ログアウト](dge/specs/ui-flow.md#flow-6-logout), [エラー回復](dge/specs/ui-flow.md#error-recovery-flow) |
 | [`docs/getting-started-dialogue.ja.md`](docs/getting-started-dialogue.ja.md) | **はじめよう: volta エンジニアと App 開発者の会話** |
+| [`docs/llm-integration-guide.ja.md`](docs/llm-integration-guide.ja.md) | **AI アシスタント向け: エンジニアの volta 統合を支援するガイド** |
 | [`docs/target-audience.ja.md`](docs/target-audience.ja.md) | ターゲット層、マーケットポジション、収益機会 |
 | [`docs/dsl-overview.ja.md`](docs/dsl-overview.ja.md) | DSL 仕様、状態マシン、ポリシーエンジンドライバー戦略 |
 | [`docs/dsl-validator-spec.md`](docs/dsl-validator-spec.md) | DSL バリデーター（60+ チェック） |

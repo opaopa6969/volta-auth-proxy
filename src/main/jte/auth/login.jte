@@ -1,9 +1,6 @@
 @param String title
 @param java.util.Map<String, String> inviteContext
-@param String startUrl
-@param boolean googleEnabled
-@param boolean githubEnabled
-@param boolean microsoftEnabled
+@param java.util.List<com.volta.authproxy.IdpProvider> providers
 @param String baseParams
 <!doctype html>
 <html lang="ja">
@@ -21,15 +18,10 @@
         <p class="muted">${inviteContext.get("inviterName")} さん / ロール: ${inviteContext.get("role")}</p>
     @endif
     <p>アカウントでログインしてください。</p>
-    @if(googleEnabled)
-        <a class="button button-google" href="/login?start=1&provider=GOOGLE${baseParams}">Google でログイン</a>
-    @endif
-    @if(githubEnabled)
-        <a class="button button-github" href="/login?start=1&provider=GITHUB${baseParams}">GitHub でログイン</a>
-    @endif
-    @if(microsoftEnabled)
-        <a class="button button-microsoft" href="/login?start=1&provider=MICROSOFT${baseParams}">Microsoft でログイン</a>
-    @endif
+    @for(com.volta.authproxy.IdpProvider p : providers)
+        <a class="button button-${p.id().toLowerCase()}"
+           href="/login?start=1&provider=${p.id()}${baseParams}">${p.label()} でログイン</a>
+    @endfor
 </main>
 </body>
 </html>

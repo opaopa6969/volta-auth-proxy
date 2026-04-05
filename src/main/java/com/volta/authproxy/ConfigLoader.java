@@ -46,9 +46,10 @@ public final class ConfigLoader {
 
     // package-private for testing
     static String expandEnvVars(String input) {
+        var props = new com.volta.authproxy.property.ApplicationProperties();
         return ENV_VAR.matcher(input).replaceAll(m -> {
-            String val = System.getenv(m.group(1));
-            return Matcher.quoteReplacement(val != null ? val : "");
+            String val = props.get(m.group(1)).orElse("");
+            return Matcher.quoteReplacement(val);
         });
     }
 

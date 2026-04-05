@@ -2604,10 +2604,11 @@ public final class Main {
             return "Unknown";
         }
         String lower = ua.toLowerCase();
+        // Check mobile before desktop (iPhone UA contains "Mac OS X")
+        if (lower.contains("iphone") || lower.contains("ipad")) return "iOS";
+        if (lower.contains("android")) return "Android";
         if (lower.contains("windows")) return "Windows";
         if (lower.contains("mac os")) return "macOS";
-        if (lower.contains("android")) return "Android";
-        if (lower.contains("iphone") || lower.contains("ipad")) return "iOS";
         if (lower.contains("linux")) return "Linux";
         return "OS";
     }

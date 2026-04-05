@@ -779,14 +779,16 @@ public final class Main {
             if (!p.userId().equals(userId) && !p.roles().contains("ADMIN")) {
                 throw new ApiException(403, "FORBIDDEN", "Access denied");
             }
-            var passkeys = store.listPasskeys(userId).stream().map(pk -> Map.of(
-                    "id", pk.id().toString(),
-                    "name", pk.name() != null ? pk.name() : "Passkey",
-                    "createdAt", pk.createdAt().toString(),
-                    "lastUsedAt", pk.lastUsedAt() != null ? pk.lastUsedAt().toString() : null,
-                    "backupEligible", pk.backupEligible(),
-                    "backupState", pk.backupState()
-            )).toList();
+            var passkeys = store.listPasskeys(userId).stream().map(pk -> {
+                java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+                m.put("id", pk.id().toString());
+                m.put("name", pk.name() != null ? pk.name() : "Passkey");
+                m.put("createdAt", pk.createdAt().toString());
+                m.put("lastUsedAt", pk.lastUsedAt() != null ? pk.lastUsedAt().toString() : null);
+                m.put("backupEligible", pk.backupEligible());
+                m.put("backupState", pk.backupState());
+                return m;
+            }).toList();
             ctx.json(Map.of("items", passkeys));
         });
 

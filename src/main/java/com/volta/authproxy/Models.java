@@ -7,7 +7,7 @@ import java.util.UUID;
 record UserRecord(UUID id, String email, String displayName, String googleSub) {
 }
 
-record TenantRecord(UUID id, String name, String slug) {
+record TenantRecord(UUID id, String name, String slug, boolean mfaRequired, Instant mfaGraceUntil) {
 }
 
 record MembershipRecord(UUID id, UUID userId, UUID tenantId, String role, boolean active) {

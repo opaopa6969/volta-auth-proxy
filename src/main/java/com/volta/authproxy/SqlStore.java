@@ -74,7 +74,7 @@ public final class SqlStore {
     public List<TenantRecord> findTenantsByUser(UUID userId) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     SELECT t.id, t.name, t.slug
+                     SELECT t.id, t.name, t.slug, t.mfa_required, t.mfa_grace_until
                      FROM memberships m
                      JOIN tenants t ON t.id = m.tenant_id
                      WHERE m.user_id = ? AND m.is_active = true AND t.is_active = true
@@ -87,7 +87,9 @@ public final class SqlStore {
                     result.add(new TenantRecord(
                             rs.getObject("id", UUID.class),
                             rs.getString("name"),
-                            rs.getString("slug")
+                            rs.getString("slug"),
+                            rs.getBoolean("mfa_required"),
+                            rs.getTimestamp("mfa_grace_until") == null ? null : rs.getTimestamp("mfa_grace_until").toInstant()
                     ));
                 }
             }
@@ -173,7 +175,9 @@ public final class SqlStore {
                         tenant = new TenantRecord(
                                 rs.getObject("id", UUID.class),
                                 rs.getString("name"),
-                                rs.getString("slug")
+                                rs.getString("slug"),
+                                false,
+                                null
                         );
                     }
                 }
@@ -202,7 +206,7 @@ public final class SqlStore {
     public Optional<TenantRecord> findTenantById(UUID tenantId) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     SELECT id, name, slug FROM tenants WHERE id = ? AND is_active = true
+                     SELECT id, name, slug, mfa_required, mfa_grace_until FROM tenants WHERE id = ? AND is_active = true
                      """)) {
             ps.setObject(1, tenantId);
             try (ResultSet rs = ps.executeQuery()) {
@@ -212,7 +216,9 @@ public final class SqlStore {
                 return Optional.of(new TenantRecord(
                         rs.getObject("id", UUID.class),
                         rs.getString("name"),
-                        rs.getString("slug")
+                        rs.getString("slug"),
+                        rs.getBoolean("mfa_required"),
+                        rs.getTimestamp("mfa_grace_until") == null ? null : rs.getTimestamp("mfa_grace_until").toInstant()
                 ));
             }
         } catch (SQLException e) {
@@ -1949,6 +1955,61 @@ public final class SqlStore {
             ps.setObject(1, userId);
             ps.setString(2, codeHash);
             return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int countUnusedRecoveryCodes(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT COUNT(*) FROM mfa_recovery_codes WHERE user_id = ? AND used_at IS NULL")) {
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void deactivateUserMfa(UUID userId, String type) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE user_mfa SET is_active = false WHERE user_id = ? AND type = ?")) {
+            ps.setObject(1, userId);
+            ps.setString(2, type);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void deleteRecoveryCodes(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM mfa_recovery_codes WHERE user_id = ?")) {
+            ps.setObject(1, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void updateTenantMfaPolicy(UUID tenantId, boolean mfaRequired, int graceDays) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE tenants
+                     SET mfa_required = ?,
+                         mfa_grace_until = CASE WHEN ? THEN now() + (? || ' days')::interval ELSE NULL END
+                     WHERE id = ?
+                     """)) {
+            ps.setBoolean(1, mfaRequired);
+            ps.setBoolean(2, mfaRequired);
+            ps.setInt(3, graceDays);
+            ps.setObject(4, tenantId);
+            ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }

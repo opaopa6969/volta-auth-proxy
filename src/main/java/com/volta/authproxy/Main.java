@@ -127,6 +127,36 @@ public final class Main {
             ctx.redirect("/mfa/challenge");
             ctx.skipRemainingHandlers();
         });
+        // Tenant MFA required: redirect users without MFA to /settings/security
+        app.before(ctx -> {
+            String path = ctx.path();
+            if (path.startsWith("/settings/") || path.startsWith("/api/v1/users/") || path.startsWith("/css/")
+                    || path.startsWith("/js/") || path.startsWith("/console/") || path.equals("/auth/logout")
+                    || path.equals("/login") || path.equals("/callback") || path.equals("/healthz")
+                    || path.startsWith("/.well-known") || path.equals("/select-tenant")
+                    || path.startsWith("/auth/") || path.startsWith("/mfa/")) {
+                return;
+            }
+            Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
+            if (principalOpt.isEmpty()) return;
+            AuthPrincipal principal = principalOpt.get();
+            TenantRecord tenant = store.findTenantById(principal.tenantId()).orElse(null);
+            if (tenant == null || !tenant.mfaRequired()) return;
+            if (store.hasActiveMfa(principal.userId())) return;
+            // Grace period check
+            if (tenant.mfaGraceUntil() != null && Instant.now().isBefore(tenant.mfaGraceUntil())) {
+                return; // Within grace period, allow but show warning later
+            }
+            // MFA required but not set up — redirect
+            if (Boolean.TRUE.equals(ctx.attribute("wantsJson")) || path.startsWith("/api/")) {
+                HttpSupport.jsonError(ctx, 403, "MFA_SETUP_REQUIRED", "Tenant requires MFA. Set up at /settings/security");
+                ctx.skipRemainingHandlers();
+                return;
+            }
+            ctx.redirect("/settings/security?setup_required=true");
+            ctx.skipRemainingHandlers();
+        });
+
         app.exception(ApiException.class, (e, ctx) -> {
             AuthPrincipal actor = authService.authenticate(ctx).orElse(null);
             auditService.log(ctx, "ERROR_" + e.code(), actor, "REQUEST", ctx.path(), Map.of("status", e.status()));
@@ -576,6 +606,27 @@ public final class Main {
             }
             setFlashCookie(ctx, "✅ " + tenant.name() + " に参加しました");
             ctx.redirect("/console/");
+        });
+
+        app.get("/settings/security", ctx -> {
+            Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
+            if (principalOpt.isEmpty()) {
+                ctx.redirect("/login?return_to=" + java.net.URLEncoder.encode(ctx.fullUrl(), java.nio.charset.StandardCharsets.UTF_8));
+                return;
+            }
+            AuthPrincipal principal = principalOpt.get();
+            Optional<SqlStore.UserMfaRecord> mfa = store.findUserMfa(principal.userId(), "totp");
+            boolean mfaEnabled = mfa.isPresent() && mfa.get().active();
+            int recoveryRemaining = store.countUnusedRecoveryCodes(principal.userId());
+            String flashMessage = popFlashCookie(ctx);
+            ctx.render("settings/security.jte", model(
+                    "title", "Security Settings",
+                    "userId", principal.userId().toString(),
+                    "mfaEnabled", mfaEnabled,
+                    "recoveryRemaining", recoveryRemaining,
+                    "csrfToken", currentCsrfToken(ctx, sessionStore),
+                    "flashMessage", flashMessage
+            ));
         });
 
         app.get("/settings/sessions", ctx -> {
@@ -1097,6 +1148,12 @@ public final class Main {
             String logoUrl = body.path("logo_url").isMissingNode() ? null : body.path("logo_url").asText(null);
             String primaryColor = body.path("primary_color").isMissingNode() ? null : body.path("primary_color").asText(null);
             String theme = body.path("theme").isMissingNode() ? null : body.path("theme").asText(null);
+            // MFA policy
+            if (!body.path("mfa_required").isMissingNode()) {
+                boolean mfaRequired = body.path("mfa_required").asBoolean();
+                int graceDays = body.path("mfa_grace_days").asInt(7);
+                store.updateTenantMfaPolicy(tenantId, mfaRequired, mfaRequired ? graceDays : 0);
+            }
             SqlStore.TenantDetailRecord updated = store.updateTenantSettings(tenantId, name, autoJoin, logoUrl, primaryColor, theme)
                     .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "テナントが見つかりません。"));
             ctx.json(updated);
@@ -1173,6 +1230,65 @@ public final class Main {
             }
             store.replaceRecoveryCodes(userId, hashes);
             ctx.json(Map.of("codes", codes));
+        });
+
+        // MFA status
+        app.get("/api/v1/users/me/mfa", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            Optional<SqlStore.UserMfaRecord> mfa = store.findUserMfa(p.userId(), "totp");
+            int recoveryRemaining = store.countUnusedRecoveryCodes(p.userId());
+            if (mfa.isPresent() && mfa.get().active()) {
+                ctx.json(Map.of(
+                        "totp", Map.of("enabled", true, "setupAt", mfa.get().createdAt().toString()),
+                        "recovery_codes_remaining", recoveryRemaining
+                ));
+            } else {
+                ctx.json(Map.of(
+                        "totp", Map.of("enabled", false),
+                        "recovery_codes_remaining", 0
+                ));
+            }
+        });
+
+        // MFA disable (self only, requires current TOTP code)
+        app.delete("/api/v1/users/{userId}/mfa/totp", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            if (!p.userId().equals(userId)) {
+                throw new ApiException(403, "FORBIDDEN", "Only self update is allowed");
+            }
+            SqlStore.UserMfaRecord mfa = store.findUserMfa(userId, "totp")
+                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "MFA is not configured"));
+            if (!mfa.active()) {
+                throw new ApiException(400, "BAD_REQUEST", "MFA is not active");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            int code = body.path("code").asInt(-1);
+            com.warrenstrange.googleauth.GoogleAuthenticator ga = new com.warrenstrange.googleauth.GoogleAuthenticator();
+            boolean ok = ga.authorize(secretCipher.decrypt(mfa.secret()), code);
+            if (!ok) {
+                throw new ApiException(400, "MFA_INVALID_CODE", "TOTP code is invalid. Cannot disable MFA.");
+            }
+            store.deactivateUserMfa(userId, "totp");
+            store.deleteRecoveryCodes(userId);
+            auditService.log(ctx, "MFA_DISABLED", p, "USER", userId.toString(), Map.of());
+            ctx.json(Map.of("ok", true, "mfa_enabled", false));
+        });
+
+        // Admin MFA reset
+        app.delete("/api/v1/tenants/{tenantId}/members/{userId}/mfa", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            store.deactivateUserMfa(userId, "totp");
+            store.deleteRecoveryCodes(userId);
+            auditService.log(ctx, "ADMIN_MFA_RESET", p, "USER", userId.toString(),
+                    Map.of("resetBy", p.userId().toString()));
+            ctx.json(Map.of("ok", true));
         });
 
         app.patch("/api/v1/users/{userId}", ctx -> {

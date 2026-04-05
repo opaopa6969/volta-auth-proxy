@@ -177,7 +177,9 @@ function b64urlDecode(s) {
 }
 
 async function loadPasskeys() {
-    const res = await fetch('/api/v1/users/' + userId + '/passkeys', { credentials: 'include' });
+    const res = await fetch('/api/v1/users/' + userId + '/passkeys', {
+        credentials: 'include', headers: {'Accept':'application/json'}
+    });
     const data = await res.json();
     const list = document.getElementById('passkey-list');
     const items = data.items || [];
@@ -258,9 +260,9 @@ async function registerPasskey() {
 
 async function deletePasskey(id) {
     if (!confirm('このパスキーを削除しますか？')) return;
-    const res = await fetch('/api/v1/users/' + userId + '/passkeys/' + id, {
+    var res = await fetch('/api/v1/users/' + userId + '/passkeys/' + id, {
         method: 'DELETE', credentials: 'include',
-        headers: {'Accept':'application/json'}
+        headers: {'Accept':'application/json','Content-Type':'application/json'}
     });
     if (res.ok) loadPasskeys();
     else alert('削除に失敗しました');

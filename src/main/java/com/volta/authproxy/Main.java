@@ -571,11 +571,11 @@ public final class Main {
                     "role", invitation.role()
             ));
             if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
-                ctx.json(Map.of("ok", true, "redirect_to", "/settings/sessions"));
+                ctx.json(Map.of("ok", true, "redirect_to", "/console/"));
                 return;
             }
             setFlashCookie(ctx, "✅ " + tenant.name() + " に参加しました");
-            ctx.redirect("/settings/sessions");
+            ctx.redirect("/console/");
         });
 
         app.get("/settings/sessions", ctx -> {

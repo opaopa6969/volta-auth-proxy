@@ -70,8 +70,7 @@ final class SmtpNotificationService implements NotificationService {
                     """.formatted(inviterName == null ? "メンバー" : inviterName, tenantName, role, inviteLink));
             Transport.send(msg);
         } catch (Exception e) {
-            System.err.println("SMTP send failed: " + e.getMessage());
-            e.printStackTrace();
+            throw new RuntimeException("SMTP send failed: " + e.getMessage(), e);
         }
     }
 }
@@ -109,8 +108,14 @@ final class SendGridNotificationService implements NotificationService {
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(payload))
                     .build();
-            httpClient.send(req, HttpResponse.BodyHandlers.discarding());
-        } catch (Exception ignored) {
+            HttpResponse<Void> resp = httpClient.send(req, HttpResponse.BodyHandlers.discarding());
+            if (resp.statusCode() >= 400) {
+                throw new RuntimeException("SendGrid returned " + resp.statusCode());
+            }
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("SendGrid send failed: " + e.getMessage(), e);
         }
     }
 }

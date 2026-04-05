@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 final class OutboxWorker implements AutoCloseable {
     private final AppConfig config;
     private final SqlStore store;
+    private final NotificationService notificationService;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "outbox-worker");
         t.setDaemon(true);
@@ -22,15 +23,14 @@ final class OutboxWorker implements AutoCloseable {
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final String workerId = "worker-" + UUID.randomUUID().toString().substring(0, 8);
 
-    OutboxWorker(AppConfig config, SqlStore store) {
+    OutboxWorker(AppConfig config, SqlStore store, NotificationService notificationService) {
         this.config = config;
         this.store = store;
+        this.notificationService = notificationService;
     }
 
     void start() {
-        if (!config.webhookEnabled()) {
-            return;
-        }
+        // Outbox worker handles both webhooks and notification emails
         scheduler.scheduleWithFixedDelay(this::runOnce, 2, Math.max(5, config.webhookWorkerIntervalSeconds()), TimeUnit.SECONDS);
     }
 
@@ -46,6 +46,12 @@ final class OutboxWorker implements AutoCloseable {
 
     private void process(SqlStore.OutboxRecord outbox) {
         try {
+            // Notification events: delegate to NotificationService
+            if (outbox.eventType() != null && outbox.eventType().startsWith("notification.")) {
+                processNotification(outbox);
+                return;
+            }
+
             UUID tenantId = outbox.tenantId();
             if (tenantId == null) {
                 store.markOutboxPublished(outbox.id());
@@ -84,6 +90,28 @@ final class OutboxWorker implements AutoCloseable {
             store.markOutboxRetry(outbox.id(), nextAttempt, nextAt, "delivery failed");
         } catch (Exception e) {
             store.clearOutboxLock(outbox.id());
+        }
+    }
+
+    private void processNotification(SqlStore.OutboxRecord outbox) {
+        try {
+            com.fasterxml.jackson.databind.JsonNode payload = new com.fasterxml.jackson.databind.ObjectMapper().readTree(outbox.payload());
+            String to = payload.path("to").asText();
+            String inviteLink = payload.path("inviteLink").asText();
+            String tenantName = payload.path("tenantName").asText();
+            String role = payload.path("role").asText();
+            String inviterName = payload.path("inviterName").asText();
+
+            notificationService.sendInvitationEmail(to, inviteLink, tenantName, role, inviterName);
+            store.markOutboxPublished(outbox.id());
+        } catch (Exception e) {
+            int nextAttempt = outbox.attemptCount() + 1;
+            if (nextAttempt >= Math.max(1, config.webhookRetryMax())) {
+                store.markOutboxPublished(outbox.id());
+                return;
+            }
+            Instant nextAt = Instant.now().plusSeconds(backoffSeconds(nextAttempt));
+            store.markOutboxRetry(outbox.id(), nextAttempt, nextAt, "notification failed: " + e.getMessage());
         }
     }
 

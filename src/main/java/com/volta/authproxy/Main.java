@@ -37,7 +37,7 @@ public final class Main {
         AuditSink auditSink = AuditSink.create(config);
         AuditService auditService = new AuditService(store, auditSink);
         NotificationService notificationService = NotificationService.create(config);
-        OutboxWorker outboxWorker = new OutboxWorker(config, store);
+        OutboxWorker outboxWorker = new OutboxWorker(config, store, notificationService);
         RateLimiter rateLimiter = new RateLimiter(200);
         ObjectMapper objectMapper = new ObjectMapper()
                 .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
@@ -1377,7 +1377,14 @@ public final class Main {
             if (email != null && !email.isBlank()) {
                 String tenantName = store.findTenantById(tenantId).map(TenantRecord::name).orElse("Workspace");
                 String inviterName = store.findUserById(p.userId()).map(UserRecord::displayName).orElse(p.displayName());
-                notificationService.sendInvitationEmail(email, config.baseUrl() + "/invite/" + code, tenantName, role, inviterName);
+                String emailPayload = objectMapper.writeValueAsString(Map.of(
+                        "to", email,
+                        "inviteLink", config.baseUrl() + "/invite/" + code,
+                        "tenantName", tenantName,
+                        "role", role,
+                        "inviterName", inviterName == null ? "メンバー" : inviterName
+                ));
+                store.enqueueOutboxEvent(tenantId, "notification.invitation", emailPayload);
             }
             ctx.status(201).json(Map.of(
                     "id", invitationId.toString(),

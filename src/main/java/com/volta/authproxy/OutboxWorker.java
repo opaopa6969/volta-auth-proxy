@@ -105,6 +105,11 @@ final class OutboxWorker implements AutoCloseable {
                             payload.path("role").asText(),
                             payload.path("inviterName").asText());
                 }
+                case "notification.magic_link" -> {
+                    notificationService.sendMagicLinkEmail(
+                            payload.path("to").asText(),
+                            payload.path("magicLink").asText());
+                }
                 case "notification.new_device" -> {
                     notificationService.sendNewDeviceEmail(
                             payload.path("to").asText(),

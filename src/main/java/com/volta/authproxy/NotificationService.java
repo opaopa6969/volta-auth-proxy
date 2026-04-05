@@ -19,6 +19,7 @@ import java.util.Properties;
 interface NotificationService {
     void sendInvitationEmail(String to, String inviteLink, String tenantName, String role, String inviterName);
     void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp);
+    void sendMagicLinkEmail(String to, String magicLink);
 
     static NotificationService create(AppConfig config) {
         return switch (config.notificationChannel().toLowerCase()) {
@@ -27,6 +28,7 @@ interface NotificationService {
             default -> new NotificationService() {
                 @Override public void sendInvitationEmail(String to, String inviteLink, String tenantName, String role, String inviterName) {}
                 @Override public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp) {}
+                @Override public void sendMagicLinkEmail(String to, String magicLink) {}
             };
         };
     }
@@ -120,6 +122,33 @@ final class SmtpNotificationService implements NotificationService {
             throw new RuntimeException("SMTP send failed: " + e.getMessage(), e);
         }
     }
+
+    @Override
+    public void sendMagicLinkEmail(String to, String magicLink) {
+        if (to == null || to.isBlank()) return;
+        try {
+            Properties props = new Properties();
+            props.put("mail.smtp.host", config.smtpHost());
+            props.put("mail.smtp.port", String.valueOf(config.smtpPort()));
+            props.put("mail.smtp.auth", !config.smtpUser().isBlank());
+            props.put("mail.smtp.starttls.enable", "true");
+            Session session = !config.smtpUser().isBlank()
+                    ? Session.getInstance(props, new Authenticator() {
+                        @Override protected PasswordAuthentication getPasswordAuthentication() {
+                            return new PasswordAuthentication(config.smtpUser(), config.smtpPassword());
+                        }
+                    })
+                    : Session.getInstance(props);
+            Message msg = new MimeMessage(session);
+            msg.setFrom(new InternetAddress(config.smtpFrom()));
+            msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
+            msg.setSubject("ログインリンク");
+            msg.setText("以下のリンクをクリックしてログインしてください:\n\n" + magicLink + "\n\nこのリンクは10分間有効です。\n心当たりがない場合は無視してください。");
+            Transport.send(msg);
+        } catch (Exception e) {
+            throw new RuntimeException("SMTP send failed: " + e.getMessage(), e);
+        }
+    }
 }
 
 final class SendGridNotificationService implements NotificationService {
@@ -199,5 +228,28 @@ final class SendGridNotificationService implements NotificationService {
         } catch (Exception e) {
             throw new RuntimeException("SendGrid send failed: " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public void sendMagicLinkEmail(String to, String magicLink) {
+        if (to == null || to.isBlank() || config.sendgridApiKey().isBlank()) return;
+        String text = "以下のリンクをクリックしてログインしてください:\\n\\n" + magicLink + "\\n\\nこのリンクは10分間有効です。";
+        String payload = """
+                {"personalizations":[{"to":[{"email":"%s"}]}],
+                 "from":{"email":"%s"},
+                 "subject":"ログインリンク",
+                 "content":[{"type":"text/plain","value":"%s"}]}
+                """.formatted(to.replace("\"", ""), config.smtpFrom().replace("\"", ""), text.replace("\"", "\\\""));
+        try {
+            HttpRequest req = HttpRequest.newBuilder(URI.create("https://api.sendgrid.com/v3/mail/send"))
+                    .timeout(Duration.ofSeconds(5))
+                    .header("Authorization", "Bearer " + config.sendgridApiKey())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+            HttpResponse<Void> resp = httpClient.send(req, HttpResponse.BodyHandlers.discarding());
+            if (resp.statusCode() >= 400) throw new RuntimeException("SendGrid returned " + resp.statusCode());
+        } catch (RuntimeException e) { throw e; }
+        catch (Exception e) { throw new RuntimeException("SendGrid send failed: " + e.getMessage(), e); }
     }
 }

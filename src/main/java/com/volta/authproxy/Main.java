@@ -81,6 +81,17 @@ public final class Main {
             ctx.attribute("requestId", requestId);
             ctx.header("X-Request-Id", requestId.toString());
         });
+        // IP-based rate limiting for sensitive endpoints
+        app.before(ctx -> {
+            String path = ctx.path();
+            if (path.equals("/healthz") || path.startsWith("/css/") || path.startsWith("/js/")) return;
+            String ip = clientIp(ctx);
+            if (!rateLimiter.allowRequest(ip, path)) {
+                ctx.header("Retry-After", "60");
+                HttpSupport.jsonError(ctx, 429, "RATE_LIMITED", "Too many requests");
+                ctx.skipRemainingHandlers();
+            }
+        });
         app.before(ctx -> {
             String method = ctx.method().name();
             if (!method.equals("POST") && !method.equals("DELETE") && !method.equals("PATCH")) {
@@ -193,6 +204,47 @@ public final class Main {
         });
 
         app.get("/", ctx -> ctx.redirect("/login"));
+
+        // --- Magic Link (Passwordless Email) ---
+        app.post("/auth/magic-link/send", ctx -> {
+            com.fasterxml.jackson.databind.JsonNode body = objectMapper.readTree(ctx.body());
+            String email = body.path("email").asText("");
+            if (email.isBlank() || !email.contains("@")) {
+                throw new ApiException(400, "BAD_REQUEST", "Valid email required");
+            }
+            String token = store.createMagicLink(email, 10);
+            String link = config.baseUrl() + "/auth/magic-link/verify?token=" + token;
+            String payload = objectMapper.writeValueAsString(Map.of("to", email, "magicLink", link));
+            store.enqueueOutboxEvent(null, "notification.magic_link", payload);
+            ctx.json(Map.of("ok", true, "message", "Login link sent to " + email));
+        });
+
+        app.get("/auth/magic-link/verify", ctx -> {
+            String token = ctx.queryParam("token");
+            if (token == null || token.isBlank()) {
+                throw new ApiException(400, "BAD_REQUEST", "Token required");
+            }
+            SqlStore.MagicLinkRecord ml = store.consumeMagicLink(token)
+                    .orElseThrow(() -> new ApiException(401, "LINK_INVALID", "Link is expired or already used"));
+
+            // Find or create user (upsert handles both cases)
+            UserRecord user = store.upsertUser(ml.email(), null, null);
+            TenantRecord tenant = resolveTenant(store, user, null);
+            MembershipRecord membership = store.findMembership(tenant.id(), user.id())
+                    .orElseThrow(() -> new ApiException(403, "TENANT_ACCESS_DENIED", "No tenant membership"));
+
+            AuthPrincipal principal = new AuthPrincipal(
+                    user.id(), user.email(), user.displayName(),
+                    tenant.id(), tenant.name(), tenant.slug(),
+                    List.of(membership.role()), false);
+
+            UUID sessionId = authService.issueSession(principal, null, clientIp(ctx), ctx.userAgent());
+            setSessionCookie(ctx, sessionId, config.sessionTtlSeconds());
+            auditService.log(ctx, "LOGIN_SUCCESS", principal, "SESSION", sessionId.toString(), Map.of("via", "magic_link"));
+            checkDeviceAndNotify(principal, ctx, store, objectMapper);
+
+            ctx.redirect("/console/");
+        });
 
         // SPA: /console/ and /console/* serve index.html, static assets pass through
         app.get("/console/", ctx -> {

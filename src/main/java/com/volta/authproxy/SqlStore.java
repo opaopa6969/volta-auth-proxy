@@ -2226,6 +2226,49 @@ public final class SqlStore {
         }
     }
 
+    // --- Magic Links ---
+
+    public record MagicLinkRecord(UUID id, String email, String token, Instant expiresAt, Instant usedAt) {}
+
+    public String createMagicLink(String email, int ttlMinutes) {
+        String token = SecurityUtils.randomUrlSafe(48);
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO magic_links (email, token, expires_at) VALUES (?, ?, now() + interval '" + ttlMinutes + " minutes')")) {
+            ps.setString(1, email);
+            ps.setString(2, token);
+            ps.executeUpdate();
+            return token;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Optional<MagicLinkRecord> consumeMagicLink(String token) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE magic_links SET used_at = now()
+                     WHERE token = ? AND expires_at > now() AND used_at IS NULL
+                     RETURNING id, email, token, expires_at, used_at
+                     """)) {
+            ps.setString(1, token);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(new MagicLinkRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getString("email"),
+                            rs.getString("token"),
+                            rs.getTimestamp("expires_at").toInstant(),
+                            rs.getTimestamp("used_at") != null ? rs.getTimestamp("used_at").toInstant() : null
+                    ));
+                }
+                return Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public UUID enqueueOutboxEvent(UUID tenantId, String eventType, String payloadJson) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

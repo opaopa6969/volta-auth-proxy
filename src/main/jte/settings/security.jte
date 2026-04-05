@@ -86,8 +86,8 @@
     <div id="passkey-list"></div>
 
     <button class="button" onclick="registerPasskey()" style="margin-top:1em">+ パスキーを追加</button>
-    <p id="passkey-error" style="color:red;display:none"></p>
-    <p id="passkey-success" style="color:green;display:none"></p>
+    <div id="passkey-error" style="color:red;display:none;padding:0.75em;border:1px solid red;border-radius:6px;margin-top:1em"></div>
+    <div id="passkey-success" style="color:#16a34a;display:none;padding:0.75em;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;margin-top:1em"></div>
 </main>
 
 <script>
@@ -248,7 +248,7 @@ async function registerPasskey() {
         const result = await finishRes.json();
         if (!finishRes.ok) throw new Error(result.error?.message || 'Registration failed');
 
-        okEl.textContent = '✅ パスキーを登録しました: ' + name;
+        okEl.innerHTML = '<strong>🔑 パスキー「' + name + '」を登録しました！</strong><br><span style="font-size:0.9em">次回からログイン画面の「パスキーでログイン」ボタンで Face ID / Touch ID / Windows Hello でログインできます。</span>';
         okEl.style.display = 'block';
         loadPasskeys();
     } catch (e) {

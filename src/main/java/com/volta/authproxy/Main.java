@@ -1583,6 +1583,18 @@ public final class Main {
             ctx.json(webhook);
         });
 
+        app.get("/api/v1/tenants/{tenantId}/webhooks/{webhookId}/deliveries", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            UUID webhookId = UUID.fromString(ctx.pathParam("webhookId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            int limit = Math.min(ctx.queryParamAsClass("limit", Integer.class).getOrDefault(50), 200);
+            ctx.json(Map.of("items", store.listWebhookDeliveries(webhookId, limit)));
+        });
+
         app.patch("/api/v1/tenants/{tenantId}/webhooks/{webhookId}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));

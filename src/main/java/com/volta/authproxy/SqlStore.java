@@ -2236,6 +2236,41 @@ public final class SqlStore {
         }
     }
 
+    public record WebhookDeliveryRecord(UUID id, UUID outboxEventId, UUID webhookId, String eventType,
+                                          String status, Integer statusCode, String responseBody, Instant createdAt) {}
+
+    public List<WebhookDeliveryRecord> listWebhookDeliveries(UUID webhookId, int limit) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, outbox_event_id, webhook_id, event_type, status, status_code, response_body, created_at
+                     FROM webhook_deliveries
+                     WHERE webhook_id = ?
+                     ORDER BY created_at DESC
+                     LIMIT ?
+                     """)) {
+            ps.setObject(1, webhookId);
+            ps.setInt(2, limit);
+            List<WebhookDeliveryRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new WebhookDeliveryRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("outbox_event_id", UUID.class),
+                            rs.getObject("webhook_id", UUID.class),
+                            rs.getString("event_type"),
+                            rs.getString("status"),
+                            rs.getObject("status_code", Integer.class),
+                            rs.getString("response_body"),
+                            rs.getTimestamp("created_at").toInstant()
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public void insertWebhookDelivery(UUID outboxEventId, UUID webhookId, String eventType, String status, Integer statusCode, String responseBody) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

@@ -609,7 +609,7 @@ public final class Main {
             String flashMessage = popFlashCookie(ctx);
             ctx.render("auth/sessions.jte", model(
                     "title", "Sessions",
-                    "sessionCount", sessions.size(),
+                    "sessionCount", sessionStore.countActiveSessions(principal.userId()),
                     "sessions", sessionView,
                     "csrfToken", currentCsrfToken(ctx, sessionStore),
                     "flashMessage", flashMessage

@@ -576,7 +576,12 @@ public final class SqlStore {
                 try (PreparedStatement ps = conn.prepareStatement("""
                         INSERT INTO memberships(user_id, tenant_id, role)
                         VALUES (?, ?, ?)
-                        ON CONFLICT(user_id, tenant_id) DO UPDATE SET is_active = true, role = EXCLUDED.role
+                        ON CONFLICT(user_id, tenant_id) DO UPDATE SET is_active = true,
+                          role = CASE
+                            WHEN memberships.role = 'OWNER' THEN memberships.role
+                            WHEN memberships.role = 'ADMIN' AND EXCLUDED.role IN ('MEMBER','VIEWER') THEN memberships.role
+                            ELSE EXCLUDED.role
+                          END
                         """)) {
                     ps.setObject(1, userId);
                     ps.setObject(2, tenantId);

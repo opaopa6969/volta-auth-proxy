@@ -658,8 +658,11 @@ public final class Main {
                 ctx.json(Map.of("ok", true, "redirect_to", "/console/"));
                 return;
             }
-            setFlashCookie(ctx, "✅ " + tenant.name() + " に参加しました");
-            ctx.redirect("/console/");
+            ctx.render("auth/invite-done.jte", model(
+                    "tenantName", tenant.name(),
+                    "role", invitation.role(),
+                    "dashboardUrl", "/console/"
+            ));
         });
 
         app.get("/settings/security", ctx -> {

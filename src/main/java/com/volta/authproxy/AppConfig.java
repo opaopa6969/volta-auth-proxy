@@ -49,7 +49,11 @@ public record AppConfig(
         String stripeWebhookSecret,
         String webauthnRpId,
         String webauthnRpName,
-        String webauthnRpOrigin
+        String webauthnRpOrigin,
+        String appleClientId,
+        String appleClientSecret,
+        String linkedinClientId,
+        String linkedinClientSecret
 ) {
     public static AppConfig fromEnv() {
         PropStack p = new PropStack();
@@ -100,7 +104,11 @@ public record AppConfig(
                 p.get("STRIPE_WEBHOOK_SECRET", ""),
                 p.get("WEBAUTHN_RP_ID", "localhost"),
                 p.get("WEBAUTHN_RP_NAME", "volta-auth"),
-                p.get("WEBAUTHN_RP_ORIGIN", "http://localhost:7070")
+                p.get("WEBAUTHN_RP_ORIGIN", "http://localhost:7070"),
+                p.get("APPLE_CLIENT_ID", ""),
+                p.get("APPLE_CLIENT_SECRET", ""),
+                p.get("LINKEDIN_CLIENT_ID", ""),
+                p.get("LINKEDIN_CLIENT_SECRET", "")
         );
     }
 

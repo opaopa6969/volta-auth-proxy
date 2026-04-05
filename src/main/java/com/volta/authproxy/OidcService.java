@@ -36,7 +36,7 @@ public final class OidcService {
     private static final Map<String, IdpProvider> ALL_PROVIDERS;
     static {
         Map<String, IdpProvider> m = new LinkedHashMap<>();
-        for (IdpProvider p : List.of(new GoogleIdp(), new GitHubIdp(), new MicrosoftIdp())) {
+        for (IdpProvider p : List.of(new GoogleIdp(), new GitHubIdp(), new MicrosoftIdp(), new AppleIdp(), new LinkedInIdp())) {
             m.put(p.id(), p);
         }
         ALL_PROVIDERS = Collections.unmodifiableMap(m);

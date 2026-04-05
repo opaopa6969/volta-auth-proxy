@@ -78,6 +78,16 @@
             <button class="button" onclick="location.reload()">保存しました</button>
         </div>
     @endif
+
+    <hr style="margin:2em 0">
+    <h2>パスキー (WebAuthn)</h2>
+    <p class="muted">パスキーを使うと、Face ID / Touch ID / Windows Hello でワンタップログインできます。</p>
+
+    <div id="passkey-list"></div>
+
+    <button class="button" onclick="registerPasskey()" style="margin-top:1em">+ パスキーを追加</button>
+    <p id="passkey-error" style="color:red;display:none"></p>
+    <p id="passkey-success" style="color:green;display:none"></p>
 </main>
 
 <script>
@@ -151,6 +161,108 @@ async function regenerateCodes() {
     el.textContent = (data.codes || []).join('\n');
     el.style.display = 'block';
 }
+</script>
+<script>
+// --- Passkey management ---
+function b64url(buf) {
+    return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+function b64urlDecode(s) {
+    return Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0));
+}
+
+async function loadPasskeys() {
+    const res = await fetch('/api/v1/users/' + userId + '/passkeys', { credentials: 'include' });
+    const data = await res.json();
+    const list = document.getElementById('passkey-list');
+    const items = data.items || [];
+    if (items.length === 0) {
+        list.innerHTML = '<p class="muted">パスキーは登録されていません。</p>';
+        return;
+    }
+    list.innerHTML = items.map(pk =>
+        '<div style="display:flex;align-items:center;gap:1em;padding:0.5em 0;border-bottom:1px solid #eee">' +
+        '<span>🔑 <strong>' + (pk.name || 'Passkey') + '</strong></span>' +
+        '<span class="muted" style="font-size:0.85em">' + new Date(pk.createdAt).toLocaleDateString('ja-JP') + '</span>' +
+        (pk.backupState ? '<span class="muted" style="font-size:0.8em">☁️ synced</span>' : '<span class="muted" style="font-size:0.8em">🔒 device</span>') +
+        '<button class="button button-small button-danger" onclick="deletePasskey(\'' + pk.id + '\')">削除</button>' +
+        '</div>'
+    ).join('');
+}
+
+async function registerPasskey() {
+    const errEl = document.getElementById('passkey-error');
+    const okEl = document.getElementById('passkey-success');
+    errEl.style.display = 'none';
+    okEl.style.display = 'none';
+
+    try {
+        const startRes = await fetch('/api/v1/users/' + userId + '/passkeys/register/start', {
+            method: 'POST', credentials: 'include',
+            headers: {'Content-Type':'application/json','Accept':'application/json'}
+        });
+        const options = await startRes.json();
+        if (!startRes.ok) throw new Error(options.error?.message || 'Failed to start registration');
+
+        const credential = await navigator.credentials.create({
+            publicKey: {
+                challenge: b64urlDecode(options.challenge),
+                rp: options.rp,
+                user: {
+                    id: b64urlDecode(options.user.id),
+                    name: options.user.name,
+                    displayName: options.user.displayName,
+                },
+                pubKeyCredParams: options.pubKeyCredParams,
+                timeout: options.timeout,
+                attestation: options.attestation,
+                authenticatorSelection: options.authenticatorSelection,
+                excludeCredentials: (options.excludeCredentials || []).map(c => ({
+                    type: c.type, id: b64urlDecode(c.id)
+                }))
+            }
+        });
+
+        const name = prompt('パスキーの名前を入力してください:', 'My Passkey') || 'Passkey';
+
+        const finishRes = await fetch('/api/v1/users/' + userId + '/passkeys/register/finish', {
+            method: 'POST', credentials: 'include',
+            headers: {'Content-Type':'application/json','Accept':'application/json'},
+            body: JSON.stringify({
+                id: b64url(credential.rawId),
+                name: name,
+                response: {
+                    clientDataJSON: b64url(credential.response.clientDataJSON),
+                    attestationObject: b64url(credential.response.attestationObject),
+                    transports: credential.response.getTransports ? credential.response.getTransports() : []
+                }
+            })
+        });
+        const result = await finishRes.json();
+        if (!finishRes.ok) throw new Error(result.error?.message || 'Registration failed');
+
+        okEl.textContent = '✅ パスキーを登録しました: ' + name;
+        okEl.style.display = 'block';
+        loadPasskeys();
+    } catch (e) {
+        if (e.name !== 'NotAllowedError') {
+            errEl.textContent = e.message;
+            errEl.style.display = 'block';
+        }
+    }
+}
+
+async function deletePasskey(id) {
+    if (!confirm('このパスキーを削除しますか？')) return;
+    const res = await fetch('/api/v1/users/' + userId + '/passkeys/' + id, {
+        method: 'DELETE', credentials: 'include',
+        headers: {'Accept':'application/json'}
+    });
+    if (res.ok) loadPasskeys();
+    else alert('削除に失敗しました');
+}
+
+loadPasskeys();
 </script>
 <script src="/js/volta.js" defer></script>
 </body>

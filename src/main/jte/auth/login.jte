@@ -31,35 +31,47 @@
     @endfor
 </main>
 <script>
+function b64url(buf) {
+    var s = btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
+    return s.split('+').join('-').split('/').join('_').split('=').join('');
+}
+function b64urlDecode(s) {
+    var b = s.split('-').join('+').split('_').join('/');
+    var raw = atob(b);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+}
 async function startPasskeyLogin() {
     try {
-        const startRes = await fetch('/auth/passkey/start', { method: 'POST', credentials: 'include' });
-        const options = await startRes.json();
-        const credential = await navigator.credentials.get({
+        var startRes = await fetch('/auth/passkey/start', { method: 'POST', credentials: 'include' });
+        var options = await startRes.json();
+        var credential = await navigator.credentials.get({
             publicKey: {
-                challenge: Uint8Array.from(atob(options.challenge.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0)),
+                challenge: b64urlDecode(options.challenge),
                 rpId: options.rpId,
                 timeout: options.timeout,
                 userVerification: options.userVerification,
             }
         });
-        const finishRes = await fetch('/auth/passkey/finish', {
+        var finishRes = await fetch('/auth/passkey/finish', {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                id: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),
+                id: b64url(credential.rawId),
                 response: {
-                    clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(credential.response.clientDataJSON))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),
-                    authenticatorData: btoa(String.fromCharCode(...new Uint8Array(credential.response.authenticatorData))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),
-                    signature: btoa(String.fromCharCode(...new Uint8Array(credential.response.signature))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),
-                    userHandle: credential.response.userHandle ? btoa(String.fromCharCode(...new Uint8Array(credential.response.userHandle))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'') : null
+                    clientDataJSON: b64url(credential.response.clientDataJSON),
+                    authenticatorData: b64url(credential.response.authenticatorData),
+                    signature: b64url(credential.response.signature),
+                    userHandle: credential.response.userHandle ? b64url(credential.response.userHandle) : null
                 }
             })
         });
-        const result = await finishRes.json();
+        var result = await finishRes.json();
         if (result.ok) window.location.href = result.redirect_to || '/console/';
         else alert(result.error?.message || 'Passkey login failed');
     } catch (e) {
+        console.error('Passkey login error:', e);
         if (e.name !== 'NotAllowedError') alert('Passkey error: ' + e.message);
     }
 }

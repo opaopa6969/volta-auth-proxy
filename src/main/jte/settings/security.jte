@@ -165,10 +165,15 @@ async function regenerateCodes() {
 <script>
 // --- Passkey management ---
 function b64url(buf) {
-    return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    var s = btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
+    return s.split('+').join('-').split('/').join('_').split('=').join('');
 }
 function b64urlDecode(s) {
-    return Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0));
+    var b = s.split('-').join('+').split('_').join('/');
+    var raw = atob(b);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
 }
 
 async function loadPasskeys() {
@@ -245,10 +250,9 @@ async function registerPasskey() {
         okEl.style.display = 'block';
         loadPasskeys();
     } catch (e) {
-        if (e.name !== 'NotAllowedError') {
-            errEl.textContent = e.message;
-            errEl.style.display = 'block';
-        }
+        console.error('Passkey registration error:', e);
+        errEl.textContent = e.name + ': ' + e.message;
+        errEl.style.display = 'block';
     }
 }
 

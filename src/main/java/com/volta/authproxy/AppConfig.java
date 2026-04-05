@@ -1,6 +1,6 @@
 package com.volta.authproxy;
 
-import com.volta.authproxy.property.ApplicationProperties;
+import org.unlaxer.propstack.PropStack;
 
 public record AppConfig(
         int port,
@@ -49,7 +49,7 @@ public record AppConfig(
         String stripeWebhookSecret
 ) {
     public static AppConfig fromEnv() {
-        ApplicationProperties p = new ApplicationProperties();
+        PropStack p = new PropStack();
         return new AppConfig(
                 p.getInt("PORT", 7070),
                 p.get("DB_HOST", "localhost"),

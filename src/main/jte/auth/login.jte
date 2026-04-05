@@ -23,28 +23,14 @@
         <p class="muted">${inviteContext.get("inviterName")} さん / ロール: ${inviteContext.get("role")}</p>
     @endif
     <p>アカウントでログインしてください。</p>
-    <button class="button" id="passkey-login" onclick="startPasskeyLogin()" style="display:none">🔑 パスキーでログイン</button>
-    <div class="separator" id="passkey-separator" style="display:none"><span>または</span></div>
+    <button class="button" id="passkey-login" onclick="startPasskeyLogin()">🔑 パスキーでログイン</button>
+    <div class="separator"><span>または</span></div>
     @for(com.volta.authproxy.IdpProvider p : providers)
         <a class="button button-${p.id().toLowerCase()}"
            href="/login?start=1&provider=${p.id()}${baseParams}">${p.label()} でログイン</a>
     @endfor
 </main>
 <script>
-// Check if WebAuthn is available and show passkey button
-if (window.PublicKeyCredential) {
-    PublicKeyCredential.isConditionalMediationAvailable?.().then(() => {
-        document.getElementById('passkey-login').style.display = '';
-        document.getElementById('passkey-separator').style.display = '';
-    }).catch(() => {});
-    // Fallback: show if platform authenticator is available
-    PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.().then(available => {
-        if (available) {
-            document.getElementById('passkey-login').style.display = '';
-            document.getElementById('passkey-separator').style.display = '';
-        }
-    });
-}
 async function startPasskeyLogin() {
     try {
         const startRes = await fetch('/auth/passkey/start', { method: 'POST', credentials: 'include' });

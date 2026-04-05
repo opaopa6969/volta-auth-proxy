@@ -1505,6 +1505,45 @@ public final class Main {
             ctx.status(201).json(Map.of("id", id.toString(), "secret", secret, "events", events));
         });
 
+        app.get("/api/v1/tenants/{tenantId}/webhooks/{webhookId}", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            UUID webhookId = UUID.fromString(ctx.pathParam("webhookId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            var webhook = store.findWebhook(tenantId, webhookId)
+                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "Webhook が見つかりません。"));
+            ctx.json(webhook);
+        });
+
+        app.patch("/api/v1/tenants/{tenantId}/webhooks/{webhookId}", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            UUID webhookId = UUID.fromString(ctx.pathParam("webhookId"));
+            enforceTenantMatch(p, tenantId);
+            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
+            }
+            var existing = store.findWebhook(tenantId, webhookId)
+                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "Webhook が見つかりません。"));
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String endpoint = body.has("endpoint_url") ? body.path("endpoint_url").asText() : existing.endpointUrl();
+            String events = body.has("events")
+                    ? (body.path("events").isArray()
+                        ? String.join(",", toStringList(body.path("events")))
+                        : body.path("events").asText())
+                    : existing.events();
+            boolean active = body.has("is_active") ? body.path("is_active").asBoolean() : existing.active();
+            int updated = store.updateWebhook(tenantId, webhookId, endpoint, events, active);
+            if (updated == 0) {
+                throw new ApiException(404, "NOT_FOUND", "Webhook が見つかりません。");
+            }
+            auditService.log(ctx, "WEBHOOK_UPDATED", p, "WEBHOOK", webhookId.toString(), Map.of("endpoint", endpoint));
+            ctx.json(Map.of("ok", true));
+        });
+
         app.delete("/api/v1/tenants/{tenantId}/webhooks/{webhookId}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));

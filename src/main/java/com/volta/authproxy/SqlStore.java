@@ -1246,6 +1246,52 @@ public final class SqlStore {
         }
     }
 
+    public Optional<WebhookRecord> findWebhook(UUID tenantId, UUID webhookId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, tenant_id, endpoint_url, secret, events, is_active, created_at
+                     FROM webhook_subscriptions
+                     WHERE tenant_id = ? AND id = ?
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, webhookId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(new WebhookRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("tenant_id", UUID.class),
+                            rs.getString("endpoint_url"),
+                            rs.getString("secret"),
+                            rs.getString("events"),
+                            rs.getBoolean("is_active"),
+                            rs.getTimestamp("created_at").toInstant()
+                    ));
+                }
+                return Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int updateWebhook(UUID tenantId, UUID webhookId, String endpointUrl, String events, boolean isActive) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     UPDATE webhook_subscriptions
+                     SET endpoint_url = ?, events = ?, is_active = ?
+                     WHERE tenant_id = ? AND id = ?
+                     """)) {
+            ps.setString(1, endpointUrl);
+            ps.setString(2, events);
+            ps.setBoolean(3, isActive);
+            ps.setObject(4, tenantId);
+            ps.setObject(5, webhookId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public int deactivateWebhook(UUID tenantId, UUID webhookId) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

@@ -387,6 +387,59 @@ public final class SqlStore {
         }
     }
 
+    public record AdminSessionView(UUID sessionId, UUID userId, String email, String displayName,
+                                       String ipAddress, String userAgent, Instant createdAt,
+                                       Instant lastActiveAt, Instant expiresAt, Instant invalidatedAt, UUID tenantId) {}
+
+    public List<AdminSessionView> listAllActiveSessions(int offset, int limit) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT s.id, s.user_id, u.email, u.display_name, s.ip_address, s.user_agent,
+                            s.created_at, s.last_active_at, s.expires_at, s.invalidated_at, s.tenant_id
+                     FROM sessions s
+                     JOIN users u ON u.id = s.user_id
+                     WHERE s.invalidated_at IS NULL AND s.expires_at > now()
+                     ORDER BY s.last_active_at DESC
+                     LIMIT ? OFFSET ?
+                     """)) {
+            ps.setInt(1, limit);
+            ps.setInt(2, offset);
+            List<AdminSessionView> result = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new AdminSessionView(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("user_id", UUID.class),
+                            rs.getString("email"),
+                            rs.getString("display_name"),
+                            rs.getString("ip_address"),
+                            rs.getString("user_agent"),
+                            rs.getTimestamp("created_at").toInstant(),
+                            rs.getTimestamp("last_active_at").toInstant(),
+                            rs.getTimestamp("expires_at").toInstant(),
+                            rs.getTimestamp("invalidated_at") == null ? null : rs.getTimestamp("invalidated_at").toInstant(),
+                            rs.getObject("tenant_id", UUID.class)
+                    ));
+                }
+            }
+            return result;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int countActiveSessions() {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT count(*) FROM sessions WHERE invalidated_at IS NULL AND expires_at > now()")) {
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public List<SessionRecord> listUserSessions(UUID userId) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

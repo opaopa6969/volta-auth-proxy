@@ -69,7 +69,9 @@ final class SmtpNotificationService implements NotificationService {
                     %s
                     """.formatted(inviterName == null ? "メンバー" : inviterName, tenantName, role, inviteLink));
             Transport.send(msg);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            System.err.println("SMTP send failed: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }

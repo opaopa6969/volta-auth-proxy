@@ -8,18 +8,10 @@ idp:
     client_id: ${GOOGLE_CLIENT_ID}
     client_secret: ${GOOGLE_CLIENT_SECRET}
 
-  - id: github
-    client_id: ${GITHUB_CLIENT_ID}
-    client_secret: ${GITHUB_CLIENT_SECRET}
-
-  - id: microsoft
-    client_id: ${MICROSOFT_CLIENT_ID}
-    client_secret: ${MICROSOFT_CLIENT_SECRET}
-
 apps:
-  - id: app-wiki
-    url: https://wiki.example.com
+  - id: volta-console
+    url: https://console.unlaxer.org
     allowed_roles: [MEMBER, ADMIN, OWNER]
-  - id: app-admin
-    url: https://admin.example.com
-    allowed_roles: [ADMIN, OWNER]
+  - id: building-hierarchy
+    url: https://building.unlaxer.org
+    allowed_roles: [MEMBER, ADMIN, OWNER]

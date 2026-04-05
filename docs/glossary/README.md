@@ -8,10 +8,10 @@
 > 認証って「分かっている感」をみんな出しているけど、そんなことない。
 > 恥ずかしがらずに全部調べよう。AI 時代は教育が大事！
 
-**86 articles** covering authentication, security, and [architecture](architecture.md) concepts
+**585 glossary files** (EN 293 + JA 292) covering authentication, security, and [architecture](architecture.md) concepts
 used in volta-auth-proxy. Each article is available in English and Japanese.
 
-**86 記事** -- volta-auth-proxy で使われる認証・セキュリティ・アーキテクチャ用語を
+**585 ファイル**（EN 293 + JA 292） -- volta-auth-proxy で使われる認証・セキュリティ・アーキテクチャ用語を
 英語・日本語の両方で解説します。
 
 ***

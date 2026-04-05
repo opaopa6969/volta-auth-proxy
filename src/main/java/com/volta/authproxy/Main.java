@@ -39,7 +39,9 @@ public final class Main {
         NotificationService notificationService = NotificationService.create(config);
         OutboxWorker outboxWorker = new OutboxWorker(config, store);
         RateLimiter rateLimiter = new RateLimiter(200);
-        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectMapper objectMapper = new ObjectMapper()
+                .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+                .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         KeyCipher secretCipher = new KeyCipher(config.jwtKeyEncryptionSecret());
         TemplateEngine templateEngine = TemplateEngine.create(
                 new DirectoryCodeResolver(java.nio.file.Path.of("src/main/jte")),
@@ -49,12 +51,28 @@ public final class Main {
         );
 
         Javalin app = Javalin.create(javalinConfig -> {
+            javalinConfig.jsonMapper(new io.javalin.json.JavalinJackson(objectMapper, false));
             javalinConfig.fileRenderer(new JavalinJte(templateEngine));
             javalinConfig.staticFiles.add(staticFiles -> {
                 staticFiles.hostedPath = "/";
                 staticFiles.directory = "/public";
                 staticFiles.location = Location.CLASSPATH;
             });
+        });
+
+        // CORS for auth-console and other subdomains
+        app.before(ctx -> {
+            String origin = ctx.header("Origin");
+            if (origin != null && (origin.endsWith(".unlaxer.org") || origin.contains("localhost"))) {
+                ctx.header("Access-Control-Allow-Origin", origin);
+                ctx.header("Access-Control-Allow-Credentials", "true");
+                ctx.header("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token");
+                ctx.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+            }
+            if ("OPTIONS".equals(ctx.method().name())) {
+                ctx.status(204);
+                return;
+            }
         });
 
         app.before(ctx -> ctx.attribute("wantsJson", HttpSupport.wantsJson(ctx)));
@@ -128,6 +146,7 @@ public final class Main {
             }
         });
         app.exception(Exception.class, (e, ctx) -> {
+            e.printStackTrace();
             AuthPrincipal actor = authService.authenticate(ctx).orElse(null);
             auditService.log(ctx, "ERROR_INTERNAL", actor, "REQUEST", ctx.path(), Map.of());
             if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
@@ -144,6 +163,21 @@ public final class Main {
         });
 
         app.get("/", ctx -> ctx.redirect("/login"));
+
+        // SPA: /console/ and /console/* serve index.html, static assets pass through
+        app.get("/console/", ctx -> {
+            try (var is = Main.class.getResourceAsStream("/public/console/index.html")) {
+                if (is != null) { ctx.contentType("text/html"); ctx.result(is.readAllBytes()); }
+            }
+        });
+        app.get("/console", ctx -> ctx.redirect("/console/"));
+        app.after("/console/*", ctx -> {
+            if (ctx.status().getCode() == 404) {
+                try (var is = Main.class.getResourceAsStream("/public/console/index.html")) {
+                    if (is != null) { ctx.status(200); ctx.contentType("text/html"); ctx.result(is.readAllBytes()); }
+                }
+            }
+        });
         app.get("/login", ctx -> {
             if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
                 HttpSupport.jsonError(ctx, 401, "AUTHENTICATION_REQUIRED", "Login required");
@@ -780,6 +814,47 @@ public final class Main {
                     "createdAt", u.createdAt().toString()
             )).toList();
             ctx.render("admin/users.jte", model("title", "ユーザー管理", "users", items));
+        });
+
+        app.get("/admin/sessions", ctx -> {
+            AuthPrincipal principal = requireAuth(ctx, authService);
+            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "セッション管理の権限がありません。");
+            }
+            int offset = parseOffset(ctx.queryParam("offset"));
+            int limit = parseLimit(ctx.queryParam("limit"));
+            List<SqlStore.AdminSessionView> sessions = store.listAllActiveSessions(offset, limit);
+            int totalActive = store.countActiveSessions();
+            List<Map<String, String>> sessionView = new ArrayList<>();
+            for (SqlStore.AdminSessionView s : sessions) {
+                Map<String, String> row = new LinkedHashMap<>();
+                row.put("sessionId", s.sessionId().toString());
+                row.put("userId", s.userId().toString());
+                row.put("email", s.email());
+                row.put("displayName", s.displayName() == null ? "-" : s.displayName());
+                row.put("ip", s.ipAddress() == null ? "-" : s.ipAddress());
+                row.put("device", inferDevice(s.userAgent()));
+                row.put("lastActive", s.lastActiveAt().toString());
+                row.put("expiresAt", s.expiresAt().toString());
+                sessionView.add(row);
+            }
+            ctx.render("admin/sessions.jte", model(
+                    "title", "セッション管理",
+                    "sessions", sessionView,
+                    "totalActive", totalActive,
+                    "csrfToken", currentCsrfToken(ctx, sessionStore)
+            ));
+        });
+
+        app.delete("/admin/sessions/{id}", ctx -> {
+            AuthPrincipal principal = requireAuth(ctx, authService);
+            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "セッション管理の権限がありません。");
+            }
+            UUID sessionId = UUID.fromString(ctx.pathParam("id"));
+            sessionStore.revokeSession(sessionId);
+            auditService.log(ctx, "ADMIN_SESSION_REVOKED", principal, "SESSION", sessionId.toString(), Map.of());
+            ctx.json(Map.of("ok", true));
         });
 
         app.get("/admin/audit", ctx -> {
@@ -1803,9 +1878,13 @@ public final class Main {
     }
 
     private static void setSessionCookie(Context ctx, UUID sessionId, int sessionTtlSeconds) {
+        String cookieDomain = System.getenv("COOKIE_DOMAIN");
         String cookie = AuthService.SESSION_COOKIE + "=" + sessionId
                 + "; Path=/; Max-Age=" + sessionTtlSeconds
                 + "; HttpOnly; SameSite=Lax";
+        if (cookieDomain != null && !cookieDomain.isEmpty()) {
+            cookie += "; Domain=" + cookieDomain;
+        }
         if (ctx.req().isSecure()) {
             cookie += "; Secure";
         }

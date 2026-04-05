@@ -32,7 +32,7 @@ Conditions: [Multi-tenancy](../docs/glossary/multi-tenant.md) is a core requirem
 
 **6. Engineering Education / Bootcamps**
 
-Not as a product, but as a **learning platform**. 283 [glossary](../docs/glossary/) articles from expert to grandma level. [DSL](dsl-overview.md) that visualizes the entire auth [state machine](glossary/state-machine.md). "Pretending you understand is the most dangerous thing" philosophy.
+Not as a product, but as a **learning platform**. 585 [glossary](../docs/glossary/) files (EN 293 + JA 292) from expert to grandma level. [DSL](dsl-overview.md) that visualizes the entire auth [state machine](glossary/state-machine.md). "Pretending you understand is the most dangerous thing" philosophy.
 
 ### Not a fit (today)
 
@@ -71,7 +71,7 @@ volta sits at **self-hosted × minimal**. The lightest, most controllable option
 ```
 Auth0 too expensive    → volta ($0 at any MAU)
 Keycloak too heavy     → volta (30MB, 200ms startup)
-Self-built too scary   → volta (DSL + 283 articles + DGE design)
+Self-built too scary   → volta (DSL + 585 glossary files + DGE design)
 ZITADEL but need Java  → volta (Javalin, not Go)
 ```
 
@@ -113,7 +113,7 @@ volta Enterprise:
 
 ```
 "volta Auth Academy"
-  - Glossary as structured course (283 articles, 3 levels)
+  - Glossary as structured course (585 glossary files, 3 levels)
   - DSL as curriculum (state machine → protocol → policy)
   - DGE as design methodology certification
   - DDE as documentation methodology certification
@@ -174,7 +174,7 @@ volta path:
   + AI (implementation, tests, documentation, glossary)
   = Ship faster, iterate faster, document better
 
-The 283-article glossary alone is more documentation
+The 585-file glossary alone is more documentation
 than most enterprise auth products have.
 
 Design strength (human) + Implementation speed (AI)

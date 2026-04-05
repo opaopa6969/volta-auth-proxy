@@ -52,12 +52,15 @@
   }
 
   function switchTenant(tenantId) {
+    var returnTo = (window.__voltaTenantSelect && window.__voltaTenantSelect.returnTo) || "";
     return voltaFetch(_gatewayUrl + "/auth/switch-tenant", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tenantId: tenantId }),
     }).then(function (res) {
-      if (res.ok) window.location.reload();
+      if (res.ok) {
+        window.location.href = returnTo || "https://console.unlaxer.org/";
+      }
       return res;
     });
   }
@@ -104,7 +107,7 @@
       .then(json)
       .then(function (payload) {
         status.textContent = "完了しました。リダイレクトします...";
-        window.location.replace(payload.redirect_to || "/select-tenant");
+        window.location.replace(payload.redirect_to || "https://console.unlaxer.org/");
       })
       .catch(function () {
         status.textContent = "認証に失敗しました。再ログインします。";

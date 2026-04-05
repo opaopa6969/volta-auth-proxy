@@ -28,6 +28,21 @@ interface SessionStore extends AutoCloseable {
 
     void revokeSessionsForUserTenant(UUID userId, UUID tenantId);
 
+    // Passkey challenge storage (short-lived, in-memory is fine)
+    java.util.concurrent.ConcurrentHashMap<String, String> PASSKEY_CHALLENGES = new java.util.concurrent.ConcurrentHashMap<>();
+
+    default void setPasskeyChallenge(String sessionCookie, String challenge) {
+        if (sessionCookie != null) PASSKEY_CHALLENGES.put("pk:" + sessionCookie, challenge);
+    }
+
+    default String getPasskeyChallenge(String sessionCookie) {
+        return sessionCookie != null ? PASSKEY_CHALLENGES.get("pk:" + sessionCookie) : null;
+    }
+
+    default void clearPasskeyChallenge(String sessionCookie) {
+        if (sessionCookie != null) PASSKEY_CHALLENGES.remove("pk:" + sessionCookie);
+    }
+
     static SessionStore create(AppConfig config, SqlStore store) {
         if ("redis".equalsIgnoreCase(config.sessionStore())) {
             return new RedisSessionStore(config.redisUrl());

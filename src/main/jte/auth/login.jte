@@ -23,10 +23,60 @@
         <p class="muted">${inviteContext.get("inviterName")} さん / ロール: ${inviteContext.get("role")}</p>
     @endif
     <p>アカウントでログインしてください。</p>
+    <button class="button" id="passkey-login" onclick="startPasskeyLogin()" style="display:none">🔑 パスキーでログイン</button>
+    <div class="separator" id="passkey-separator" style="display:none"><span>または</span></div>
     @for(com.volta.authproxy.IdpProvider p : providers)
         <a class="button button-${p.id().toLowerCase()}"
            href="/login?start=1&provider=${p.id()}${baseParams}">${p.label()} でログイン</a>
     @endfor
 </main>
+<script>
+// Check if WebAuthn is available and show passkey button
+if (window.PublicKeyCredential) {
+    PublicKeyCredential.isConditionalMediationAvailable?.().then(() => {
+        document.getElementById('passkey-login').style.display = '';
+        document.getElementById('passkey-separator').style.display = '';
+    }).catch(() => {});
+    // Fallback: show if platform authenticator is available
+    PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.().then(available => {
+        if (available) {
+            document.getElementById('passkey-login').style.display = '';
+            document.getElementById('passkey-separator').style.display = '';
+        }
+    });
+}
+async function startPasskeyLogin() {
+    try {
+        const startRes = await fetch('/auth/passkey/start', { method: 'POST', credentials: 'include' });
+        const options = await startRes.json();
+        const credential = await navigator.credentials.get({
+            publicKey: {
+                challenge: Uint8Array.from(atob(options.challenge.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0)),
+                rpId: options.rpId,
+                timeout: options.timeout,
+                userVerification: options.userVerification,
+            }
+        });
+        const finishRes = await fetch('/auth/passkey/finish', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),
+                response: {
+                    clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(credential.response.clientDataJSON))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),
+                    authenticatorData: btoa(String.fromCharCode(...new Uint8Array(credential.response.authenticatorData))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),
+                    signature: btoa(String.fromCharCode(...new Uint8Array(credential.response.signature))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),
+                    userHandle: credential.response.userHandle ? btoa(String.fromCharCode(...new Uint8Array(credential.response.userHandle))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'') : null
+                }
+            })
+        });
+        const result = await finishRes.json();
+        if (result.ok) window.location.href = result.redirect_to || '/console/';
+        else alert(result.error?.message || 'Passkey login failed');
+    } catch (e) {
+        if (e.name !== 'NotAllowedError') alert('Passkey error: ' + e.message);
+    }
+}
+</script>
 </body>
 </html>

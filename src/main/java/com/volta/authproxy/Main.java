@@ -666,6 +666,237 @@ public final class Main {
             ));
         });
 
+        // --- Passkey (WebAuthn) endpoints ---
+
+        app.post("/api/v1/users/{userId}/passkeys/register/start", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            if (!p.userId().equals(userId)) {
+                throw new ApiException(403, "FORBIDDEN", "Only self registration is allowed");
+            }
+            byte[] challenge = new byte[32];
+            new java.security.SecureRandom().nextBytes(challenge);
+            // Store challenge in session-scoped attribute via a simple in-memory map (TTL managed by caller)
+            String challengeB64 = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(challenge);
+            sessionStore.setPasskeyChallenge(ctx.cookie(AuthService.SESSION_COOKIE), challengeB64);
+
+            UserRecord user = store.findUserById(userId).orElseThrow();
+            List<SqlStore.PasskeyRecord> existing = store.listPasskeys(userId);
+
+            // Build excludeCredentials from existing passkeys
+            var excludeList = existing.stream().map(pk ->
+                Map.of("type", "public-key",
+                       "id", java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(pk.credentialId()))
+            ).toList();
+
+            ctx.json(Map.of(
+                "challenge", challengeB64,
+                "rp", Map.of("id", config.webauthnRpId(), "name", config.webauthnRpName()),
+                "user", Map.of(
+                    "id", java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                            userId.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                    "name", user.email(),
+                    "displayName", user.displayName() != null ? user.displayName() : user.email()
+                ),
+                "pubKeyCredParams", List.of(
+                    Map.of("type", "public-key", "alg", -7),   // ES256
+                    Map.of("type", "public-key", "alg", -257)  // RS256
+                ),
+                "timeout", 300000,
+                "attestation", "none",
+                "authenticatorSelection", Map.of(
+                    "residentKey", "preferred",
+                    "userVerification", "preferred"
+                ),
+                "excludeCredentials", excludeList
+            ));
+        });
+
+        app.post("/api/v1/users/{userId}/passkeys/register/finish", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            if (!p.userId().equals(userId)) {
+                throw new ApiException(403, "FORBIDDEN", "Only self registration is allowed");
+            }
+            String storedChallenge = sessionStore.getPasskeyChallenge(ctx.cookie(AuthService.SESSION_COOKIE));
+            if (storedChallenge == null) {
+                throw new ApiException(400, "CHALLENGE_EXPIRED", "Registration challenge expired or not found");
+            }
+            sessionStore.clearPasskeyChallenge(ctx.cookie(AuthService.SESSION_COOKIE));
+
+            com.fasterxml.jackson.databind.JsonNode body = objectMapper.readTree(ctx.body());
+            String credentialIdB64 = body.path("id").asText();
+            com.fasterxml.jackson.databind.JsonNode response = body.path("response");
+            String clientDataJsonB64 = response.path("clientDataJSON").asText();
+            String attestationObjectB64 = response.path("attestationObject").asText();
+
+            byte[] credentialId = java.util.Base64.getUrlDecoder().decode(credentialIdB64);
+            byte[] clientDataJson = java.util.Base64.getUrlDecoder().decode(clientDataJsonB64);
+            byte[] attestationObject = java.util.Base64.getUrlDecoder().decode(attestationObjectB64);
+
+            // Parse and validate using webauthn4j
+            com.webauthn4j.data.RegistrationRequest registrationRequest = new com.webauthn4j.data.RegistrationRequest(
+                    attestationObject, clientDataJson);
+            com.webauthn4j.data.RegistrationParameters registrationParameters = new com.webauthn4j.data.RegistrationParameters(
+                    new com.webauthn4j.server.ServerProperty(
+                            new com.webauthn4j.data.client.Origin(config.webauthnRpOrigin()),
+                            config.webauthnRpId(),
+                            new com.webauthn4j.data.client.challenge.DefaultChallenge(java.util.Base64.getUrlDecoder().decode(storedChallenge)),
+                            null),
+                    null, false, true);
+
+            com.webauthn4j.WebAuthnManager webAuthnManager = com.webauthn4j.WebAuthnManager.createNonStrictWebAuthnManager();
+            com.webauthn4j.data.RegistrationData registrationData = webAuthnManager.validate(registrationRequest, registrationParameters);
+
+            com.webauthn4j.data.attestation.authenticator.AttestedCredentialData attestedCred =
+                    registrationData.getAttestationObject().getAuthenticatorData().getAttestedCredentialData();
+            byte[] publicKeyBytes = new com.webauthn4j.converter.util.ObjectConverter()
+                    .getCborConverter().writeValueAsBytes(attestedCred.getCOSEKey());
+            long signCount = registrationData.getAttestationObject().getAuthenticatorData().getSignCount();
+            UUID aaguid = attestedCred.getAaguid() != null ?
+                    java.util.UUID.nameUUIDFromBytes(attestedCred.getAaguid().getBytes()) : null;
+
+            // BE/BS flags
+            boolean backupEligible = registrationData.getAttestationObject().getAuthenticatorData().isFlagBE();
+            boolean backupState = registrationData.getAttestationObject().getAuthenticatorData().isFlagBS();
+
+            // Transports
+            String transports = body.path("response").path("transports") != null ?
+                    body.path("response").path("transports").toString() : null;
+
+            String passkeyName = body.path("name").asText("Passkey");
+
+            UUID passkeyId = store.createPasskey(userId, credentialId, publicKeyBytes, signCount,
+                    transports, passkeyName, aaguid, backupEligible, backupState);
+
+            auditService.log(ctx, "PASSKEY_REGISTERED", p, "PASSKEY", passkeyId.toString(), Map.of());
+            ctx.status(201).json(Map.of("ok", true, "id", passkeyId.toString()));
+        });
+
+        app.get("/api/v1/users/{userId}/passkeys", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            if (!p.userId().equals(userId) && !p.roles().contains("ADMIN")) {
+                throw new ApiException(403, "FORBIDDEN", "Access denied");
+            }
+            var passkeys = store.listPasskeys(userId).stream().map(pk -> Map.of(
+                    "id", pk.id().toString(),
+                    "name", pk.name() != null ? pk.name() : "Passkey",
+                    "createdAt", pk.createdAt().toString(),
+                    "lastUsedAt", pk.lastUsedAt() != null ? pk.lastUsedAt().toString() : null,
+                    "backupEligible", pk.backupEligible(),
+                    "backupState", pk.backupState()
+            )).toList();
+            ctx.json(Map.of("items", passkeys));
+        });
+
+        app.delete("/api/v1/users/{userId}/passkeys/{passkeyId}", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            UUID passkeyId = UUID.fromString(ctx.pathParam("passkeyId"));
+            if (!p.userId().equals(userId)) {
+                throw new ApiException(403, "FORBIDDEN", "Only self deletion is allowed");
+            }
+            int deleted = store.deletePasskey(userId, passkeyId);
+            if (deleted == 0) {
+                throw new ApiException(404, "NOT_FOUND", "Passkey not found");
+            }
+            auditService.log(ctx, "PASSKEY_DELETED", p, "PASSKEY", passkeyId.toString(), Map.of());
+            ctx.json(Map.of("ok", true));
+        });
+
+        // Passkey login (unauthenticated)
+        app.post("/auth/passkey/start", ctx -> {
+            byte[] challenge = new byte[32];
+            new java.security.SecureRandom().nextBytes(challenge);
+            String challengeB64 = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(challenge);
+
+            // Store challenge temporarily (use a simple server-side map for now)
+            // In production, use Redis with TTL
+            ctx.sessionAttribute("passkey_challenge", challengeB64);
+
+            ctx.json(Map.of(
+                "challenge", challengeB64,
+                "rpId", config.webauthnRpId(),
+                "timeout", 300000,
+                "userVerification", "preferred"
+            ));
+        });
+
+        app.post("/auth/passkey/finish", ctx -> {
+            String storedChallenge = ctx.sessionAttribute("passkey_challenge");
+            if (storedChallenge == null) {
+                throw new ApiException(400, "CHALLENGE_EXPIRED", "Login challenge expired");
+            }
+            ctx.sessionAttribute("passkey_challenge", null);
+
+            com.fasterxml.jackson.databind.JsonNode body = objectMapper.readTree(ctx.body());
+            String credentialIdB64 = body.path("id").asText();
+            com.fasterxml.jackson.databind.JsonNode response = body.path("response");
+            String clientDataJsonB64 = response.path("clientDataJSON").asText();
+            String authenticatorDataB64 = response.path("authenticatorData").asText();
+            String signatureB64 = response.path("signature").asText();
+            String userHandleB64 = response.path("userHandle").asText(null);
+
+            byte[] credentialId = java.util.Base64.getUrlDecoder().decode(credentialIdB64);
+            byte[] clientDataJson = java.util.Base64.getUrlDecoder().decode(clientDataJsonB64);
+            byte[] authenticatorData = java.util.Base64.getUrlDecoder().decode(authenticatorDataB64);
+            byte[] signature = java.util.Base64.getUrlDecoder().decode(signatureB64);
+
+            SqlStore.PasskeyRecord passkey = store.findPasskeyByCredentialId(credentialId)
+                    .orElseThrow(() -> new ApiException(401, "PASSKEY_NOT_FOUND", "Passkey not recognized"));
+
+            // Verify assertion using webauthn4j
+            com.webauthn4j.data.AuthenticationRequest authRequest = new com.webauthn4j.data.AuthenticationRequest(
+                    credentialId, authenticatorData, clientDataJson, signature);
+            com.webauthn4j.authenticator.AuthenticatorImpl authenticator = new com.webauthn4j.authenticator.AuthenticatorImpl(
+                    new com.webauthn4j.data.attestation.authenticator.AttestedCredentialData(
+                            passkey.aaguid() != null ? new com.webauthn4j.data.attestation.authenticator.AAGUID(passkey.aaguid()) : com.webauthn4j.data.attestation.authenticator.AAGUID.ZERO,
+                            credentialId,
+                            new com.webauthn4j.converter.util.ObjectConverter()
+                                    .getCborConverter().readValue(passkey.publicKey(), com.webauthn4j.data.attestation.authenticator.COSEKey.class)),
+                    null, passkey.signCount());
+
+            com.webauthn4j.data.AuthenticationParameters authParams = new com.webauthn4j.data.AuthenticationParameters(
+                    new com.webauthn4j.server.ServerProperty(
+                            new com.webauthn4j.data.client.Origin(config.webauthnRpOrigin()),
+                            config.webauthnRpId(),
+                            new com.webauthn4j.data.client.challenge.DefaultChallenge(java.util.Base64.getUrlDecoder().decode(storedChallenge)),
+                            null),
+                    authenticator, null, true);
+
+            com.webauthn4j.WebAuthnManager webAuthnManager = com.webauthn4j.WebAuthnManager.createNonStrictWebAuthnManager();
+            com.webauthn4j.data.AuthenticationData authData = webAuthnManager.validate(authRequest, authParams);
+
+            // Update sign count
+            long newSignCount = authData.getAuthenticatorData().getSignCount();
+            store.updatePasskeyCounter(passkey.id(), newSignCount);
+
+            // Resolve user and tenant
+            UserRecord user = store.findUserById(passkey.userId())
+                    .orElseThrow(() -> new ApiException(401, "USER_NOT_FOUND", "User not found"));
+            TenantRecord tenant = resolveTenant(store, user, null);
+            MembershipRecord membership = store.findMembership(tenant.id(), user.id())
+                    .orElseThrow(() -> new ApiException(403, "TENANT_ACCESS_DENIED", "Tenant membership not found"));
+
+            AuthPrincipal principal = new AuthPrincipal(
+                    user.id(), user.email(), user.displayName(),
+                    tenant.id(), tenant.name(), tenant.slug(),
+                    List.of(membership.role()), false);
+
+            // Issue session with MFA already verified (Passkey = MFA equivalent)
+            UUID sessionId = authService.issueSession(principal, null, clientIp(ctx), ctx.userAgent());
+            setSessionCookie(ctx, sessionId, config.sessionTtlSeconds());
+            authService.markMfaVerified(sessionId);
+
+            auditService.log(ctx, "LOGIN_SUCCESS", principal, "SESSION", sessionId.toString(), Map.of(
+                    "via", "passkey"
+            ));
+            checkDeviceAndNotify(principal, ctx, store, objectMapper);
+
+            ctx.json(Map.of("ok", true, "redirect_to", "/console/"));
+        });
+
         app.get("/settings/security", ctx -> {
             Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
             if (principalOpt.isEmpty()) {

@@ -46,7 +46,10 @@ public record AppConfig(
         String kafkaBootstrapServers,
         String kafkaAuditTopic,
         String elasticsearchUrl,
-        String stripeWebhookSecret
+        String stripeWebhookSecret,
+        String webauthnRpId,
+        String webauthnRpName,
+        String webauthnRpOrigin
 ) {
     public static AppConfig fromEnv() {
         PropStack p = new PropStack();
@@ -94,7 +97,10 @@ public record AppConfig(
                 p.get("KAFKA_BOOTSTRAP_SERVERS", ""),
                 p.get("KAFKA_AUDIT_TOPIC", "volta-audit"),
                 p.get("ELASTICSEARCH_URL", ""),
-                p.get("STRIPE_WEBHOOK_SECRET", "")
+                p.get("STRIPE_WEBHOOK_SECRET", ""),
+                p.get("WEBAUTHN_RP_ID", "localhost"),
+                p.get("WEBAUTHN_RP_NAME", "volta-auth"),
+                p.get("WEBAUTHN_RP_ORIGIN", "http://localhost:7070")
         );
     }
 

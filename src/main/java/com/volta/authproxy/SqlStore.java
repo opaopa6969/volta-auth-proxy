@@ -2100,6 +2100,132 @@ public final class SqlStore {
         }
     }
 
+    // --- Passkey CRUD ---
+
+    public record PasskeyRecord(UUID id, UUID userId, byte[] credentialId, byte[] publicKey,
+                                long signCount, String transports, String name, UUID aaguid,
+                                boolean backupEligible, boolean backupState,
+                                Instant createdAt, Instant lastUsedAt) {}
+
+    public UUID createPasskey(UUID userId, byte[] credentialId, byte[] publicKey, long signCount,
+                              String transports, String name, UUID aaguid, boolean backupEligible, boolean backupState) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO user_passkeys (user_id, credential_id, public_key, sign_count, transports, name, aaguid, backup_eligible, backup_state)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     RETURNING id
+                     """)) {
+            ps.setObject(1, userId);
+            ps.setBytes(2, credentialId);
+            ps.setBytes(3, publicKey);
+            ps.setLong(4, signCount);
+            ps.setString(5, transports);
+            ps.setString(6, name);
+            ps.setObject(7, aaguid);
+            ps.setBoolean(8, backupEligible);
+            ps.setBoolean(9, backupState);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getObject("id", UUID.class);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<PasskeyRecord> listPasskeys(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, user_id, credential_id, public_key, sign_count, transports, name, aaguid,
+                            backup_eligible, backup_state, created_at, last_used_at
+                     FROM user_passkeys WHERE user_id = ? ORDER BY created_at DESC
+                     """)) {
+            ps.setObject(1, userId);
+            List<PasskeyRecord> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new PasskeyRecord(
+                            rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
+                            rs.getBytes("credential_id"), rs.getBytes("public_key"),
+                            rs.getLong("sign_count"), rs.getString("transports"), rs.getString("name"),
+                            rs.getObject("aaguid", UUID.class),
+                            rs.getBoolean("backup_eligible"), rs.getBoolean("backup_state"),
+                            rs.getTimestamp("created_at").toInstant(),
+                            rs.getTimestamp("last_used_at") != null ? rs.getTimestamp("last_used_at").toInstant() : null
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Optional<PasskeyRecord> findPasskeyByCredentialId(byte[] credentialId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, user_id, credential_id, public_key, sign_count, transports, name, aaguid,
+                            backup_eligible, backup_state, created_at, last_used_at
+                     FROM user_passkeys WHERE credential_id = ?
+                     """)) {
+            ps.setBytes(1, credentialId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(new PasskeyRecord(
+                            rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
+                            rs.getBytes("credential_id"), rs.getBytes("public_key"),
+                            rs.getLong("sign_count"), rs.getString("transports"), rs.getString("name"),
+                            rs.getObject("aaguid", UUID.class),
+                            rs.getBoolean("backup_eligible"), rs.getBoolean("backup_state"),
+                            rs.getTimestamp("created_at").toInstant(),
+                            rs.getTimestamp("last_used_at") != null ? rs.getTimestamp("last_used_at").toInstant() : null
+                    ));
+                }
+                return Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void updatePasskeyCounter(UUID passkeyId, long signCount) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE user_passkeys SET sign_count = ?, last_used_at = now() WHERE id = ?")) {
+            ps.setLong(1, signCount);
+            ps.setObject(2, passkeyId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int deletePasskey(UUID userId, UUID passkeyId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM user_passkeys WHERE id = ? AND user_id = ?")) {
+            ps.setObject(1, passkeyId);
+            ps.setObject(2, userId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int countPasskeys(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT COUNT(*) FROM user_passkeys WHERE user_id = ?")) {
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public UUID enqueueOutboxEvent(UUID tenantId, String eventType, String payloadJson) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

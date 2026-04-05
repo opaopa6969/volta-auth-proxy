@@ -2,6 +2,7 @@
 @param java.util.Map<String, String> inviteContext
 @param java.util.List<com.volta.authproxy.IdpProvider> providers
 @param String baseParams
+@param boolean isSwitchAccount = false
 <!doctype html>
 <html lang="ja">
 <head>
@@ -13,7 +14,11 @@
 <body>
 <main class="container">
     <h1>ログイン</h1>
-    @if(inviteContext != null)
+    @if(isSwitchAccount)
+        <div class="alert">
+            <p>招待メール宛先のアカウントでログインしてください。</p>
+        </div>
+    @elseif(inviteContext != null)
         <p><strong>${inviteContext.get("tenantName")}</strong> に招待されています。</p>
         <p class="muted">${inviteContext.get("inviterName")} さん / ロール: ${inviteContext.get("role")}</p>
     @endif

@@ -236,11 +236,13 @@ public final class Main {
             }
             String baseParams = (returnTo != null ? "&return_to=" + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8) : "")
                     + (inviteCode != null ? "&invite=" + java.net.URLEncoder.encode(inviteCode, java.nio.charset.StandardCharsets.UTF_8) : "");
+            boolean isSwitchAccount = returnTo != null && returnTo.startsWith("/invite/");
             ctx.render("auth/login.jte", model(
                     "title",     "ログイン",
                     "inviteContext", inviteContext,
                     "providers", oidcService.enabledProviders(),
-                    "baseParams", baseParams
+                    "baseParams", baseParams,
+                    "isSwitchAccount", isSwitchAccount
             ));
         });
 
@@ -441,6 +443,40 @@ public final class Main {
             }
         });
 
+        app.post("/auth/switch-account", ctx -> {
+            Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
+            if (principalOpt.isEmpty()) {
+                ctx.redirect("/login");
+                return;
+            }
+            String returnTo = ctx.formParam("return_to");
+
+            // return_to validation: only /invite/ paths allowed
+            String safeReturnTo = "/";
+            if (returnTo != null) {
+                try {
+                    String normalized = java.net.URI.create(returnTo).normalize().getPath();
+                    if (normalized.startsWith("/invite/")) {
+                        safeReturnTo = normalized;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // Revoke session (same pattern as logout)
+            String cookie = ctx.cookie(AuthService.SESSION_COOKIE);
+            if (cookie != null) {
+                try {
+                    sessionStore.revokeSession(UUID.fromString(cookie));
+                } catch (IllegalArgumentException ignored) {}
+            }
+            auditService.log(ctx, "ACCOUNT_SWITCH", principalOpt.get(), "SESSION", cookie, Map.of(
+                    "return_to", safeReturnTo
+            ));
+            authService.clearSessionCookie(ctx);
+
+            ctx.redirect("/login?return_to=" + java.net.URLEncoder.encode(safeReturnTo, java.nio.charset.StandardCharsets.UTF_8));
+        });
+
         app.get("/select-tenant", ctx -> {
             Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
             if (principalOpt.isEmpty()) {
@@ -580,7 +616,25 @@ public final class Main {
                 throw new ApiException(410, "INVITATION_EXPIRED", "招待リンクの有効期限が切れているか使用済みです。");
             }
             if (invitation.email() != null && !invitation.email().equalsIgnoreCase(principal.email())) {
-                throw new ApiException(403, "INVITATION_EMAIL_MISMATCH", "Invitation email mismatch");
+                if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
+                    throw new ApiException(403, "INVITATION_EMAIL_MISMATCH", "Invitation email mismatch");
+                }
+                TenantRecord mismatchTenant = store.findTenantById(invitation.tenantId()).orElseThrow();
+                String mismatchInviter = store.findUserById(invitation.createdBy())
+                        .map(UserRecord::displayName).orElse("メンバー");
+                ctx.render("auth/invite-consent.jte", model(
+                        "title", "アカウント切り替え",
+                        "code", code,
+                        "tenantName", mismatchTenant.name(),
+                        "role", invitation.role(),
+                        "inviterName", mismatchInviter,
+                        "isLoggedIn", true,
+                        "isEmailMismatch", true,
+                        "currentEmail", principal.email(),
+                        "csrfToken", currentCsrfToken(ctx, sessionStore),
+                        "inviteLoginHref", "/login?invite=" + code
+                ));
+                return;
             }
             store.acceptInvitation(invitation.id(), invitation.tenantId(), principal.userId(), invitation.role());
             TenantRecord tenant = store.findTenantById(invitation.tenantId()).orElseThrow();

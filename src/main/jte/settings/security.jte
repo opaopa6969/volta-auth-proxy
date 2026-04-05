@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js" defer></script>
 </head>
 <body>
+@template.layout.navbar(currentPath = "/settings/security", userEmail = userId)
 <main class="container">
     <h1>セキュリティ設定</h1>
 

@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/css/volta.css">
 </head>
 <body>
+@template.layout.navbar(currentPath = "/auth/sessions", userEmail = "")
 <main class="container">
     <h1>セッション管理</h1>
     @if(flashMessage != null && !flashMessage.isBlank())

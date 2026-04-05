@@ -14,6 +14,7 @@
     <h1>🎉 ${tenantName} に参加しました</h1>
     <p>ロール: <strong>${role}</strong></p>
     <a class="button" href="${dashboardUrl}">ダッシュボードへ</a>
+    <p style="margin-top:1em"><a href="/settings/security" class="muted">🔑 パスキーを設定す�� →</a></p>
 </main>
 </body>
 </html>

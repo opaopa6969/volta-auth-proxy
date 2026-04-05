@@ -18,12 +18,15 @@ import java.util.Properties;
 
 interface NotificationService {
     void sendInvitationEmail(String to, String inviteLink, String tenantName, String role, String inviterName);
+    void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp);
 
     static NotificationService create(AppConfig config) {
         return switch (config.notificationChannel().toLowerCase()) {
             case "smtp" -> new SmtpNotificationService(config);
             case "sendgrid" -> new SendGridNotificationService(config);
-            default -> (to, inviteLink, tenantName, role, inviterName) -> {
+            default -> new NotificationService() {
+                @Override public void sendInvitationEmail(String to, String inviteLink, String tenantName, String role, String inviterName) {}
+                @Override public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp) {}
             };
         };
     }
@@ -73,6 +76,50 @@ final class SmtpNotificationService implements NotificationService {
             throw new RuntimeException("SMTP send failed: " + e.getMessage(), e);
         }
     }
+
+    @Override
+    public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp) {
+        if (to == null || to.isBlank()) return;
+        try {
+            Properties props = new Properties();
+            props.put("mail.smtp.host", config.smtpHost());
+            props.put("mail.smtp.port", String.valueOf(config.smtpPort()));
+            props.put("mail.smtp.auth", !config.smtpUser().isBlank());
+            props.put("mail.smtp.starttls.enable", "true");
+            Session session;
+            if (!config.smtpUser().isBlank()) {
+                session = Session.getInstance(props, new Authenticator() {
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(config.smtpUser(), config.smtpPassword());
+                    }
+                });
+            } else {
+                session = Session.getInstance(props);
+            }
+            Message msg = new MimeMessage(session);
+            msg.setFrom(new InternetAddress(config.smtpFrom()));
+            msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
+            msg.setSubject("[" + config.baseUrl().replaceAll("https?://", "") + "] 新しいデバイスからのログイン");
+            msg.setText("""
+                    %s さん、
+
+                    新しいデバイスからのログインがありました。
+
+                      デバイス: %s
+                      IP: %s
+                      日時: %s
+
+                    心当たりがない場合は、以下からセッションを確認してください:
+                      %s/settings/sessions
+
+                    ※ このメールに返信しても届きません。
+                    """.formatted(displayName, device, ip, timestamp, config.baseUrl()));
+            Transport.send(msg);
+        } catch (Exception e) {
+            throw new RuntimeException("SMTP send failed: " + e.getMessage(), e);
+        }
+    }
 }
 
 final class SendGridNotificationService implements NotificationService {
@@ -99,6 +146,41 @@ final class SendGridNotificationService implements NotificationService {
                 to.replace("\"", ""),
                 config.smtpFrom().replace("\"", ""),
                 tenantName.replace("\"", ""),
+                text.replace("\"", "\\\"")
+        );
+        try {
+            HttpRequest req = HttpRequest.newBuilder(URI.create("https://api.sendgrid.com/v3/mail/send"))
+                    .timeout(Duration.ofSeconds(5))
+                    .header("Authorization", "Bearer " + config.sendgridApiKey())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+            HttpResponse<Void> resp = httpClient.send(req, HttpResponse.BodyHandlers.discarding());
+            if (resp.statusCode() >= 400) {
+                throw new RuntimeException("SendGrid returned " + resp.statusCode());
+            }
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("SendGrid send failed: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp) {
+        if (to == null || to.isBlank() || config.sendgridApiKey().isBlank()) return;
+        String domain = config.baseUrl().replaceAll("https?://", "");
+        String text = "%s さん、\\n\\n新しいデバイスからのログインがありました。\\n\\n  デバイス: %s\\n  IP: %s\\n  日時: %s\\n\\n心当たりがない場合は %s/settings/sessions を確認してください。"
+                .formatted(displayName, device, ip, timestamp, config.baseUrl());
+        String payload = """
+                {"personalizations":[{"to":[{"email":"%s"}]}],
+                 "from":{"email":"%s"},
+                 "subject":"[%s] 新しいデバイスからのログイン",
+                 "content":[{"type":"text/plain","value":"%s"}]}
+                """.formatted(
+                to.replace("\"", ""),
+                config.smtpFrom().replace("\"", ""),
+                domain.replace("\"", ""),
                 text.replace("\"", "\\\"")
         );
         try {

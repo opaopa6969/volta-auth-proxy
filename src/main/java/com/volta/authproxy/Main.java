@@ -254,7 +254,7 @@ public final class Main {
             String code = requireQuery(ctx, "code");
             String state = requireQuery(ctx, "state");
             if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
-                String redirectTo = completeOidcCallback(ctx, code, state, config, store, authService, oidcService, auditService, appRegistry);
+                String redirectTo = completeOidcCallback(ctx, code, state, config, store, authService, oidcService, auditService, appRegistry, objectMapper);
                 ctx.json(Map.of("redirect_to", redirectTo));
                 return;
             }
@@ -301,7 +301,7 @@ public final class Main {
             if (code.isBlank() || state.isBlank()) {
                 throw new ApiException(400, "BAD_REQUEST", "code/state is required");
             }
-            String redirectTo = completeOidcCallback(ctx, code, state, config, store, authService, oidcService, auditService, appRegistry);
+            String redirectTo = completeOidcCallback(ctx, code, state, config, store, authService, oidcService, auditService, appRegistry, objectMapper);
             ctx.json(Map.of("redirect_to", redirectTo));
         });
 
@@ -349,6 +349,7 @@ public final class Main {
                     "via", "saml",
                     "issuer", identity.issuer() == null ? "" : identity.issuer()
             ));
+            checkDeviceAndNotify(principal, ctx, store, objectMapper);
             String returnTo = relayState.returnTo();
             if (!HttpSupport.isAllowedReturnTo(returnTo, config.allowedRedirectDomains())) {
                 returnTo = null;
@@ -2038,7 +2039,8 @@ public final class Main {
             AuthService authService,
             OidcService oidcService,
             AuditService auditService,
-            AppRegistry appRegistry
+            AppRegistry appRegistry,
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper
     ) {
         OidcIdentity identity = oidcService.exchangeAndValidate(code, state);
         UserRecord user = store.upsertUser(identity.email(), identity.displayName(), identity.googleSub());
@@ -2069,6 +2071,7 @@ public final class Main {
                 "via", identity.provider().toLowerCase() + "_oidc",
                 "invite", identity.inviteCode() != null
         ));
+        checkDeviceAndNotify(principal, ctx, store, objectMapper);
 
         if (identity.inviteCode() != null) {
             return "/invite/" + identity.inviteCode();
@@ -2310,5 +2313,30 @@ public final class Main {
         if (lower.contains("iphone") || lower.contains("ipad")) return "iOS";
         if (lower.contains("linux")) return "Linux";
         return "OS";
+    }
+
+    private static void checkDeviceAndNotify(AuthPrincipal principal, Context ctx,
+                                               SqlStore store, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+        try {
+            String ua = ctx.userAgent();
+            String fp = inferBrowser(ua) + "/" + inferOs(ua);
+            String label = inferBrowser(ua) + " on " + inferOs(ua);
+            String ip = clientIp(ctx);
+            int existing = store.countKnownDevices(principal.userId());
+            boolean isNew = store.upsertKnownDevice(principal.userId(), fp, label, ip);
+            if (isNew && existing > 0) {
+                String payload = objectMapper.writeValueAsString(java.util.Map.of(
+                        "to", principal.email(),
+                        "displayName", principal.displayName() != null ? principal.displayName() : principal.email(),
+                        "device", label,
+                        "ip", ip,
+                        "timestamp", java.time.Instant.now().toString()
+                ));
+                store.enqueueOutboxEvent(null, "notification.new_device", payload);
+            }
+        } catch (Exception e) {
+            // Device notification must never block login
+            System.err.println("Device check failed: " + e.getMessage());
+        }
     }
 }

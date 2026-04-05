@@ -2061,6 +2061,45 @@ public final class SqlStore {
         }
     }
 
+    /**
+     * Upsert a known device. Returns true if the device is new (INSERT), false if existing (UPDATE).
+     */
+    public boolean upsertKnownDevice(UUID userId, String fingerprint, String label, String lastIp) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO known_devices (user_id, fingerprint, label, last_ip)
+                     VALUES (?, ?, ?, ?)
+                     ON CONFLICT (user_id, fingerprint)
+                     DO UPDATE SET last_seen_at = now(), last_ip = EXCLUDED.last_ip
+                     RETURNING (xmax = 0) AS is_new
+                     """)) {
+            ps.setObject(1, userId);
+            ps.setString(2, fingerprint);
+            ps.setString(3, label);
+            ps.setString(4, lastIp);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getBoolean("is_new");
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int countKnownDevices(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT COUNT(*) FROM known_devices WHERE user_id = ?")) {
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public UUID enqueueOutboxEvent(UUID tenantId, String eventType, String payloadJson) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

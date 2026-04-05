@@ -96,13 +96,25 @@ final class OutboxWorker implements AutoCloseable {
     private void processNotification(SqlStore.OutboxRecord outbox) {
         try {
             com.fasterxml.jackson.databind.JsonNode payload = new com.fasterxml.jackson.databind.ObjectMapper().readTree(outbox.payload());
-            String to = payload.path("to").asText();
-            String inviteLink = payload.path("inviteLink").asText();
-            String tenantName = payload.path("tenantName").asText();
-            String role = payload.path("role").asText();
-            String inviterName = payload.path("inviterName").asText();
-
-            notificationService.sendInvitationEmail(to, inviteLink, tenantName, role, inviterName);
+            switch (outbox.eventType()) {
+                case "notification.invitation" -> {
+                    notificationService.sendInvitationEmail(
+                            payload.path("to").asText(),
+                            payload.path("inviteLink").asText(),
+                            payload.path("tenantName").asText(),
+                            payload.path("role").asText(),
+                            payload.path("inviterName").asText());
+                }
+                case "notification.new_device" -> {
+                    notificationService.sendNewDeviceEmail(
+                            payload.path("to").asText(),
+                            payload.path("displayName").asText(),
+                            payload.path("device").asText(),
+                            payload.path("ip").asText(),
+                            payload.path("timestamp").asText());
+                }
+                default -> { /* unknown notification type */ }
+            }
             store.markOutboxPublished(outbox.id());
         } catch (Exception e) {
             int nextAttempt = outbox.attemptCount() + 1;

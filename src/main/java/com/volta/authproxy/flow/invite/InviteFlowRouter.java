@@ -43,8 +43,8 @@ public final class InviteFlowRouter {
     }
 
     public void register(Javalin app) {
-        app.get("/invite/sm/{code}", this::handleConsent);
-        app.post("/invite/sm/{code}/accept", this::handleAccept);
+        app.get("/invite/{code}", this::handleConsent);
+        app.post("/invite/{code}/accept", this::handleAccept);
     }
 
     /**

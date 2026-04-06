@@ -93,7 +93,7 @@ public final class Main {
             var oidcFlowDef = com.volta.authproxy.flow.oidc.OidcFlowDef.create(
                     oidcService, stateCodec, authService, appRegistry, store, config);
             new com.volta.authproxy.flow.oidc.OidcFlowRouter(
-                    flowEngine, oidcFlowDef, stateCodec, config, auditService, objectMapper, store
+                    flowEngine, oidcFlowDef, stateCodec, config, auditService, objectMapper, store, oidcService
             ).register(app);
 
             // Passkey Flow
@@ -324,62 +324,9 @@ public final class Main {
                 }
             }
         });
-        app.get("/login", ctx -> {
-            if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
-                HttpSupport.jsonError(ctx, 401, "AUTHENTICATION_REQUIRED", "Login required");
-                return;
-            }
-            ensureOidcConfig(oidcService);
-            String returnToRaw = ctx.queryParam("return_to");
-            String inviteCode = ctx.queryParam("invite");
-            String returnTo = HttpSupport.isAllowedReturnTo(returnToRaw, config.allowedRedirectDomains()) ? returnToRaw : null;
-            if ("1".equals(ctx.queryParam("start"))) {
-                ctx.redirect(oidcService.createAuthorizationUrl(returnTo, inviteCode, ctx.queryParam("provider")));
-                return;
-            }
-            Map<String, String> inviteContext = null;
-            if (inviteCode != null && !inviteCode.isBlank()) {
-                InvitationRecord invitation = store.findInvitationByCode(inviteCode).orElse(null);
-                if (invitation != null) {
-                    String tenantName = store.findTenantById(invitation.tenantId()).map(TenantRecord::name).orElse("ワークスペース");
-                    String inviterName = store.findUserById(invitation.createdBy()).map(UserRecord::displayName).orElse("メンバー");
-                    inviteContext = Map.of(
-                            "tenantName", tenantName,
-                            "inviterName", inviterName,
-                            "role", invitation.role()
-                    );
-                }
-            }
-            String baseParams = (returnTo != null ? "&return_to=" + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8) : "")
-                    + (inviteCode != null ? "&invite=" + java.net.URLEncoder.encode(inviteCode, java.nio.charset.StandardCharsets.UTF_8) : "");
-            boolean isSwitchAccount = returnTo != null && returnTo.startsWith("/invite/");
-            ctx.render("auth/login.jte", model(
-                    "title",     "ログイン",
-                    "inviteContext", inviteContext,
-                    "providers", oidcService.enabledProviders(),
-                    "baseParams", baseParams,
-                    "isSwitchAccount", isSwitchAccount
-            ));
-        });
+        // GET /login — handled by OidcFlowRouter
 
-        app.get("/callback", ctx -> {
-            setNoStore(ctx);
-            if (ctx.queryParam("error") != null) {
-                throw new ApiException(400, "OIDC_FAILED", "OIDC failed: " + ctx.queryParam("error"));
-            }
-            String code = requireQuery(ctx, "code");
-            String state = requireQuery(ctx, "state");
-            if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
-                String redirectTo = completeOidcCallback(ctx, code, state, config, store, authService, oidcService, auditService, appRegistry, objectMapper);
-                ctx.json(Map.of("redirect_to", redirectTo));
-                return;
-            }
-            ctx.render("auth/callback.jte", model(
-                    "title", "ログイン処理中",
-                    "code", code,
-                    "state", state
-            ));
-        });
+        // GET /callback — handled by OidcFlowRouter
 
         app.get("/auth/saml/login", ctx -> {
             String tenantRaw = ctx.queryParam("tenant_id");
@@ -409,17 +356,7 @@ public final class Main {
             ctx.redirect(redirect);
         });
 
-        app.post("/auth/callback/complete", ctx -> {
-            setNoStore(ctx);
-            JsonNode body = objectMapper.readTree(ctx.body());
-            String code = body.path("code").asText();
-            String state = body.path("state").asText();
-            if (code.isBlank() || state.isBlank()) {
-                throw new ApiException(400, "BAD_REQUEST", "code/state is required");
-            }
-            String redirectTo = completeOidcCallback(ctx, code, state, config, store, authService, oidcService, auditService, appRegistry, objectMapper);
-            ctx.json(Map.of("redirect_to", redirectTo));
-        });
+        // POST /auth/callback/complete — handled by OidcFlowRouter
 
         app.post("/auth/saml/callback", ctx -> {
             setNoStore(ctx);
@@ -478,60 +415,7 @@ public final class Main {
             }
         });
 
-        app.get("/mfa/challenge", ctx -> {
-            if (!authService.isMfaPending(ctx)) {
-                ctx.redirect("/select-tenant");
-                return;
-            }
-            ctx.result("""
-                    <!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-                    <title>MFA認証</title><link rel="stylesheet" href="/css/volta.css"></head><body><main class="container">
-                    <h1>MFA 認証</h1><p>TOTP コードを入力してください。</p>
-                    <form id="mfa-form"><input name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" style="min-height:44px;" required>
-                    <button class="button" type="submit">確認</button></form><p id="err" class="muted"></p>
-                    <script>
-                    document.getElementById('mfa-form').addEventListener('submit', async function(e){
-                      e.preventDefault();
-                      var code = Number(this.code.value || 0);
-                      var res = await fetch('/auth/mfa/verify', {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify({code})});
-                      if(!res.ok){ document.getElementById('err').textContent='コードが正しくありません'; return; }
-                      var p = await res.json();
-                      var params = new URLSearchParams(window.location.search);
-                      var returnTo = params.get('return_to');
-                      location.href = returnTo || p.redirect_to || '/select-tenant';
-                    });
-                    </script></main></body></html>
-                    """).contentType("text/html; charset=utf-8");
-        });
-
-        app.post("/auth/mfa/verify", ctx -> {
-            SessionRecord session = authService.currentSession(ctx)
-                    .orElseThrow(() -> new ApiException(401, "AUTHENTICATION_REQUIRED", "Authentication required"));
-            JsonNode body = objectMapper.readTree(ctx.body());
-            int code = body.path("code").asInt(-1);
-            String recoveryCode = body.path("recovery_code").asText("");
-            boolean verified;
-            if (recoveryCode != null && !recoveryCode.isBlank()) {
-                String hash = SecurityUtils.sha256Hex(recoveryCode.replace("-", "").toUpperCase(Locale.ROOT));
-                verified = store.consumeRecoveryCode(session.userId(), hash);
-            } else {
-                SqlStore.UserMfaRecord mfa = store.findUserMfa(session.userId(), "totp")
-                        .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "MFA setup not found"));
-                com.warrenstrange.googleauth.GoogleAuthenticator ga = new com.warrenstrange.googleauth.GoogleAuthenticator();
-                verified = ga.authorize(secretCipher.decrypt(mfa.secret()), code);
-            }
-            if (!verified) {
-                throw new ApiException(400, "MFA_INVALID_CODE", "MFA code is invalid");
-            }
-            authService.markMfaVerified(session.id());
-            String next = session.returnTo();
-            if (next != null && next.startsWith("invite:")) {
-                next = "/invite/" + next.substring("invite:".length());
-            } else if (next == null || next.isBlank()) {
-                next = "/select-tenant";
-            }
-            ctx.json(Map.of("ok", true, "redirect_to", next));
-        });
+        // GET /mfa/challenge + POST /auth/mfa/verify — handled by MfaFlowRouter
 
         app.post("/auth/refresh", ctx -> {
             Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
@@ -671,131 +555,7 @@ public final class Main {
             ctx.json(Map.of("ok", true, "tenantId", tenantId.toString()));
         });
 
-        app.get("/invite/{code}", ctx -> {
-            String code = ctx.pathParam("code");
-            InvitationRecord invitation = store.findInvitationByCode(code)
-                    .orElseThrow(() -> new ApiException(404, "INVITATION_NOT_FOUND", "招待リンクが見つかりません。"));
-            TenantRecord tenant = store.findTenantById(invitation.tenantId())
-                    .orElseThrow(() -> new ApiException(404, "TENANT_NOT_FOUND", "テナントが見つかりません。"));
-            String inviter = store.findUserById(invitation.createdBy())
-                    .map(UserRecord::displayName)
-                    .orElse("メンバー");
-            if (!invitation.isUsableAt(Instant.now())) {
-                String codeType = invitation.expiresAt().isBefore(Instant.now()) ? "INVITATION_EXPIRED" : "INVITATION_EXHAUSTED";
-                String message = invitation.expiresAt().isBefore(Instant.now())
-                        ? "招待リンクの有効期限が切れています。"
-                        : "この招待リンクは使用済みです。";
-                ctx.status(410).render("error/error.jte", model(
-                        "code", codeType,
-                        "message", message,
-                        "actionHref", "/login",
-                        "actionLabel", "ログイン"
-                ));
-                return;
-            }
-            Optional<AuthPrincipal> principal = authService.authenticate(ctx);
-            if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
-                ctx.json(Map.of(
-                        "code", invitation.code(),
-                        "tenantId", tenant.id().toString(),
-                        "tenantName", tenant.name(),
-                        "role", invitation.role(),
-                        "inviterName", inviter,
-                        "expiresAt", invitation.expiresAt().toString(),
-                        "requiresLogin", principal.isEmpty()
-                ));
-                return;
-            }
-            if (principal.isEmpty()) {
-                ctx.render("auth/invite-consent.jte", model(
-                        "title", "招待リンク",
-                        "code", code,
-                        "tenantName", tenant.name(),
-                        "role", invitation.role(),
-                        "inviterName", inviter,
-                        "isLoggedIn", false,
-                        "csrfToken", "",
-                        "inviteLoginHref", "/login?invite=" + code
-                ));
-                return;
-            }
-            ctx.render("auth/invite-consent.jte", model(
-                    "title", "招待参加の確認",
-                    "code", code,
-                "tenantName", tenant.name(),
-                "role", invitation.role(),
-                "inviterName", inviter,
-                "isLoggedIn", true,
-                "csrfToken", currentCsrfToken(ctx, sessionStore),
-                "inviteLoginHref", "/login?invite=" + code
-            ));
-        });
-
-        app.post("/invite/{code}/accept", ctx -> {
-            String code = ctx.pathParam("code");
-            Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
-            if (principalOpt.isEmpty()) {
-                if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
-                    throw new ApiException(401, "AUTHENTICATION_REQUIRED", "Authentication required");
-                }
-                ctx.redirect("/login?return_to=" + java.net.URLEncoder.encode(ctx.fullUrl(), java.nio.charset.StandardCharsets.UTF_8));
-                return;
-            }
-            AuthPrincipal principal = principalOpt.get();
-            InvitationRecord invitation = store.findInvitationByCode(code)
-                    .orElseThrow(() -> new ApiException(404, "INVITATION_NOT_FOUND", "招待リンクが見つかりません。"));
-            if (!invitation.isUsableAt(Instant.now())) {
-                throw new ApiException(410, "INVITATION_EXPIRED", "招待リンクの有効期限が切れているか使用済みです。");
-            }
-            if (invitation.email() != null && !invitation.email().equalsIgnoreCase(principal.email())) {
-                if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
-                    throw new ApiException(403, "INVITATION_EMAIL_MISMATCH", "Invitation email mismatch");
-                }
-                TenantRecord mismatchTenant = store.findTenantById(invitation.tenantId()).orElseThrow();
-                String mismatchInviter = store.findUserById(invitation.createdBy())
-                        .map(UserRecord::displayName).orElse("メンバー");
-                ctx.render("auth/invite-consent.jte", model(
-                        "title", "アカウント切り替え",
-                        "code", code,
-                        "tenantName", mismatchTenant.name(),
-                        "role", invitation.role(),
-                        "inviterName", mismatchInviter,
-                        "isLoggedIn", true,
-                        "isEmailMismatch", true,
-                        "currentEmail", principal.email(),
-                        "csrfToken", currentCsrfToken(ctx, sessionStore),
-                        "inviteLoginHref", "/login?invite=" + code
-                ));
-                return;
-            }
-            store.acceptInvitation(invitation.id(), invitation.tenantId(), principal.userId(), invitation.role());
-            TenantRecord tenant = store.findTenantById(invitation.tenantId()).orElseThrow();
-            AuthPrincipal switched = new AuthPrincipal(
-                    principal.userId(),
-                    principal.email(),
-                    principal.displayName(),
-                    tenant.id(),
-                    tenant.name(),
-                    tenant.slug(),
-                    List.of(invitation.role()),
-                    false
-            );
-            UUID sessionId = authService.issueSession(switched, null, clientIp(ctx), ctx.userAgent());
-            setSessionCookie(ctx, sessionId, config.sessionTtlSeconds());
-            auditService.log(ctx, "INVITATION_ACCEPTED", switched, "INVITATION", invitation.id().toString(), Map.of(
-                    "code", code,
-                    "role", invitation.role()
-            ));
-            if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
-                ctx.json(Map.of("ok", true, "redirect_to", "/console/"));
-                return;
-            }
-            ctx.render("auth/invite-done.jte", model(
-                    "tenantName", tenant.name(),
-                    "role", invitation.role(),
-                    "dashboardUrl", "/console/"
-            ));
-        });
+        // GET /invite/{code} + POST /invite/{code}/accept — handled by InviteFlowRouter
 
         // --- Passkey (WebAuthn) endpoints ---
 
@@ -938,97 +698,7 @@ public final class Main {
             ctx.json(Map.of("ok", true));
         });
 
-        // Passkey login (unauthenticated)
-        app.post("/auth/passkey/start", ctx -> {
-            byte[] challenge = new byte[32];
-            new java.security.SecureRandom().nextBytes(challenge);
-            String challengeB64 = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(challenge);
-
-            // Store challenge temporarily (use a simple server-side map for now)
-            // In production, use Redis with TTL
-            ctx.sessionAttribute("passkey_challenge", challengeB64);
-
-            ctx.json(Map.of(
-                "challenge", challengeB64,
-                "rpId", config.webauthnRpId(),
-                "timeout", 300000,
-                "userVerification", "preferred"
-            ));
-        });
-
-        app.post("/auth/passkey/finish", ctx -> {
-            String storedChallenge = ctx.sessionAttribute("passkey_challenge");
-            if (storedChallenge == null) {
-                throw new ApiException(400, "CHALLENGE_EXPIRED", "Login challenge expired");
-            }
-            ctx.sessionAttribute("passkey_challenge", null);
-
-            com.fasterxml.jackson.databind.JsonNode body = objectMapper.readTree(ctx.body());
-            String credentialIdB64 = body.path("id").asText();
-            com.fasterxml.jackson.databind.JsonNode response = body.path("response");
-            String clientDataJsonB64 = response.path("clientDataJSON").asText();
-            String authenticatorDataB64 = response.path("authenticatorData").asText();
-            String signatureB64 = response.path("signature").asText();
-            String userHandleB64 = response.path("userHandle").asText(null);
-
-            byte[] credentialId = java.util.Base64.getUrlDecoder().decode(credentialIdB64);
-            byte[] clientDataJson = java.util.Base64.getUrlDecoder().decode(clientDataJsonB64);
-            byte[] authenticatorData = java.util.Base64.getUrlDecoder().decode(authenticatorDataB64);
-            byte[] signature = java.util.Base64.getUrlDecoder().decode(signatureB64);
-
-            SqlStore.PasskeyRecord passkey = store.findPasskeyByCredentialId(credentialId)
-                    .orElseThrow(() -> new ApiException(401, "PASSKEY_NOT_FOUND", "Passkey not recognized"));
-
-            // Verify assertion using webauthn4j
-            com.webauthn4j.data.AuthenticationRequest authRequest = new com.webauthn4j.data.AuthenticationRequest(
-                    credentialId, authenticatorData, clientDataJson, signature);
-            com.webauthn4j.authenticator.AuthenticatorImpl authenticator = new com.webauthn4j.authenticator.AuthenticatorImpl(
-                    new com.webauthn4j.data.attestation.authenticator.AttestedCredentialData(
-                            passkey.aaguid() != null ? new com.webauthn4j.data.attestation.authenticator.AAGUID(passkey.aaguid()) : com.webauthn4j.data.attestation.authenticator.AAGUID.ZERO,
-                            credentialId,
-                            new com.webauthn4j.converter.util.ObjectConverter()
-                                    .getCborConverter().readValue(passkey.publicKey(), com.webauthn4j.data.attestation.authenticator.COSEKey.class)),
-                    null, passkey.signCount());
-
-            com.webauthn4j.data.AuthenticationParameters authParams = new com.webauthn4j.data.AuthenticationParameters(
-                    new com.webauthn4j.server.ServerProperty(
-                            new com.webauthn4j.data.client.Origin(config.webauthnRpOrigin()),
-                            config.webauthnRpId(),
-                            new com.webauthn4j.data.client.challenge.DefaultChallenge(java.util.Base64.getUrlDecoder().decode(storedChallenge)),
-                            null),
-                    authenticator, null, true);
-
-            com.webauthn4j.WebAuthnManager webAuthnManager = com.webauthn4j.WebAuthnManager.createNonStrictWebAuthnManager();
-            com.webauthn4j.data.AuthenticationData authData = webAuthnManager.validate(authRequest, authParams);
-
-            // Update sign count
-            long newSignCount = authData.getAuthenticatorData().getSignCount();
-            store.updatePasskeyCounter(passkey.id(), newSignCount);
-
-            // Resolve user and tenant
-            UserRecord user = store.findUserById(passkey.userId())
-                    .orElseThrow(() -> new ApiException(401, "USER_NOT_FOUND", "User not found"));
-            TenantRecord tenant = resolveTenant(store, user, null);
-            MembershipRecord membership = store.findMembership(user.id(), tenant.id())
-                    .orElseThrow(() -> new ApiException(403, "TENANT_ACCESS_DENIED", "Tenant membership not found"));
-
-            AuthPrincipal principal = new AuthPrincipal(
-                    user.id(), user.email(), user.displayName(),
-                    tenant.id(), tenant.name(), tenant.slug(),
-                    List.of(membership.role()), false);
-
-            // Issue session with MFA already verified (Passkey = MFA equivalent)
-            UUID sessionId = authService.issueSession(principal, null, clientIp(ctx), ctx.userAgent());
-            setSessionCookie(ctx, sessionId, config.sessionTtlSeconds());
-            authService.markMfaVerified(sessionId);
-
-            auditService.log(ctx, "LOGIN_SUCCESS", principal, "SESSION", sessionId.toString(), Map.of(
-                    "via", "passkey"
-            ));
-            checkDeviceAndNotify(principal, ctx, store, objectMapper);
-
-            ctx.json(Map.of("ok", true, "redirect_to", "https://console.unlaxer.org/"));
-        });
+        // POST /auth/passkey/start+finish — handled by PasskeyFlowRouter
 
         app.get("/settings/security", ctx -> {
             Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);

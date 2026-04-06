@@ -149,11 +149,20 @@ public final class SqlFlowStore implements FlowStore {
             ps.setString(2, from != null ? from.name() : null);
             ps.setString(3, to.name());
             ps.setString(4, trigger);
-            // TODO: Phase N — redact @Sensitive fields in snapshot
-            ps.setString(5, serializeContext(ctx));
+            ps.setString(5, serializeContextRedacted(ctx));
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new FlowException("DB_ERROR", "Failed to record transition: " + e.getMessage(), e);
+        }
+    }
+
+    private String serializeContextRedacted(FlowContext ctx) {
+        try {
+            var serialized = registry.serialize(ctx);
+            var redacted = SensitiveRedactor.redact(serialized, registry);
+            return objectMapper.writeValueAsString(redacted);
+        } catch (Exception e) {
+            throw new FlowException("SERIALIZE_ERROR", "Failed to serialize flow context (redacted)", e);
         }
     }
 

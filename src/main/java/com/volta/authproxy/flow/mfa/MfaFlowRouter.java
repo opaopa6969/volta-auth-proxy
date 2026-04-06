@@ -38,8 +38,8 @@ public final class MfaFlowRouter {
     }
 
     public void register(Javalin app) {
-        app.get("/mfa/sm/challenge", this::handleChallenge);
-        app.post("/auth/mfa/sm/verify", this::handleVerify);
+        app.get("/mfa/challenge", this::handleChallenge);
+        app.post("/auth/mfa/verify", this::handleVerify);
     }
 
     /**

@@ -23,6 +23,7 @@ public final class OidcFlowRouter {
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
     private final SqlStore store;
+    private final OidcService oidcService;
 
     public OidcFlowRouter(FlowEngine engine,
                           FlowDefinition<OidcFlowState> definition,
@@ -30,7 +31,8 @@ public final class OidcFlowRouter {
                           AppConfig config,
                           AuditService auditService,
                           ObjectMapper objectMapper,
-                          SqlStore store) {
+                          SqlStore store,
+                          OidcService oidcService) {
         this.engine = engine;
         this.definition = definition;
         this.stateCodec = stateCodec;
@@ -38,17 +40,56 @@ public final class OidcFlowRouter {
         this.auditService = auditService;
         this.objectMapper = objectMapper;
         this.store = store;
+        this.oidcService = oidcService;
     }
 
     public void register(Javalin app) {
-        app.get("/auth/oidc/start", this::handleStart);
-        app.get("/auth/oidc/callback", this::handleCallback);
-        app.post("/auth/oidc/callback", this::handleCallbackPost);
+        app.get("/login", this::handleLoginPage);
+        app.get("/callback", this::handleCallback);
+        app.post("/auth/callback/complete", this::handleCallbackPost);
+    }
+
+    /**
+     * Login page: ?start=1 → redirect to IdP, otherwise show login page.
+     */
+    private void handleLoginPage(Context ctx) {
+        if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
+            HttpSupport.jsonError(ctx, 401, "AUTHENTICATION_REQUIRED", "Login required");
+            return;
+        }
+        if ("1".equals(ctx.queryParam("start"))) {
+            handleStart(ctx);
+            return;
+        }
+        // Show login page with provider list
+        String returnTo = ctx.queryParam("return_to");
+        String inviteCode = ctx.queryParam("invite");
+        java.util.Map<String, String> inviteContext = null;
+        if (inviteCode != null && !inviteCode.isBlank()) {
+            var invitation = store.findInvitationByCode(inviteCode).orElse(null);
+            if (invitation != null) {
+                String tenantName = store.findTenantById(invitation.tenantId())
+                        .map(TenantRecord::name).orElse("ワークスペース");
+                String inviterName = store.findUserById(invitation.createdBy())
+                        .map(UserRecord::displayName).orElse("メンバー");
+                inviteContext = java.util.Map.of(
+                        "tenantName", tenantName, "inviterName", inviterName, "role", invitation.role());
+            }
+        }
+        String baseParams = (returnTo != null ? "&return_to=" + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8) : "")
+                + (inviteCode != null ? "&invite=" + java.net.URLEncoder.encode(inviteCode, java.nio.charset.StandardCharsets.UTF_8) : "");
+        boolean isSwitchAccount = returnTo != null && returnTo.startsWith("/invite/");
+        ctx.render("auth/login.jte", io.javalin.rendering.template.TemplateUtil.model(
+                "title", "ログイン",
+                "inviteContext", inviteContext,
+                "providers", oidcService.enabledProviders(),
+                "baseParams", baseParams,
+                "isSwitchAccount", isSwitchAccount
+        ));
     }
 
     /**
      * Start OIDC flow: creates flow instance and redirects to IdP.
-     * GET /auth/oidc/start?provider=GOOGLE&return_to=...&invite=...
      */
     private void handleStart(Context ctx) {
         String returnTo = ctx.queryParam("return_to");

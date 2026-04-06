@@ -1,0 +1,12 @@
+stateDiagram-v2
+    [*] --> INIT
+    INIT --> CHALLENGE_ISSUED : PasskeyChallengeProcessor
+    CHALLENGE_ISSUED --> ASSERTION_RECEIVED : [PasskeyAssertionGuard]
+    ASSERTION_RECEIVED --> USER_RESOLVED : PasskeyVerifyProcessor
+    USER_RESOLVED --> COMPLETE : PasskeySessionProcessor
+    ASSERTION_RECEIVED --> TERMINAL_ERROR : error
+    CHALLENGE_ISSUED --> TERMINAL_ERROR : error
+    INIT --> TERMINAL_ERROR : error
+    USER_RESOLVED --> TERMINAL_ERROR : error
+    COMPLETE --> [*]
+    TERMINAL_ERROR --> [*]

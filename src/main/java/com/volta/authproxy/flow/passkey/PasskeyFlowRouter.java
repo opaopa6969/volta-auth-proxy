@@ -34,8 +34,8 @@ public final class PasskeyFlowRouter {
     }
 
     public void register(Javalin app) {
-        app.post("/auth/passkey/sm/start", this::handleStart);
-        app.post("/auth/passkey/sm/finish", this::handleFinish);
+        app.post("/auth/passkey/start", this::handleStart);
+        app.post("/auth/passkey/finish", this::handleFinish);
     }
 
     /**

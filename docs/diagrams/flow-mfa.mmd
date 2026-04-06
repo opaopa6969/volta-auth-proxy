@@ -1,0 +1,7 @@
+stateDiagram-v2
+    [*] --> CHALLENGE_SHOWN
+    CHALLENGE_SHOWN --> VERIFIED : [MfaCodeGuard]
+    CHALLENGE_SHOWN --> TERMINAL_ERROR : error
+    VERIFIED --> [*]
+    TERMINAL_ERROR --> [*]
+    EXPIRED --> [*]

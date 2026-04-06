@@ -18,9 +18,9 @@
     @endif
     <div id="tenant-list" class="tenant-grid">
         @for(java.util.Map<String, Object> t : tenants)
-            <button class="tenant-card" data-tenant-id="${t.get("id")}">
-                <div><strong>${t.get("name")}</strong> <span class="muted">(${t.get("slug")})</span></div>
-                <div class="muted">role: ${t.get("role")}</div>
+            <button class="tenant-card" data-tenant-id="${String.valueOf(t.get("id"))}">
+                <div><strong>${String.valueOf(t.get("name"))}</strong> <span class="muted">(${String.valueOf(t.get("slug"))})</span></div>
+                <div class="muted">role: ${String.valueOf(t.get("role"))}</div>
                 @if(Boolean.TRUE.equals(t.get("isLast")))
                     <span class="badge">前回</span>
                 @endif

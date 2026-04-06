@@ -946,7 +946,7 @@ public final class Main {
             UserRecord user = store.findUserById(passkey.userId())
                     .orElseThrow(() -> new ApiException(401, "USER_NOT_FOUND", "User not found"));
             TenantRecord tenant = resolveTenant(store, user, null);
-            MembershipRecord membership = store.findMembership(tenant.id(), user.id())
+            MembershipRecord membership = store.findMembership(user.id(), tenant.id())
                     .orElseThrow(() -> new ApiException(403, "TENANT_ACCESS_DENIED", "Tenant membership not found"));
 
             AuthPrincipal principal = new AuthPrincipal(

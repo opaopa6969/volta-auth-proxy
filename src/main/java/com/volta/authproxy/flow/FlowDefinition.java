@@ -75,10 +75,17 @@ public final class FlowDefinition<S extends Enum<S> & FlowState> {
         private int maxGuardRetries = 3;
         private final List<Transition<S>> transitions = new ArrayList<>();
         private final Map<S, S> errorTransitions = new LinkedHashMap<>();
+        private final Set<Class<?>> initiallyAvailable = new HashSet<>();
 
         private Builder(String name, Class<S> stateClass) {
             this.name = name;
             this.stateClass = stateClass;
+        }
+
+        /** Declare data types that will be provided via startFlow(initialData). */
+        public Builder<S> initiallyAvailable(Class<?>... types) {
+            Collections.addAll(initiallyAvailable, types);
+            return this;
         }
 
         public Builder<S> ttl(Duration ttl) {
@@ -326,7 +333,7 @@ public final class FlowDefinition<S extends Enum<S> & FlowState> {
             if (def.initialState == null) return;
             // Walk all paths from initial, track what's produced
             Set<S> visited = EnumSet.noneOf(stateClass);
-            checkRequiresProducesFrom(def, def.initialState, new HashSet<>(), visited, errors);
+            checkRequiresProducesFrom(def, def.initialState, new HashSet<>(initiallyAvailable), visited, errors);
         }
 
         private void checkRequiresProducesFrom(FlowDefinition<S> def, S state,

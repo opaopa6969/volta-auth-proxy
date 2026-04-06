@@ -47,12 +47,26 @@ public final class FlowEngine {
      */
     public <S extends Enum<S> & FlowState> FlowInstance<S> resumeAndExecute(
             String flowId, FlowDefinition<S> definition) {
+        return resumeAndExecute(flowId, definition, Map.of());
+    }
+
+    /**
+     * Resume a flow with external data (e.g. HTTP callback params).
+     * External data is merged into FlowContext before guard execution.
+     */
+    public <S extends Enum<S> & FlowState> FlowInstance<S> resumeAndExecute(
+            String flowId, FlowDefinition<S> definition, Map<Class<?>, Object> externalData) {
 
         var flowOpt = store.loadForUpdate(flowId, definition);
         if (flowOpt.isEmpty()) {
             throw new FlowException("FLOW_NOT_FOUND", "Flow " + flowId + " not found or already completed");
         }
         var flow = flowOpt.get();
+
+        // Merge external data into context
+        for (var entry : externalData.entrySet()) {
+            putRaw(flow.context(), entry.getKey(), entry.getValue());
+        }
 
         // Check expiry
         if (Instant.now().isAfter(flow.expiresAt())) {

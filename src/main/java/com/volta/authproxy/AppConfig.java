@@ -53,7 +53,8 @@ public record AppConfig(
         String appleClientId,
         String appleClientSecret,
         String linkedinClientId,
-        String linkedinClientSecret
+        String linkedinClientSecret,
+        String authFlowHmacKey
 ) {
     public static AppConfig fromEnv() {
         PropStack p = new PropStack();
@@ -108,7 +109,8 @@ public record AppConfig(
                 p.get("APPLE_CLIENT_ID", ""),
                 p.get("APPLE_CLIENT_SECRET", ""),
                 p.get("LINKEDIN_CLIENT_ID", ""),
-                p.get("LINKEDIN_CLIENT_SECRET", "")
+                p.get("LINKEDIN_CLIENT_SECRET", ""),
+                p.get("AUTH_FLOW_HMAC_KEY", "dev-only-hmac-key-change-me")
         );
     }
 

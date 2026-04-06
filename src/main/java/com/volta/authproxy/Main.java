@@ -19,6 +19,7 @@ import java.util.*;
 import static io.javalin.rendering.template.TemplateUtil.model;
 
 public final class Main {
+    private static PolicyEngine policy;
     private Main() {
     }
 
@@ -38,6 +39,7 @@ public final class Main {
         AuditService auditService = new AuditService(store, auditSink);
         NotificationService notificationService = NotificationService.create(config);
         OutboxWorker outboxWorker = new OutboxWorker(config, store, notificationService);
+        policy = PolicyEngine.defaultPolicy();
         RateLimiter rateLimiter = new RateLimiter(200);
         ObjectMapper objectMapper = new ObjectMapper()
                 .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
@@ -675,8 +677,8 @@ public final class Main {
         app.get("/api/v1/users/{userId}/passkeys", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID userId = UUID.fromString(ctx.pathParam("userId"));
-            if (!p.userId().equals(userId) && !p.roles().contains("ADMIN")) {
-                throw new ApiException(403, "FORBIDDEN", "Access denied");
+            if (!p.userId().equals(userId)) {
+                policy.enforceMinRole(p, "ADMIN");
             }
             var passkeys = store.listPasskeys(userId).stream().map(pk -> {
                 java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
@@ -833,9 +835,7 @@ public final class Main {
                 return;
             }
             AuthPrincipal principal = principalOpt.get();
-            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "管理画面へのアクセス権限がありません。");
-            }
+            policy.enforceMinRole(principal, "ADMIN");
             List<MembershipRecord> members = store.listTenantMembers(principal.tenantId(), 0, 100);
             List<Map<String, String>> memberView = new ArrayList<>();
             for (MembershipRecord m : members) {
@@ -867,9 +867,7 @@ public final class Main {
                 return;
             }
             AuthPrincipal principal = principalOpt.get();
-            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "管理画面へのアクセス権限がありません。");
-            }
+            policy.enforceMinRole(principal, "ADMIN");
             List<InvitationRecord> invitations = store.listInvitations(principal.tenantId(), 0, 100);
             List<Map<String, String>> invitationView = invitations.stream().map(i -> Map.of(
                     "id", i.id().toString(),
@@ -889,9 +887,7 @@ public final class Main {
 
         app.get("/admin/webhooks", ctx -> {
             AuthPrincipal principal = requireAuth(ctx, authService);
-            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "管理画面へのアクセス権限がありません。");
-            }
+            policy.enforceMinRole(principal, "ADMIN");
             List<Map<String, String>> view = store.listWebhooks(principal.tenantId()).stream()
                     .map(w -> Map.of(
                             "id", w.id().toString(),
@@ -910,9 +906,7 @@ public final class Main {
 
         app.get("/admin/idp", ctx -> {
             AuthPrincipal principal = requireAuth(ctx, authService);
-            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "管理画面へのアクセス権限がありません。");
-            }
+            policy.enforceMinRole(principal, "ADMIN");
             List<Map<String, String>> view = store.listIdpConfigs(principal.tenantId()).stream()
                     .map(i -> Map.of(
                             "id", i.id().toString(),
@@ -969,9 +963,7 @@ public final class Main {
 
         app.get("/admin/sessions", ctx -> {
             AuthPrincipal principal = requireAuth(ctx, authService);
-            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "セッション管理の権限がありません。");
-            }
+            policy.enforceMinRole(principal, "ADMIN");
             int offset = parseOffset(ctx.queryParam("offset"));
             int limit = parseLimit(ctx.queryParam("limit"));
             List<SqlStore.AdminSessionView> sessions = store.listAllActiveSessions(offset, limit);
@@ -999,9 +991,7 @@ public final class Main {
 
         app.delete("/admin/sessions/{id}", ctx -> {
             AuthPrincipal principal = requireAuth(ctx, authService);
-            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "セッション管理の権限がありません。");
-            }
+            policy.enforceMinRole(principal, "ADMIN");
             UUID sessionId = UUID.fromString(ctx.pathParam("id"));
             sessionStore.revokeSession(sessionId);
             auditService.log(ctx, "ADMIN_SESSION_REVOKED", principal, "SESSION", sessionId.toString(), Map.of());
@@ -1010,9 +1000,7 @@ public final class Main {
 
         app.get("/admin/audit", ctx -> {
             AuthPrincipal principal = requireAuth(ctx, authService);
-            if (!principal.roles().contains("ADMIN") && !principal.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "監査ログ参照の権限がありません。");
-            }
+            policy.enforceMinRole(principal, "ADMIN");
             int offset = parseOffset(ctx.queryParam("offset"));
             int limit = parseLimit(ctx.queryParam("limit"));
             List<Map<String, Object>> logs = store.listAuditLogs(principal.tenantId(), offset, limit);
@@ -1121,12 +1109,12 @@ public final class Main {
             AuthPrincipal principal = principalOpt.get();
             String appId = ctx.header("X-Volta-App-Id");
             String forwardedHost = ctx.header("X-Forwarded-Host");
-            Optional<AppRegistry.AppPolicy> policy = appRegistry.resolve(appId, forwardedHost);
-            if (appId != null && !appId.isBlank() && policy.isEmpty()) {
+            Optional<AppRegistry.AppPolicy> appPolicy = appRegistry.resolve(appId, forwardedHost);
+            if (appId != null && !appId.isBlank() && appPolicy.isEmpty()) {
                 ctx.status(401);
                 return;
             }
-            if (policy.isPresent() && Collections.disjoint(principal.roles(), policy.get().allowedRoles())) {
+            if (appPolicy.isPresent() && Collections.disjoint(principal.roles(), appPolicy.get().allowedRoles())) {
                 ctx.status(401);
                 return;
             }
@@ -1138,7 +1126,7 @@ public final class Main {
             ctx.header("X-Volta-Roles", String.join(",", principal.roles()));
             ctx.header("X-Volta-Display-Name", principal.displayName() == null ? "" : principal.displayName());
             ctx.header("X-Volta-JWT", jwt);
-            policy.ifPresent(p -> ctx.header("X-Volta-App-Id", p.id()));
+            appPolicy.ifPresent(ap -> ctx.header("X-Volta-App-Id", ap.id()));
             ctx.status(200);
         });
 
@@ -1210,8 +1198,8 @@ public final class Main {
         app.get("/api/v1/users/{id}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID userId = UUID.fromString(ctx.pathParam("id"));
-            if (!p.serviceToken() && !p.userId().equals(userId) && !p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "FORBIDDEN", "権限がありません。");
+            if (!p.serviceToken() && !p.userId().equals(userId)) {
+                policy.enforceMinRole(p, "ADMIN");
             }
             UserRecord user = store.findUserById(userId)
                     .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "ユーザーが見つかりません。"));
@@ -1242,7 +1230,7 @@ public final class Main {
         app.get("/api/v1/tenants/{tenantId}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
+            policy.enforceTenantMatch(p, tenantId);
             SqlStore.TenantDetailRecord tenant = store.findTenantDetailById(tenantId)
                     .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "テナントが見つかりません。"));
             ctx.json(tenant);
@@ -1251,10 +1239,8 @@ public final class Main {
         app.patch("/api/v1/tenants/{tenantId}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "OWNER");
             JsonNode body = objectMapper.readTree(ctx.body());
             String name = body.path("name").isMissingNode() ? null : body.path("name").asText(null);
             Boolean autoJoin = body.path("auto_join").isMissingNode() ? null : body.path("auto_join").asBoolean();
@@ -1393,10 +1379,8 @@ public final class Main {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
             UUID userId = UUID.fromString(ctx.pathParam("userId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             store.deactivateUserMfa(userId, "totp");
             store.deleteRecoveryCodes(userId);
             auditService.log(ctx, "ADMIN_MFA_RESET", p, "USER", userId.toString(),
@@ -1423,7 +1407,7 @@ public final class Main {
         app.get("/api/v1/tenants/{tenantId}/members", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
+            policy.enforceTenantMatch(p, tenantId);
             int offset = parseOffset(ctx.queryParam("offset"));
             int limit = parseLimit(ctx.queryParam("limit"));
             List<MembershipRecord> members = store.listTenantMembers(tenantId, offset, limit);
@@ -1434,7 +1418,7 @@ public final class Main {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
             UUID userId = UUID.fromString(ctx.pathParam("userId"));
-            enforceTenantMatch(p, tenantId);
+            policy.enforceTenantMatch(p, tenantId);
             MembershipRecord member = store.findMembershipByUser(tenantId, userId)
                     .orElseThrow(() -> new ApiException(404, "MEMBER_NOT_FOUND", "メンバーが見つかりません。"));
             ctx.json(member);
@@ -1443,10 +1427,8 @@ public final class Main {
         app.patch("/api/v1/tenants/{tenantId}/members/{memberId}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             UUID memberId = UUID.fromString(ctx.pathParam("memberId"));
             JsonNode body = objectMapper.readTree(ctx.body());
             String role = body.path("role").asText();
@@ -1472,10 +1454,8 @@ public final class Main {
         app.post("/api/v1/tenants/{tenantId}/invitations", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             JsonNode body = objectMapper.readTree(ctx.body());
             String code = SecurityUtils.inviteCode();
             String email = body.path("email").isMissingNode() ? null : body.path("email").asText(null);
@@ -1510,10 +1490,8 @@ public final class Main {
         app.post("/api/v1/tenants/{tenantId}/transfer-ownership", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "OWNER");
             JsonNode body = objectMapper.readTree(ctx.body());
             UUID newOwnerUserId = UUID.fromString(body.path("user_id").asText());
             int updated = store.transferOwnership(tenantId, p.userId(), newOwnerUserId);
@@ -1527,10 +1505,8 @@ public final class Main {
         app.get("/api/v1/tenants/{tenantId}/invitations", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             int offset = parseOffset(ctx.queryParam("offset"));
             int limit = parseLimit(ctx.queryParam("limit"));
             List<InvitationRecord> invitations = store.listInvitations(tenantId, offset, limit);
@@ -1540,10 +1516,8 @@ public final class Main {
         app.delete("/api/v1/tenants/{tenantId}/invitations/{invitationId}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             UUID invitationId = UUID.fromString(ctx.pathParam("invitationId"));
             int deleted = store.cancelInvitation(tenantId, invitationId);
             if (deleted == 0) {
@@ -1556,10 +1530,8 @@ public final class Main {
         app.delete("/api/v1/tenants/{tenantId}/members/{memberId}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             UUID memberId = UUID.fromString(ctx.pathParam("memberId"));
             MembershipRecord target = store.findMembershipById(memberId, tenantId)
                     .orElseThrow(() -> new ApiException(404, "MEMBER_NOT_FOUND", "メンバーが見つかりません。"));
@@ -1594,20 +1566,16 @@ public final class Main {
         app.get("/api/v1/tenants/{tenantId}/webhooks", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             ctx.json(Map.of("items", store.listWebhooks(tenantId)));
         });
 
         app.post("/api/v1/tenants/{tenantId}/webhooks", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             JsonNode body = objectMapper.readTree(ctx.body());
             String endpoint = body.path("endpoint_url").asText();
             if (endpoint.isBlank()) {
@@ -1629,10 +1597,8 @@ public final class Main {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
             UUID webhookId = UUID.fromString(ctx.pathParam("webhookId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             var webhook = store.findWebhook(tenantId, webhookId)
                     .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "Webhook が見つかりません。"));
             ctx.json(webhook);
@@ -1642,10 +1608,8 @@ public final class Main {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
             UUID webhookId = UUID.fromString(ctx.pathParam("webhookId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             int limit = Math.min(ctx.queryParamAsClass("limit", Integer.class).getOrDefault(50), 200);
             ctx.json(Map.of("items", store.listWebhookDeliveries(webhookId, limit)));
         });
@@ -1654,10 +1618,8 @@ public final class Main {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
             UUID webhookId = UUID.fromString(ctx.pathParam("webhookId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             var existing = store.findWebhook(tenantId, webhookId)
                     .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "Webhook が見つかりません。"));
             JsonNode body = objectMapper.readTree(ctx.body());
@@ -1680,10 +1642,8 @@ public final class Main {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
             UUID webhookId = UUID.fromString(ctx.pathParam("webhookId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             int updated = store.deactivateWebhook(tenantId, webhookId);
             if (updated == 0) {
                 throw new ApiException(404, "NOT_FOUND", "Webhook が見つかりません。");
@@ -1694,20 +1654,16 @@ public final class Main {
         app.get("/api/v1/tenants/{tenantId}/idp-configs", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             ctx.json(Map.of("items", store.listIdpConfigs(tenantId)));
         });
 
         app.post("/api/v1/tenants/{tenantId}/idp-configs", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             JsonNode body = objectMapper.readTree(ctx.body());
             String providerType = body.path("provider_type").asText("OIDC").toUpperCase(Locale.ROOT);
             String metadataUrl = body.path("metadata_url").asText(null);
@@ -1721,10 +1677,8 @@ public final class Main {
         app.get("/api/v1/tenants/{tenantId}/m2m-clients", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             List<Map<String, Object>> items = store.listM2mClients(tenantId).stream().map(c -> Map.of(
                     "id", c.id().toString(),
                     "tenantId", c.tenantId().toString(),
@@ -1738,10 +1692,8 @@ public final class Main {
         app.post("/api/v1/tenants/{tenantId}/m2m-clients", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             JsonNode body = objectMapper.readTree(ctx.body());
             String name = body.path("name").asText("m2m");
             String clientId = body.path("client_id").asText("m2m_" + tenantId.toString().substring(0, 8) + "_" + SecurityUtils.randomUrlSafe(6));
@@ -1755,20 +1707,16 @@ public final class Main {
         app.get("/api/v1/tenants/{tenantId}/policies", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             ctx.json(Map.of("items", store.listPolicies(tenantId)));
         });
 
         app.post("/api/v1/tenants/{tenantId}/policies", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             JsonNode body = objectMapper.readTree(ctx.body());
             String resource = body.path("resource").asText();
             String action = body.path("action").asText();
@@ -1782,26 +1730,24 @@ public final class Main {
         app.post("/api/v1/tenants/{tenantId}/policies/evaluate", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
+            policy.enforceTenantMatch(p, tenantId);
             JsonNode body = objectMapper.readTree(ctx.body());
             String resource = body.path("resource").asText();
             String action = body.path("action").asText();
-            SqlStore.PolicyRecord policy = store.findMatchingPolicy(tenantId, resource, action).orElse(null);
-            boolean allowed = policy == null || !"deny".equalsIgnoreCase(policy.effect());
+            SqlStore.PolicyRecord matched = store.findMatchingPolicy(tenantId, resource, action).orElse(null);
+            boolean allowed = matched == null || !"deny".equalsIgnoreCase(matched.effect());
             ctx.json(Map.of(
                     "allowed", allowed,
-                    "matchedPolicyId", policy == null ? null : policy.id().toString(),
-                    "effect", policy == null ? "allow(default)" : policy.effect()
+                    "matchedPolicyId", matched == null ? null : matched.id().toString(),
+                    "effect", matched == null ? "allow(default)" : matched.effect()
             ));
         });
 
         app.get("/api/v1/tenants/{tenantId}/billing", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Admin or owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("plans", store.listPlans());
             out.put("subscription", store.findSubscription(tenantId).orElse(null));
@@ -1811,10 +1757,8 @@ public final class Main {
         app.post("/api/v1/tenants/{tenantId}/billing/subscription", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
-            enforceTenantMatch(p, tenantId);
-            if (!p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "Owner role required");
-            }
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "OWNER");
             JsonNode body = objectMapper.readTree(ctx.body());
             String planId = body.path("plan_id").asText("free");
             String status = body.path("status").asText("active");
@@ -1827,8 +1771,8 @@ public final class Main {
         app.post("/api/v1/users/{userId}/export", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID userId = UUID.fromString(ctx.pathParam("userId"));
-            if (!p.userId().equals(userId) && !p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "FORBIDDEN", "データエクスポートの権限がありません。");
+            if (!p.userId().equals(userId)) {
+                policy.enforceMinRole(p, "ADMIN");
             }
             UserRecord user = store.findUserById(userId).orElseThrow(() -> new ApiException(404, "NOT_FOUND", "ユーザーが見つかりません。"));
             List<SessionRecord> sessions = sessionStore.listUserSessions(userId);
@@ -1898,9 +1842,7 @@ public final class Main {
 
         app.get("/api/v1/admin/audit", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
-            if (!p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
-                throw new ApiException(403, "ROLE_INSUFFICIENT", "監査ログ参照の権限がありません。");
-            }
+            policy.enforceMinRole(p, "ADMIN");
             int offset = parseOffset(ctx.queryParam("offset"));
             int limit = parseLimit(ctx.queryParam("limit"));
             UUID tenantFilter = p.serviceToken() ? null : p.tenantId();
@@ -2227,22 +2169,13 @@ public final class Main {
                 .toList();
     }
 
-    private static void enforceTenantMatch(AuthPrincipal principal, UUID tenantId) {
-        if (principal.serviceToken()) {
-            return;
-        }
-        if (!principal.tenantId().equals(tenantId)) {
-            throw new ApiException(403, "TENANT_ACCESS_DENIED", "Tenant access denied");
-        }
-    }
+    // enforceTenantMatch — moved to PolicyEngine
 
     private static void requireOwner(AuthPrincipal principal) {
         if (principal.serviceToken()) {
             throw new ApiException(403, "FORBIDDEN", "Service token cannot access admin keys");
         }
-        if (!principal.roles().contains("OWNER")) {
-            throw new ApiException(403, "ROLE_INSUFFICIENT", "Owner role required");
-        }
+        policy.enforceMinRole(principal, "OWNER");
     }
 
     private static void renderErrorPage(Context ctx, int status, String code, String message) {

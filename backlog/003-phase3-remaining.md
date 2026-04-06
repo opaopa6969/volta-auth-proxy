@@ -2,7 +2,7 @@
 
 ## Phase: 3
 ## Priority: High
-## Status: 仕様なし → DGE セッションで設計が必要
+## Status: i18n Done (2026-04-07) / 不正検知・条件付きアクセスは DGE 必要
 
 ---
 

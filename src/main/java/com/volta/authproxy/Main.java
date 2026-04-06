@@ -60,6 +60,62 @@ public final class Main {
             });
         });
 
+        // ─── State Machine Flow Routers (Strangler Fig — parallel to existing routes) ───
+        {
+            var flowRegistry = new com.volta.authproxy.flow.FlowDataRegistry(objectMapper);
+            // Register all @FlowData types
+            for (Class<?> c : new Class<?>[]{
+                    com.volta.authproxy.flow.oidc.OidcFlowData.OidcRequest.class,
+                    com.volta.authproxy.flow.oidc.OidcFlowData.OidcRedirect.class,
+                    com.volta.authproxy.flow.oidc.OidcFlowData.OidcCallback.class,
+                    com.volta.authproxy.flow.oidc.OidcFlowData.OidcTokens.class,
+                    com.volta.authproxy.flow.oidc.OidcFlowData.ResolvedUser.class,
+                    com.volta.authproxy.flow.oidc.OidcFlowData.IssuedSession.class,
+                    com.volta.authproxy.flow.passkey.PasskeyFlowData.PasskeyRequest.class,
+                    com.volta.authproxy.flow.passkey.PasskeyFlowData.PasskeyChallenge.class,
+                    com.volta.authproxy.flow.passkey.PasskeyFlowData.PasskeyAssertion.class,
+                    com.volta.authproxy.flow.passkey.PasskeyFlowData.PasskeyVerifiedUser.class,
+                    com.volta.authproxy.flow.passkey.PasskeyFlowData.PasskeyIssuedSession.class,
+                    com.volta.authproxy.flow.mfa.MfaFlowData.MfaSessionContext.class,
+                    com.volta.authproxy.flow.mfa.MfaFlowData.MfaCodeSubmission.class,
+                    com.volta.authproxy.flow.mfa.MfaFlowData.MfaVerified.class,
+                    com.volta.authproxy.flow.invite.InviteFlowData.InviteContext.class,
+                    com.volta.authproxy.flow.invite.InviteFlowData.InviteAcceptSubmission.class,
+                    com.volta.authproxy.flow.invite.InviteFlowData.InviteAccepted.class,
+                    com.volta.authproxy.flow.invite.InviteFlowData.InviteCompleted.class
+            }) { flowRegistry.register(c); }
+
+            var flowStore = new com.volta.authproxy.flow.SqlFlowStore(dataSource, objectMapper, flowRegistry);
+            var flowEngine = new com.volta.authproxy.flow.FlowEngine(flowStore);
+            var stateCodec = new com.volta.authproxy.flow.OidcStateCodec(config.authFlowHmacKey());
+
+            // OIDC Flow
+            var oidcFlowDef = com.volta.authproxy.flow.oidc.OidcFlowDef.create(
+                    oidcService, stateCodec, authService, appRegistry, store, config);
+            new com.volta.authproxy.flow.oidc.OidcFlowRouter(
+                    flowEngine, oidcFlowDef, stateCodec, config, auditService, objectMapper, store
+            ).register(app);
+
+            // Passkey Flow
+            var passkeyFlowDef = com.volta.authproxy.flow.passkey.PasskeyFlowDef.create(
+                    config, authService, appRegistry, store);
+            new com.volta.authproxy.flow.passkey.PasskeyFlowRouter(
+                    flowEngine, passkeyFlowDef, config, auditService, objectMapper
+            ).register(app);
+
+            // MFA Flow
+            var mfaFlowDef = com.volta.authproxy.flow.mfa.MfaFlowDef.create(store, authService, secretCipher);
+            new com.volta.authproxy.flow.mfa.MfaFlowRouter(
+                    flowEngine, mfaFlowDef, config, authService, objectMapper
+            ).register(app);
+
+            // Invite Flow
+            var inviteFlowDef = com.volta.authproxy.flow.invite.InviteFlowDef.create(authService, store, config);
+            new com.volta.authproxy.flow.invite.InviteFlowRouter(
+                    flowEngine, inviteFlowDef, config, authService, auditService, store, objectMapper
+            ).register(app);
+        }
+
         // CORS for auth-console and other subdomains
         app.before(ctx -> {
             String origin = ctx.header("Origin");

@@ -23,7 +23,8 @@ public final class OidcFlowDef {
             AuthService authService,
             AppRegistry appRegistry,
             SqlStore store,
-            AppConfig config) {
+            AppConfig config,
+            FraudAlertClient fraudAlert) {
 
         return FlowDefinition.builder("oidc", OidcFlowState.class)
                 .ttl(Duration.ofMinutes(5))
@@ -43,7 +44,7 @@ public final class OidcFlowDef {
                         new UserResolveProcessor(store))
 
                 .from(USER_RESOLVED).auto(RISK_CHECKED,
-                        new RiskCheckProcessor(store))
+                        new RiskCheckProcessor(store, fraudAlert))
 
                 .from(RISK_CHECKED).branch(new RiskAndMfaBranch())
                     .to(COMPLETE, RiskAndMfaBranch.NO_MFA,

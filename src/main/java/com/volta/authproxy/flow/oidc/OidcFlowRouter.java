@@ -24,6 +24,7 @@ public final class OidcFlowRouter {
     private final ObjectMapper objectMapper;
     private final SqlStore store;
     private final OidcService oidcService;
+    private final FraudAlertClient fraudAlert;
 
     public OidcFlowRouter(FlowEngine engine,
                           FlowDefinition<OidcFlowState> definition,
@@ -32,7 +33,8 @@ public final class OidcFlowRouter {
                           AuditService auditService,
                           ObjectMapper objectMapper,
                           SqlStore store,
-                          OidcService oidcService) {
+                          OidcService oidcService,
+                          FraudAlertClient fraudAlert) {
         this.engine = engine;
         this.definition = definition;
         this.stateCodec = stateCodec;
@@ -41,6 +43,7 @@ public final class OidcFlowRouter {
         this.objectMapper = objectMapper;
         this.store = store;
         this.oidcService = oidcService;
+        this.fraudAlert = fraudAlert;
     }
 
     public void register(Javalin app) {
@@ -210,6 +213,10 @@ public final class OidcFlowRouter {
 
         // Device check
         checkDeviceAndNotify(principal, ctx);
+
+        // fraud-alert feedback (fire-and-forget)
+        fraudAlert.reportLoginSucceed(user.userId(), user.tenantId(),
+                flow.id(), tokens.email(), ctx.userAgent());
 
         // MFA redirect override
         if (session.mfaPending()) {

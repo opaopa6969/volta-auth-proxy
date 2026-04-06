@@ -33,7 +33,8 @@ class MermaidDiagramGenerationTest {
         var oidcDef = OidcFlowDef.create(
                 new OidcService(config, null, new VoltaConfig(1, List.of())),
                 new OidcStateCodec("test"), authService,
-                new AppRegistry(List.of()), null, config);
+                new AppRegistry(List.of()), null, config,
+                new com.volta.authproxy.FraudAlertClient(config, new com.fasterxml.jackson.databind.ObjectMapper()));
         String oidc = MermaidGenerator.writeToFile(oidcDef, DIAGRAMS_DIR);
         assertTrue(oidc.contains("INIT --> REDIRECTED"));
 

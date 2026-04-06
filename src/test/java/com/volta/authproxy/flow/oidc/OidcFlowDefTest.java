@@ -92,7 +92,9 @@ class OidcFlowDefTest {
         var appRegistry = new AppRegistry(List.of());
         var config = AppConfig.fromEnv();
 
+        var fraudAlert = new FraudAlertClient(config, new com.fasterxml.jackson.databind.ObjectMapper());
+
         return OidcFlowDef.create(oidcService, stateCodec, authService,
-                appRegistry, null, config);
+                appRegistry, null, config, fraudAlert);
     }
 }

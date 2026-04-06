@@ -94,10 +94,11 @@ public final class Main {
             var stateCodec = new com.volta.authproxy.flow.OidcStateCodec(config.authFlowHmacKey());
 
             // OIDC Flow
+            var fraudAlertClient = new com.volta.authproxy.FraudAlertClient(config, objectMapper);
             var oidcFlowDef = com.volta.authproxy.flow.oidc.OidcFlowDef.create(
-                    oidcService, stateCodec, authService, appRegistry, store, config);
+                    oidcService, stateCodec, authService, appRegistry, store, config, fraudAlertClient);
             new com.volta.authproxy.flow.oidc.OidcFlowRouter(
-                    flowEngine, oidcFlowDef, stateCodec, config, auditService, objectMapper, store, oidcService
+                    flowEngine, oidcFlowDef, stateCodec, config, auditService, objectMapper, store, oidcService, fraudAlertClient
             ).register(app);
 
             // Passkey Flow

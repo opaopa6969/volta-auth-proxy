@@ -44,7 +44,7 @@ function b64urlDecode(s) {
 }
 async function startPasskeyLogin() {
     try {
-        var startRes = await fetch('/auth/passkey/start', { method: 'POST', credentials: 'include' });
+        var startRes = await fetch('/auth/passkey/start', { method: 'POST', credentials: 'include', headers: {'Accept':'application/json'} });
         var options = await startRes.json();
         var credential = await navigator.credentials.get({
             publicKey: {

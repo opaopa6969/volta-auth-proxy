@@ -84,7 +84,7 @@ public final class Main {
         // IP-based rate limiting for sensitive endpoints
         app.before(ctx -> {
             String path = ctx.path();
-            if (path.equals("/healthz") || path.startsWith("/css/") || path.startsWith("/js/")) return;
+            if (path.equals("/healthz") || path.equals("/auth/verify") || path.startsWith("/css/") || path.startsWith("/js/")) return;
             String ip = clientIp(ctx);
             if (!rateLimiter.allowRequest(ip, path)) {
                 ctx.header("Retry-After", "60");

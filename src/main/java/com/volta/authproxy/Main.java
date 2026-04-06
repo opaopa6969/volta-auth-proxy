@@ -1335,7 +1335,8 @@ public final class Main {
                 String returnTo = (fwdHost != null && fwdUri != null)
                         ? (fwdProto != null ? fwdProto : "http") + "://" + fwdHost + fwdUri
                         : "/";
-                ctx.redirect("/mfa/challenge?return_to=" + java.net.URLEncoder.encode(
+                // Use absolute URL with BASE_URL to avoid leaking internal IP
+                ctx.redirect(config.baseUrl() + "/mfa/challenge?return_to=" + java.net.URLEncoder.encode(
                         returnTo, java.nio.charset.StandardCharsets.UTF_8));
                 return;
             }
@@ -1354,7 +1355,7 @@ public final class Main {
                 if (fwdHost != null && fwdUri != null) {
                     String proto    = fwdProto != null ? fwdProto : "http";
                     String returnTo = proto + "://" + fwdHost + fwdUri;
-                    ctx.redirect("/login?return_to=" + java.net.URLEncoder.encode(
+                    ctx.redirect(config.baseUrl() + "/login?return_to=" + java.net.URLEncoder.encode(
                             returnTo, java.nio.charset.StandardCharsets.UTF_8));
                     return;
                 }

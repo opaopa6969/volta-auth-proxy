@@ -2,7 +2,7 @@
 
 ## Phase: 4
 ## Priority: Medium
-## Status: 仕様なし → DGE セッションで設計が必要
+## Status: PolicyEngine Done (2026-04-07) / GDPR・デバイストラスト・モバイル SDK は DGE 必要
 
 ---
 

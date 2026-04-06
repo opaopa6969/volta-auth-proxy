@@ -86,6 +86,82 @@ open http://localhost:7070/login
 - External audit sink options: `postgres | kafka | elasticsearch`
 - Notification channels: `smtp | sendgrid | none`
 
+## State Machine Architecture
+
+All [authentication](docs/glossary/authentication-vs-authorization.md) flows are driven by a **constrained [state machine](docs/glossary/state-machine.md)** — invalid transitions cannot exist. The engine is ~120 lines with zero business logic.
+
+> The [state machine](docs/glossary/state-machine.md) core was extracted into a standalone library: **[tramli](https://github.com/opaopa6969/tramli)** — usable in any [Java](docs/glossary/java.md) 21+ project.
+> For the design pattern guide, see [STATE-MACHINE-PATTERN-GUIDE.md](docs/STATE-MACHINE-PATTERN-GUIDE.md).
+
+```
+flow/
+  FlowEngine              ~120 lines, zero business logic
+  FlowDefinition           Builder DSL + 8-item build() validation
+  FlowContext              Type-safe data accumulator (Class-keyed)
+
+  oidc/                    OIDC login flow (9 states)
+    OidcInitProcessor       → IdP redirect
+    OidcCallbackGuard       → code/state validation
+    OidcTokenExchangeProcessor → code → token exchange
+    UserResolveProcessor    → user upsert + tenant resolution
+    RiskCheckProcessor      → fraud-alert API integration
+    RiskAndMfaBranch        → 3-way: COMPLETE / MFA_PENDING / BLOCKED
+
+  passkey/                 Passkey login flow (6 states)
+  mfa/                     MFA verification flow (4 states)
+  invite/                  Invitation acceptance flow (6 states)
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> INIT
+    INIT --> REDIRECTED : OidcInitProcessor
+    REDIRECTED --> CALLBACK_RECEIVED : [OidcCallbackGuard]
+    CALLBACK_RECEIVED --> TOKEN_EXCHANGED
+    TOKEN_EXCHANGED --> USER_RESOLVED
+    USER_RESOLVED --> RISK_CHECKED : RiskCheckProcessor
+    RISK_CHECKED --> COMPLETE : RiskAndMfaBranch(no_mfa)
+    RISK_CHECKED --> COMPLETE_MFA_PENDING : RiskAndMfaBranch(mfa)
+    RISK_CHECKED --> BLOCKED : RiskAndMfaBranch(risk=5)
+    COMPLETE --> [*]
+```
+
+### Conditional Access + Device Trust
+
+New [device](docs/glossary/device-fingerprint.md) detection with [Persistent Cookie](docs/glossary/cookie.md) (`__volta_device_trust`). [Tenant](docs/glossary/tenant.md) admins configure the response via `tenant_security_policies`:
+
+| Risk level | New device | Action |
+|-----------|-----------|--------|
+| 1-3 | No | Nothing — normal [login](docs/glossary/login.md) |
+| 1-3 | Yes | Email notification |
+| 4+ | Any | [MFA](docs/glossary/mfa.md) re-verification (step-up) |
+| 5 | Any | Blocked |
+
+Risk scoring is delegated to an external [fraud detection](docs/glossary/fraud-detection.md) service via `FRAUD_ALERT_URL`. [Fail-open](docs/glossary/fail-open.md): if the service is down, risk = 1 (safe). 3s timeout.
+
+### [GDPR](docs/glossary/gdpr.md) Compliance
+
+| Feature | Detail |
+|---------|--------|
+| Data export | `POST /api/v1/users/me/data-export` → [JSON](docs/glossary/json.md) download (user, [memberships](docs/glossary/membership.md), [sessions](docs/glossary/session.md), devices) |
+| Right to erasure | `DELETE /api/v1/users/me` → 30-day grace period, then hard delete |
+| [Audit log](docs/glossary/audit-log.md) anonymization | On deletion: actor_id → NULL, PII stripped from detail [JSONB](docs/glossary/jsonb.md) |
+| Deletion [webhook](docs/glossary/webhook.md) | `user.deletion_requested` / `user.deletion_completed` for [downstream](docs/glossary/downstream-app.md) apps |
+
+### [i18n](docs/glossary/i18n.md) (Internationalization)
+
+All UI strings are externalized to `messages_ja.properties` / `messages_en.properties`. [Locale](docs/glossary/locale.md) resolved from: user preference > `Accept-Language` [header](docs/glossary/header.md) > default (ja).
+
+### [Policy Engine](docs/glossary/policy-engine.md)
+
+[Role](docs/glossary/role.md) [hierarchy](docs/glossary/hierarchy.md) and [permissions](docs/glossary/permission.md) defined in `dsl/policy.yaml`. All [hardcoded](docs/glossary/hardcoded.md) [role](docs/glossary/role.md) checks in Main.[java](docs/glossary/java.md) replaced with `policy.enforceMinRole()` / `policy.enforce()`.
+
+```java
+policy.enforceMinRole(principal, "ADMIN");     // throws 403 if below ADMIN
+policy.enforce(principal, "invite_members");   // throws 403 if not permitted
+policy.enforceTenantMatch(principal, tenantId); // throws 403 if wrong tenant
+```
+
 ***
 
 ## Why volta-auth-proxy?
@@ -178,6 +254,10 @@ volta is the lightest, most controllable option. The [tradeoff](docs/glossary/tr
 | [Content negotiation](docs/glossary/content-negotiation.md) | [JSON](docs/glossary/json.md) requests never get 302 [redirect](docs/glossary/redirect.md)s. Prevents [SPA](docs/glossary/spa.md) fetch confusion |
 | [Audit log](docs/glossary/audit-log.md)ging | Every auth event: login, [logout](docs/glossary/logout.md), [role](docs/glossary/role.md) change, [invitation](docs/glossary/invitation-flow.md), [session](docs/glossary/session.md) [revoke](docs/glossary/revoke.md) |
 | [Cache-Control](docs/glossary/cache-control.md) | `no-store, private` on all auth [endpoint](docs/glossary/endpoint.md)s. Prevents back-button data leaks |
+| [Device trust](docs/glossary/device-fingerprint.md) | [Persistent cookie](docs/glossary/cookie.md) identifies known devices. New [device](docs/glossary/device-fingerprint.md) → notification or [step-up](docs/glossary/step-up-authentication.md) |
+| [Fraud detection](docs/glossary/fraud-detection.md) | Pluggable [risk scoring](docs/glossary/risk-scoring.md) via external API. [Fail-open](docs/glossary/fail-open.md), 3s timeout |
+| [PII](docs/glossary/pii.md) redaction | `@Sensitive` fields auto-masked in [audit](docs/glossary/audit-log.md) [transition](docs/glossary/transition.md) logs |
+| [GDPR](docs/glossary/gdpr.md) | Data export + right to erasure with 30-day grace. [Audit](docs/glossary/audit-log.md) anonymization |
 
 ### Developer Experience
 

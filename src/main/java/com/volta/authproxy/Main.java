@@ -478,6 +478,18 @@ public final class Main {
             ctx.json(Map.of("token", token));
         });
 
+        // GET logout for browser redirects (ForwardAuth, volta-console etc.)
+        app.get("/auth/logout", ctx -> {
+            setNoStore(ctx);
+            String cookie = ctx.cookie(AuthService.SESSION_COOKIE);
+            if (cookie != null) {
+                try { sessionStore.revokeSession(UUID.fromString(cookie)); }
+                catch (IllegalArgumentException ignored) {}
+            }
+            authService.clearSessionCookie(ctx);
+            ctx.redirect(config.baseUrl() + "/login");
+        });
+
         app.post("/auth/logout", ctx -> {
             setNoStore(ctx);
             AuthPrincipal principal = authService.authenticate(ctx).orElse(null);

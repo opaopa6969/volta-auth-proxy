@@ -2,7 +2,7 @@
 
 ## Phase: 4
 ## Priority: Medium
-## Status: Open (blocked by 012)
+## Status: Done (2026-04-07, commit c752176) — Main.java削除は旧ルート切替後
 ## Spec: docs/AUTH-STATE-MACHINE-SPEC.md §7.4, §4, §6
 
 ---

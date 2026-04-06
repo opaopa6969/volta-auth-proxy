@@ -2,7 +2,7 @@
 
 ## Phase: 3
 ## Priority: Medium
-## Status: Open (blocked by 011)
+## Status: Done (2026-04-07, commit 5acf319)
 ## Spec: docs/AUTH-STATE-MACHINE-SPEC.md §7.2, §7.3
 
 ---

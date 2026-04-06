@@ -2,7 +2,7 @@
 
 ## Phase: 2
 ## Priority: High
-## Status: Open (blocked by 010)
+## Status: Done (2026-04-06, commit d518494)
 ## Spec: docs/AUTH-STATE-MACHINE-SPEC.md §7.1
 
 ---

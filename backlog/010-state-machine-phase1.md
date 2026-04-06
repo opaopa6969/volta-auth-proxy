@@ -2,7 +2,7 @@
 
 ## Phase: 1
 ## Priority: High
-## Status: Open
+## Status: Done (2026-04-06, commit fba1626)
 ## Spec: docs/AUTH-STATE-MACHINE-SPEC.md
 ## DGE: dge/sessions/2026-04-06-auth-state-machine*.md (7 Rounds, 84 Gaps)
 

@@ -217,7 +217,14 @@ public final class Main {
             String link = config.baseUrl() + "/auth/magic-link/verify?token=" + token;
             String payload = objectMapper.writeValueAsString(Map.of("to", email, "magicLink", link));
             store.enqueueOutboxEvent(null, "notification.magic_link", payload);
-            ctx.json(Map.of("ok", true, "message", "Login link sent to " + email));
+            var response = new java.util.LinkedHashMap<String, Object>();
+            response.put("ok", true);
+            response.put("message", "Login link sent to " + email);
+            if (config.devMode()) {
+                response.put("token", token);
+                response.put("link", link);
+            }
+            ctx.json(response);
         });
 
         app.get("/auth/magic-link/verify", ctx -> {
@@ -964,7 +971,7 @@ public final class Main {
             ));
             checkDeviceAndNotify(principal, ctx, store, objectMapper);
 
-            ctx.json(Map.of("ok", true, "redirect_to", "/console/"));
+            ctx.json(Map.of("ok", true, "redirect_to", "https://console.unlaxer.org/"));
         });
 
         app.get("/settings/security", ctx -> {

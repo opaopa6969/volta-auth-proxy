@@ -2,7 +2,7 @@
 
 ## Phase: 3
 ## Priority: High
-## Status: i18n Done (2026-04-07) / 不正検知・条件付きアクセスは DGE 必要
+## Status: Done — i18n (9fffa74), 条件付きアクセス DGE+実装 (dd4c084), fraud-alert連携 (93cbab6) / 不正検知(003-1)のみ残り
 
 ---
 

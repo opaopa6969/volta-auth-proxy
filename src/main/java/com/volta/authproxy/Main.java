@@ -429,10 +429,13 @@ public final class Main {
                     <script>
                     document.getElementById('mfa-form').addEventListener('submit', async function(e){
                       e.preventDefault();
-                      const code = Number(this.code.value || 0);
-                      const res = await fetch('/auth/mfa/verify', {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify({code})});
+                      var code = Number(this.code.value || 0);
+                      var res = await fetch('/auth/mfa/verify', {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify({code})});
                       if(!res.ok){ document.getElementById('err').textContent='コードが正しくありません'; return; }
-                      const p = await res.json(); location.href = p.redirect_to || '/select-tenant';
+                      var p = await res.json();
+                      var params = new URLSearchParams(window.location.search);
+                      var returnTo = params.get('return_to');
+                      location.href = returnTo || p.redirect_to || '/select-tenant';
                     });
                     </script></main></body></html>
                     """).contentType("text/html; charset=utf-8");

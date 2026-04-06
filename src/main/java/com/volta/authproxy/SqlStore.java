@@ -2571,4 +2571,221 @@ public final class SqlStore {
             Instant createdAt
     ) {
     }
+
+    // ─── Trusted Devices ────────────────────────────────────
+
+    public Optional<DeviceTrustService.TrustedDevice> findTrustedDevice(UUID userId, UUID deviceId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT id, user_id, device_id, device_name, user_agent, ip_address, created_at, last_seen_at " +
+                     "FROM trusted_devices WHERE user_id = ? AND device_id = ?")) {
+            ps.setObject(1, userId);
+            ps.setObject(2, deviceId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new DeviceTrustService.TrustedDevice(
+                        rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
+                        rs.getObject("device_id", UUID.class), rs.getString("device_name"),
+                        rs.getString("user_agent"), rs.getString("ip_address"),
+                        rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("last_seen_at").toInstant()));
+            }
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public void createTrustedDevice(UUID userId, UUID deviceId, String name, String ua, String ip) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO trusted_devices (user_id, device_id, device_name, user_agent, ip_address) " +
+                     "VALUES (?, ?, ?, ?, ?) ON CONFLICT (user_id, device_id) DO UPDATE SET last_seen_at = now()")) {
+            ps.setObject(1, userId);
+            ps.setObject(2, deviceId);
+            ps.setString(3, name);
+            ps.setString(4, ua);
+            ps.setString(5, ip);
+            ps.executeUpdate();
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public void touchTrustedDevice(UUID userId, UUID deviceId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE trusted_devices SET last_seen_at = now() WHERE user_id = ? AND device_id = ?")) {
+            ps.setObject(1, userId);
+            ps.setObject(2, deviceId);
+            ps.executeUpdate();
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public void deleteTrustedDevice(UUID userId, UUID deviceId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM trusted_devices WHERE user_id = ? AND device_id = ?")) {
+            ps.setObject(1, userId);
+            ps.setObject(2, deviceId);
+            ps.executeUpdate();
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public void deleteAllTrustedDevices(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("DELETE FROM trusted_devices WHERE user_id = ?")) {
+            ps.setObject(1, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public List<DeviceTrustService.TrustedDevice> listTrustedDevices(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT id, user_id, device_id, device_name, user_agent, ip_address, created_at, last_seen_at " +
+                     "FROM trusted_devices WHERE user_id = ? ORDER BY last_seen_at DESC")) {
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                List<DeviceTrustService.TrustedDevice> out = new java.util.ArrayList<>();
+                while (rs.next()) {
+                    out.add(new DeviceTrustService.TrustedDevice(
+                            rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
+                            rs.getObject("device_id", UUID.class), rs.getString("device_name"),
+                            rs.getString("user_agent"), rs.getString("ip_address"),
+                            rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("last_seen_at").toInstant()));
+                }
+                return out;
+            }
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public void evictOldestDevices(UUID userId, int keepCount) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM trusted_devices WHERE id IN (" +
+                     "  SELECT id FROM trusted_devices WHERE user_id = ? " +
+                     "  ORDER BY last_seen_at ASC OFFSET ? )")) {
+            ps.setObject(1, userId);
+            ps.setInt(2, keepCount);
+            ps.executeUpdate();
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    // ─── Tenant Security Policies ───────────────────────────
+
+    public record TenantSecurityPolicy(
+            UUID tenantId, String newDeviceAction, int riskActionThreshold, int riskBlockThreshold,
+            boolean notifyUser, boolean notifyAdmin, boolean autoTrustPasskey, int maxTrustedDevices
+    ) {}
+
+    public Optional<TenantSecurityPolicy> findSecurityPolicy(UUID tenantId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT * FROM tenant_security_policies WHERE tenant_id = ?")) {
+            ps.setObject(1, tenantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new TenantSecurityPolicy(
+                        rs.getObject("tenant_id", UUID.class), rs.getString("new_device_action"),
+                        rs.getInt("risk_action_threshold"), rs.getInt("risk_block_threshold"),
+                        rs.getBoolean("notify_user"), rs.getBoolean("notify_admin"),
+                        rs.getBoolean("auto_trust_passkey"), rs.getInt("max_trusted_devices")));
+            }
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public void upsertSecurityPolicy(UUID tenantId, String newDeviceAction, int riskActionThreshold,
+                                     int riskBlockThreshold, boolean notifyUser, boolean notifyAdmin,
+                                     boolean autoTrustPasskey, int maxTrustedDevices, UUID updatedBy) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO tenant_security_policies (tenant_id, new_device_action, risk_action_threshold, " +
+                     "risk_block_threshold, notify_user, notify_admin, auto_trust_passkey, max_trusted_devices, updated_by) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+                     "ON CONFLICT (tenant_id) DO UPDATE SET new_device_action = EXCLUDED.new_device_action, " +
+                     "risk_action_threshold = EXCLUDED.risk_action_threshold, risk_block_threshold = EXCLUDED.risk_block_threshold, " +
+                     "notify_user = EXCLUDED.notify_user, notify_admin = EXCLUDED.notify_admin, " +
+                     "auto_trust_passkey = EXCLUDED.auto_trust_passkey, max_trusted_devices = EXCLUDED.max_trusted_devices, " +
+                     "updated_by = EXCLUDED.updated_by, updated_at = now()")) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, newDeviceAction);
+            ps.setInt(3, riskActionThreshold);
+            ps.setInt(4, riskBlockThreshold);
+            ps.setBoolean(5, notifyUser);
+            ps.setBoolean(6, notifyAdmin);
+            ps.setBoolean(7, autoTrustPasskey);
+            ps.setInt(8, maxTrustedDevices);
+            ps.setObject(9, updatedBy);
+            ps.executeUpdate();
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    // ─── GDPR ───────────────────────────────────────────────
+
+    public void softDeleteUser(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE users SET deleted_at = now() WHERE id = ? AND deleted_at IS NULL")) {
+            ps.setObject(1, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public void cancelUserDeletion(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE users SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL")) {
+            ps.setObject(1, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public void anonymizeAuditLogs(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE audit_logs SET actor_id = NULL, actor_ip = NULL, " +
+                     "detail = detail - 'email' - 'ip' - 'user_agent' " +
+                     "WHERE actor_id = ?")) {
+            ps.setObject(1, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public void hardDeleteUser(UUID userId) {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                // 1. Anonymize audit logs
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE audit_logs SET actor_id = NULL, actor_ip = NULL, " +
+                        "detail = detail - 'email' - 'ip' - 'user_agent' WHERE actor_id = ?")) {
+                    ps.setObject(1, userId);
+                    ps.executeUpdate();
+                }
+                // 2. Nullify memberships
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM memberships WHERE user_id = ?")) {
+                    ps.setObject(1, userId);
+                    ps.executeUpdate();
+                }
+                // 3. Delete user (CASCADE: sessions, trusted_devices, auth_flows, user_mfa, passkeys)
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM users WHERE id = ?")) {
+                    ps.setObject(1, userId);
+                    ps.executeUpdate();
+                }
+                conn.commit();
+            } catch (Exception e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    public List<UUID> findUsersToHardDelete(int graceDays) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT id FROM users WHERE deleted_at IS NOT NULL AND deleted_at < now() - make_interval(days => ?)")) {
+            ps.setInt(1, graceDays);
+            try (ResultSet rs = ps.executeQuery()) {
+                List<UUID> ids = new java.util.ArrayList<>();
+                while (rs.next()) ids.add(rs.getObject("id", UUID.class));
+                return ids;
+            }
+        } catch (SQLException e) { throw new RuntimeException(e); }
+    }
 }

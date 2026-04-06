@@ -42,11 +42,15 @@ public final class OidcFlowDef {
                 .from(TOKEN_EXCHANGED).auto(USER_RESOLVED,
                         new UserResolveProcessor(store))
 
-                .from(USER_RESOLVED).branch(new MfaCheckBranch())
-                    .to(COMPLETE, MfaCheckBranch.NO_MFA,
+                .from(USER_RESOLVED).auto(RISK_CHECKED,
+                        new RiskCheckProcessor(store))
+
+                .from(RISK_CHECKED).branch(new RiskAndMfaBranch())
+                    .to(COMPLETE, RiskAndMfaBranch.NO_MFA,
                             new SessionIssueProcessor(authService, appRegistry, store, config))
-                    .to(COMPLETE_MFA_PENDING, MfaCheckBranch.MFA_REQUIRED,
+                    .to(COMPLETE_MFA_PENDING, RiskAndMfaBranch.MFA_REQUIRED,
                             new SessionIssueProcessor(authService, appRegistry, store, config))
+                    .to(BLOCKED, RiskAndMfaBranch.BLOCKED)
                     .endBranch()
 
                 .from(RETRIABLE_ERROR).auto(INIT, new RetryProcessor())

@@ -48,11 +48,17 @@ class OidcFlowDefTest {
         assertEquals(1, fromCallback.size());
         assertTrue(fromCallback.getFirst().isAuto());
 
-        // USER_RESOLVED -> COMPLETE or COMPLETE_MFA_PENDING (branch)
+        // USER_RESOLVED -> RISK_CHECKED (auto)
         var fromUserResolved = def.transitionsFrom(USER_RESOLVED);
-        assertTrue(fromUserResolved.size() >= 2);
-        assertTrue(fromUserResolved.stream().anyMatch(t -> t.to() == COMPLETE));
-        assertTrue(fromUserResolved.stream().anyMatch(t -> t.to() == COMPLETE_MFA_PENDING));
+        assertEquals(1, fromUserResolved.size());
+        assertEquals(RISK_CHECKED, fromUserResolved.getFirst().to());
+
+        // RISK_CHECKED -> COMPLETE or COMPLETE_MFA_PENDING or BLOCKED (branch)
+        var fromRiskChecked = def.transitionsFrom(RISK_CHECKED);
+        assertTrue(fromRiskChecked.size() >= 3);
+        assertTrue(fromRiskChecked.stream().anyMatch(t -> t.to() == COMPLETE));
+        assertTrue(fromRiskChecked.stream().anyMatch(t -> t.to() == COMPLETE_MFA_PENDING));
+        assertTrue(fromRiskChecked.stream().anyMatch(t -> t.to() == BLOCKED));
     }
 
     @Test
@@ -69,7 +75,7 @@ class OidcFlowDefTest {
         assertTrue(mermaid.contains("INIT --> REDIRECTED"));
         assertTrue(mermaid.contains("REDIRECTED --> CALLBACK_RECEIVED"));
         assertTrue(mermaid.contains("[OidcCallbackGuard]"));
-        assertTrue(mermaid.contains("MfaCheckBranch"));
+        assertTrue(mermaid.contains("RiskAndMfaBranch"));
     }
 
     /**

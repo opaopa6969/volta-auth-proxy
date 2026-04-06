@@ -6,8 +6,10 @@ public enum OidcFlowState implements FlowState {
     CALLBACK_RECEIVED(false, false),
     TOKEN_EXCHANGED(false, false),
     USER_RESOLVED(false, false),
+    RISK_CHECKED(false, false),
     COMPLETE(true, false),
     COMPLETE_MFA_PENDING(true, false),
+    BLOCKED(true, false),
     TERMINAL_ERROR(true, false),
     RETRIABLE_ERROR(false, false);
 

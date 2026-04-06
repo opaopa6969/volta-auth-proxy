@@ -22,7 +22,8 @@ class MermaidGeneratorTest {
         assertTrue(mermaid.contains("REDIRECTED --> CALLBACK_RECEIVED"));
         assertTrue(mermaid.contains("CALLBACK_RECEIVED --> TOKEN_EXCHANGED"));
         assertTrue(mermaid.contains("TOKEN_EXCHANGED --> USER_RESOLVED"));
-        assertTrue(mermaid.contains("USER_RESOLVED --> COMPLETE"));
+        assertTrue(mermaid.contains("USER_RESOLVED --> RISK_CHECKED"));
+        assertTrue(mermaid.contains("RISK_CHECKED --> COMPLETE"));
         assertTrue(mermaid.contains("COMPLETE --> [*]"));
         assertTrue(mermaid.contains("TERMINAL_ERROR --> [*]"));
     }
@@ -69,6 +70,6 @@ class MermaidGeneratorTest {
         // External transitions should show guard name
         assertTrue(mermaid.contains("[OidcCallbackGuard]"));
         // Branch should show branch name
-        assertTrue(mermaid.contains("MfaCheckBranch"));
+        assertTrue(mermaid.contains("RiskAndMfaBranch"));
     }
 }

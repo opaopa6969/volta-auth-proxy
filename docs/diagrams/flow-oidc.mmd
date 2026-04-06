@@ -4,15 +4,19 @@ stateDiagram-v2
     REDIRECTED --> CALLBACK_RECEIVED : [OidcCallbackGuard]
     CALLBACK_RECEIVED --> TOKEN_EXCHANGED : OidcTokenExchangeProcessor
     TOKEN_EXCHANGED --> USER_RESOLVED : UserResolveProcessor
-    USER_RESOLVED --> COMPLETE : MfaCheckBranch
-    USER_RESOLVED --> COMPLETE_MFA_PENDING : MfaCheckBranch
+    USER_RESOLVED --> RISK_CHECKED : RiskCheckProcessor
+    RISK_CHECKED --> COMPLETE : RiskAndMfaBranch
+    RISK_CHECKED --> COMPLETE_MFA_PENDING : RiskAndMfaBranch
+    RISK_CHECKED --> BLOCKED : RiskAndMfaBranch
     RETRIABLE_ERROR --> INIT : RetryProcessor
-    TOKEN_EXCHANGED --> TERMINAL_ERROR : error
-    INIT --> TERMINAL_ERROR : error
-    CALLBACK_RECEIVED --> RETRIABLE_ERROR : error
-    RETRIABLE_ERROR --> TERMINAL_ERROR : error
-    USER_RESOLVED --> TERMINAL_ERROR : error
     REDIRECTED --> TERMINAL_ERROR : error
+    TOKEN_EXCHANGED --> TERMINAL_ERROR : error
+    RETRIABLE_ERROR --> TERMINAL_ERROR : error
+    RISK_CHECKED --> TERMINAL_ERROR : error
+    CALLBACK_RECEIVED --> RETRIABLE_ERROR : error
+    INIT --> TERMINAL_ERROR : error
+    USER_RESOLVED --> TERMINAL_ERROR : error
     COMPLETE --> [*]
     COMPLETE_MFA_PENDING --> [*]
+    BLOCKED --> [*]
     TERMINAL_ERROR --> [*]

@@ -68,6 +68,16 @@ public final class OidcFlowData {
             @JsonProperty("mfa_required") boolean mfaRequired
     ) {}
 
+    /** Risk check result — produced by RiskCheckProcessor. */
+    @FlowData("oidc.risk_check")
+    public record RiskCheckResult(
+            @JsonProperty("risk_level") int riskLevel,
+            @JsonProperty("action_threshold") int actionThreshold,
+            @JsonProperty("block_threshold") int blockThreshold,
+            @JsonProperty("device_action") String deviceAction,
+            @JsonProperty("is_new_device") boolean isNewDevice
+    ) {}
+
     /** Issued session — produced by SessionIssueProcessor. */
     @FlowData("oidc.issued_session")
     public record IssuedSession(

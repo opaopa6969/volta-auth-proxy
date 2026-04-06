@@ -44,6 +44,8 @@ public final class Main {
         ObjectMapper objectMapper = new ObjectMapper()
                 .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
                 .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        DeviceTrustService deviceTrustService = new DeviceTrustService(store);
+        GdprService gdprService = new GdprService(store, sessionStore, deviceTrustService, objectMapper);
         KeyCipher secretCipher = new KeyCipher(config.jwtKeyEncryptionSecret());
         TemplateEngine templateEngine = TemplateEngine.create(
                 new DirectoryCodeResolver(java.nio.file.Path.of("src/main/jte")),
@@ -1195,6 +1197,46 @@ public final class Main {
             ));
         });
 
+        // ─── GDPR APIs ───────────────────────────────────────
+        app.post("/api/v1/users/me/data-export", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            String json = gdprService.exportUserData(p.userId());
+            ctx.contentType("application/json").header(
+                    "Content-Disposition", "attachment; filename=\"volta-export.json\"").result(json);
+        });
+
+        app.delete("/api/v1/users/me", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            java.time.Instant deleteAt = gdprService.requestDeletion(p.userId());
+            auditService.log(ctx, "ACCOUNT_DELETION_REQUESTED", p, "USER", p.userId().toString(), Map.of());
+            ctx.json(Map.of("status", "scheduled", "delete_at", deleteAt.toString()));
+        });
+
+        // ─── Device Trust APIs ──────────────────────────────
+        app.get("/api/v1/users/me/devices", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            var devices = deviceTrustService.listDevices(p.userId());
+            ctx.json(devices.stream().map(d -> Map.of(
+                    "id", d.id().toString(),
+                    "device_name", d.deviceName(),
+                    "last_seen_at", d.lastSeenAt() != null ? d.lastSeenAt().toString() : "",
+                    "ip_address", maskIp(d.ipAddress())
+            )).toList());
+        });
+
+        app.delete("/api/v1/users/me/devices/{deviceId}", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID deviceId = UUID.fromString(ctx.pathParam("deviceId"));
+            deviceTrustService.removeDevice(p.userId(), deviceId);
+            ctx.json(Map.of("ok", true));
+        });
+
+        app.delete("/api/v1/users/me/devices", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            deviceTrustService.removeAllDevices(p.userId());
+            ctx.json(Map.of("ok", true));
+        });
+
         app.get("/api/v1/users/{id}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID userId = UUID.fromString(ctx.pathParam("id"));
@@ -2120,6 +2162,12 @@ public final class Main {
             cookie += "; Secure";
         }
         ctx.header("Set-Cookie", cookie);
+    }
+
+    private static String maskIp(String ip) {
+        if (ip == null) return "";
+        int lastDot = ip.lastIndexOf('.');
+        return lastDot < 0 ? ip : ip.substring(0, lastDot) + ".***";
     }
 
     private static String clientIp(Context ctx) {

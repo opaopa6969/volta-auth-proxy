@@ -7,12 +7,12 @@ stateDiagram-v2
     USER_RESOLVED --> COMPLETE : MfaCheckBranch
     USER_RESOLVED --> COMPLETE_MFA_PENDING : MfaCheckBranch
     RETRIABLE_ERROR --> INIT : RetryProcessor
-    INIT --> TERMINAL_ERROR : error
-    USER_RESOLVED --> TERMINAL_ERROR : error
     RETRIABLE_ERROR --> TERMINAL_ERROR : error
-    REDIRECTED --> TERMINAL_ERROR : error
+    USER_RESOLVED --> TERMINAL_ERROR : error
     TOKEN_EXCHANGED --> TERMINAL_ERROR : error
+    INIT --> TERMINAL_ERROR : error
     CALLBACK_RECEIVED --> RETRIABLE_ERROR : error
+    REDIRECTED --> TERMINAL_ERROR : error
     COMPLETE --> [*]
     COMPLETE_MFA_PENDING --> [*]
     TERMINAL_ERROR --> [*]

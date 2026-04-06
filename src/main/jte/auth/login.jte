@@ -1,10 +1,12 @@
 @param String title
+
 @param java.util.Map<String, String> inviteContext
 @param java.util.List<com.volta.authproxy.IdpProvider> providers
 @param String baseParams
 @param boolean isSwitchAccount = false
+!{var msg = com.volta.authproxy.Messages.current();}
 <!doctype html>
-<html lang="ja">
+<html lang="${msg.locale()}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,21 +15,21 @@
 </head>
 <body>
 <main class="container">
-    <h1>ログイン</h1>
+    <h1>${msg.get("login.title")}</h1>
     @if(isSwitchAccount)
         <div class="alert">
-            <p>招待メール宛先のアカウントでログインしてください。</p>
+            <p>${msg.get("login.invite_prompt")}</p>
         </div>
     @elseif(inviteContext != null)
-        <p><strong>${inviteContext.get("tenantName")}</strong> に招待されています。</p>
-        <p class="muted">${inviteContext.get("inviterName")} さん / ロール: ${inviteContext.get("role")}</p>
+        <p><strong>${inviteContext.get("tenantName")}</strong> ${msg.get("login.invited_to", inviteContext.get("tenantName"))}</p>
+        <p class="muted">${msg.get("login.invited_by", inviteContext.get("inviterName"), inviteContext.get("role"))}</p>
     @endif
-    <p>アカウントでログインしてください。</p>
-    <button class="button" id="passkey-login" onclick="startPasskeyLogin()">🔑 パスキーでログイン</button>
-    <div class="separator"><span>または</span></div>
+    <p>${msg.get("login.switch_account")}</p>
+    <button class="button" id="passkey-login" onclick="startPasskeyLogin()">${msg.get("login.passkey_button")}</button>
+    <div class="separator"><span>${msg.get("common.or")}</span></div>
     @for(com.volta.authproxy.IdpProvider p : providers)
         <a class="button button-${p.id().toLowerCase()}"
-           href="/login?start=1&provider=${p.id()}${baseParams}">${p.label()} でログイン</a>
+           href="/login?start=1&provider=${p.id()}${baseParams}">${p.label()} ${msg.get("login.login_with")}</a>
     @endfor
 </main>
 <script>

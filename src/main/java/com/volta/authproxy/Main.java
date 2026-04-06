@@ -132,6 +132,14 @@ public final class Main {
         });
 
         app.before(ctx -> ctx.attribute("wantsJson", HttpSupport.wantsJson(ctx)));
+        // i18n: resolve Messages from Accept-Language header (ThreadLocal for jte access)
+        app.before(ctx -> {
+            String acceptLang = ctx.header("Accept-Language");
+            Messages msg = Messages.resolve(null, acceptLang);
+            ctx.attribute("msg", msg);
+            Messages.setCurrent(msg);
+        });
+        app.after(ctx -> Messages.clearCurrent());
         app.before(ctx -> {
             UUID requestId = SecurityUtils.newUuid();
             ctx.attribute("requestId", requestId);

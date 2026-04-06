@@ -1,8 +1,9 @@
 @param String title
 @param String code
 @param String state
+!{var msg = com.volta.authproxy.Messages.current();}
 <!doctype html>
-<html lang="ja">
+<html lang="${msg.locale()}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,10 +12,10 @@
 </head>
 <body>
 <main class="container">
-    <h1>ログイン処理中...</h1>
-    <p>認証を完了しています。画面を閉じずにお待ちください。</p>
+    <h1>${msg.get("callback.processing")}</h1>
+    <p>${msg.get("callback.verifying")}</p>
     <div class="spinner" aria-hidden="true"></div>
-    <p id="callback-status" class="muted">Google から受け取った情報を検証しています...</p>
+    <p id="callback-status" class="muted"></p>
     <div id="callback-data" data-code="${code}" data-state="${state}" style="display:none"></div>
 </main>
 <script src="/js/volta.js" defer></script>

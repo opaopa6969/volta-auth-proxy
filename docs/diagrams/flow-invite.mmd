@@ -4,8 +4,8 @@ stateDiagram-v2
     CONSENT_SHOWN --> ACCOUNT_SWITCHING : EmailMatchBranch
     ACCOUNT_SWITCHING --> ACCEPTED : [ResumeGuard]
     ACCEPTED --> COMPLETE : InviteCompleteProcessor
-    CONSENT_SHOWN --> TERMINAL_ERROR : error
     ACCEPTED --> TERMINAL_ERROR : error
+    CONSENT_SHOWN --> TERMINAL_ERROR : error
     ACCOUNT_SWITCHING --> EXPIRED : error
     COMPLETE --> [*]
     TERMINAL_ERROR --> [*]

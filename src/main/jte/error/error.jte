@@ -4,8 +4,9 @@
 @param java.util.List<java.util.Map<String, String>> actions
 @param boolean showSupport
 @param String supportContact
+!{var msg = com.volta.authproxy.Messages.current();}
 <!doctype html>
-<html lang="ja">
+<html lang="${msg.locale()}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,7 +16,7 @@
 <body>
 <main class="container">
     <p class="muted">Error: ${errorCode}</p>
-    <h1>操作を完了できませんでした</h1>
+    <h1>${msg.get("error.generic")}</h1>
     <p>${message}</p>
     <div class="actions">
         @for(java.util.Map<String, String> action : actions)
@@ -23,7 +24,7 @@
         @endfor
     </div>
     @if(showSupport)
-        <p class="muted">問題が継続する場合は ${supportContact} へ連絡してください。</p>
+        <p class="muted">${msg.get("error.contact", supportContact)}</p>
     @endif
 </main>
 </body>

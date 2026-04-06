@@ -124,6 +124,7 @@ public final class Main {
             String path = ctx.path();
             boolean exempt = path.equals("/mfa/challenge")
                     || path.equals("/auth/mfa/verify")
+                    || path.equals("/auth/verify")
                     || path.equals("/auth/logout")
                     || path.startsWith("/css/")
                     || path.startsWith("/js/");
@@ -1326,6 +1327,18 @@ public final class Main {
 
         app.get("/auth/verify", ctx -> {
             setNoStore(ctx);
+            // MFA check: if session exists but MFA not verified, redirect to challenge
+            if (authService.isMfaPending(ctx)) {
+                String fwdHost  = ctx.header("X-Forwarded-Host");
+                String fwdUri   = ctx.header("X-Forwarded-Uri");
+                String fwdProto = ctx.header("X-Forwarded-Proto");
+                String returnTo = (fwdHost != null && fwdUri != null)
+                        ? (fwdProto != null ? fwdProto : "http") + "://" + fwdHost + fwdUri
+                        : "/";
+                ctx.redirect("/mfa/challenge?return_to=" + java.net.URLEncoder.encode(
+                        returnTo, java.nio.charset.StandardCharsets.UTF_8));
+                return;
+            }
             Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
             if (principalOpt.isEmpty()) {
                 if (isSuspendedTenantSession(ctx, sessionStore, store)) {

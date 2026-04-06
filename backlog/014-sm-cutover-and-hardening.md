@@ -2,7 +2,7 @@
 
 ## Phase: 5
 ## Priority: Medium
-## Status: Open
+## Status: Done (2026-04-07, commit 4858ef7) — monitoring items は Phase N
 ## Spec: docs/AUTH-STATE-MACHINE-SPEC.md §5, §6, §9, §10, §11
 
 ---

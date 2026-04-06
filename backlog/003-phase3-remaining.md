@@ -2,7 +2,7 @@
 
 ## Phase: 3
 ## Priority: High
-## Status: Done — i18n (9fffa74), 条件付きアクセス DGE+実装 (dd4c084), fraud-alert連携 (93cbab6) / 不正検知(003-1)のみ残り
+## Status: All Done — i18n, 条件付きアクセス, fraud-alert 連携。不正検知は YAGNI (既存3層防御で十分, DGE で確認済み)
 
 ---
 

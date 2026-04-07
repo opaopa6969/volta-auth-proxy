@@ -16,6 +16,8 @@ import java.util.*;
  * 依存サービスはコンストラクタ経由で注入。
  */
 public final class AuthProcessors {
+    private static final System.Logger LOG = System.getLogger("volta.auth.processors");
+
     private AuthProcessors() {}
 
     // ======================================================
@@ -73,6 +75,8 @@ public final class AuthProcessors {
             var config = ctx.get(AuthConfig.class);
 
             String returnTo = origin.returnToUrl();
+            LOG.log(System.Logger.Level.INFO, "[LoginRedirectInit] scheme={0} host={1} uri={2} returnTo={3}",
+                    origin.scheme(), origin.host(), origin.uri(), returnTo);
 
             // バリデーション: ALLOWED_REDIRECT_DOMAINS に含まれるか
             var host = java.net.URI.create(returnTo).getHost();
@@ -94,6 +98,7 @@ public final class AuthProcessors {
             String loginUrl = config.baseUrl() + "/login?return_to="
                     + URLEncoder.encode(returnTo, StandardCharsets.UTF_8);
 
+            LOG.log(System.Logger.Level.INFO, "[LoginRedirectInit] loginUrl={0}", loginUrl);
             ctx.put(LoginRedirect.class, new LoginRedirect(returnTo, loginUrl));
         }
     }
@@ -118,12 +123,15 @@ public final class AuthProcessors {
         public GuardOutput validate(FlowContext ctx) {
             var callback = ctx.find(IdpCallback.class);
             if (callback.isEmpty()) {
+                LOG.log(System.Logger.Level.WARNING, "[CallbackGuard] REJECTED: missing callback params");
                 return new GuardOutput.Rejected("Missing callback parameters");
             }
             IdpCallback cb = callback.get();
             if (cb.code() == null || cb.code().isBlank()) {
+                LOG.log(System.Logger.Level.WARNING, "[CallbackGuard] REJECTED: missing code");
                 return new GuardOutput.Rejected("Missing authorization code");
             }
+            LOG.log(System.Logger.Level.INFO, "[CallbackGuard] ACCEPTED: code=present state={0}", cb.state());
             return new GuardOutput.Accepted(
                     Map.of(IdpCallback.class, cb));
         }
@@ -159,6 +167,7 @@ public final class AuthProcessors {
         @Override
         public void process(FlowContext ctx) {
             var callback = ctx.get(IdpCallback.class);
+            LOG.log(System.Logger.Level.INFO, "[TokenExchange] starting token exchange");
 
             // Decode state to get the provider info from the OIDC sub-flow
             // In the unified flow, the callback comes from the IdP redirect.
@@ -208,6 +217,8 @@ public final class AuthProcessors {
 
             boolean mfaRequired = store.hasActiveMfa(user.id());
 
+            LOG.log(System.Logger.Level.INFO, "[TokenExchange] resolved: email={0} mfa={1} roles={2}",
+                    identity.email(), mfaRequired, roles);
             ctx.put(ResolvedUser.class, new ResolvedUser(
                     identity.sub(),
                     identity.email(),
@@ -237,9 +248,9 @@ public final class AuthProcessors {
 
         @Override
         public String decide(FlowContext ctx) {
-            return ctx.get(ResolvedUser.class).mfaRequired()
-                    ? "mfa_required"
-                    : "no_mfa";
+            boolean mfa = ctx.get(ResolvedUser.class).mfaRequired();
+            LOG.log(System.Logger.Level.INFO, "[MfaCheck] mfaRequired={0} → {1}", mfa, mfa ? "mfa_required" : "no_mfa");
+            return mfa ? "mfa_required" : "no_mfa";
         }
     }
 
@@ -348,10 +359,14 @@ public final class AuthProcessors {
 
             // Cookie -- Secure フラグは scheme から自動判定
             var cookie = SessionCookie.create(sessionId.toString(), origin, config);
+            LOG.log(System.Logger.Level.INFO, "[SessionCreator] session={0} secure={1} scheme={2} domain={3}",
+                    sessionId, cookie.secure(), origin.scheme(), cookie.domain());
             ctx.put(SessionCookie.class, cookie);
 
             // Resolve redirect destination
             String redirectUrl = resolveRedirectTo(dbUser, redirect, tenants);
+            LOG.log(System.Logger.Level.INFO, "[SessionCreator] redirectTo={0} (returnTo={1})",
+                    redirectUrl, redirect.returnTo());
             ctx.put(FinalRedirect.class, new FinalRedirect(redirectUrl));
         }
 

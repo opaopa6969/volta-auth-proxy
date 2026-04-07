@@ -21,6 +21,8 @@ import java.util.*;
  * - POST /mfa/challenge — MFA チャレンジ応答
  */
 public class AuthFlowHandler {
+    private static final System.Logger LOG = System.getLogger("volta.auth");
+
     private final FlowEngine engine;
     private final FlowDefinition<AuthState> flowDef;
     private final AuthConfig authConfig;
@@ -60,10 +62,18 @@ public class AuthFlowHandler {
     public void verify(Context ctx) {
         setNoStore(ctx);
 
+        LOG.log(System.Logger.Level.INFO, "[verify] path={0} fwdHost={1} fwdUri={2} fwdProto={3} cookie={4}",
+                ctx.path(),
+                ctx.header("X-Forwarded-Host"),
+                ctx.header("X-Forwarded-Uri"),
+                ctx.header("X-Forwarded-Proto"),
+                ctx.cookie(AuthService.SESSION_COOKIE) != null ? "present" : "absent");
+
         // MFA check: if session exists but MFA not verified, redirect to challenge
         if (authService.isMfaPending(ctx)) {
             var origin = buildRequestOrigin(ctx);
             String returnTo = origin.returnToUrl();
+            LOG.log(System.Logger.Level.INFO, "[verify] MFA pending, redirecting to challenge. returnTo={0}", returnTo);
             ctx.redirect(appConfig.baseUrl() + "/mfa/challenge?return_to="
                     + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8));
             return;
@@ -73,6 +83,8 @@ public class AuthFlowHandler {
         Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
         if (principalOpt.isPresent()) {
             AuthPrincipal principal = principalOpt.get();
+            LOG.log(System.Logger.Level.INFO, "[verify] authenticated: user={0} tenant={1}",
+                    principal.email(), principal.tenantSlug());
 
             // App policy check
             String appId = ctx.header("X-Volta-App-Id");
@@ -112,11 +124,14 @@ public class AuthFlowHandler {
         String fwdHost = ctx.header("X-Forwarded-Host");
         String fwdUri = ctx.header("X-Forwarded-Uri");
         if (fwdHost == null || fwdUri == null) {
+            LOG.log(System.Logger.Level.INFO, "[verify] no session, no X-Forwarded-Host/Uri → 401");
             ctx.status(401);
             return;
         }
 
         var origin = buildRequestOrigin(ctx);
+        LOG.log(System.Logger.Level.INFO, "[verify] no session → starting flow. origin={0}://{1}{2}",
+                origin.scheme(), origin.host(), origin.uri());
 
         // 3. FlowEngine.startFlow() -- UNAUTHENTICATED -> auto-chain -> LOGIN_PENDING で停止
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -125,9 +140,12 @@ public class AuthFlowHandler {
                 (Class) AuthConfig.class, authConfig);
 
         FlowInstance<AuthState> flow = engine.startFlow(flowDef, null, initialData);
+        LOG.log(System.Logger.Level.INFO, "[verify] flow started: id={0} state={1}",
+                flow.id(), flow.currentState());
 
         // 4. auto-chain 後の FlowContext から LoginRedirect を取得してリダイレクト
         LoginRedirect loginRedirect = flow.context().get(LoginRedirect.class);
+        LOG.log(System.Logger.Level.INFO, "[verify] redirecting to login: {0}", loginRedirect.loginUrl());
         ctx.redirect(loginRedirect.loginUrl());
     }
 
@@ -139,6 +157,10 @@ public class AuthFlowHandler {
      */
     public void callback(Context ctx) {
         setNoStore(ctx);
+        LOG.log(System.Logger.Level.INFO, "[callback] code={0} state={1} error={2}",
+                ctx.queryParam("code") != null ? "present" : "absent",
+                ctx.queryParam("state") != null ? "present" : "absent",
+                ctx.queryParam("error"));
 
         String error = ctx.queryParam("error");
         if (error != null) {
@@ -166,25 +188,30 @@ public class AuthFlowHandler {
                 (Class) IdpCallback.class, callback);
 
         // 3. resumeAndExecute() -- LOGIN_PENDING -> auto-chain
+        LOG.log(System.Logger.Level.INFO, "[callback] resuming flow {0}", flowId);
         FlowInstance<AuthState> flow = engine.resumeAndExecute(flowId, flowDef, externalData);
 
         // 4. 結果に応じてレスポンス
         AuthState currentState = flow.currentState();
+        LOG.log(System.Logger.Level.INFO, "[callback] flow state after resume: {0} (completed={1} exit={2})",
+                currentState, flow.isCompleted(), flow.exitState());
 
         if (currentState == AuthState.SESSION_CREATED || currentState == AuthState.COMPLETE) {
-            // セッション Cookie をセット
             SessionCookie cookie = flow.context().get(SessionCookie.class);
+            LOG.log(System.Logger.Level.INFO, "[callback] setting cookie: secure={0} domain={1} sameSite={2}",
+                    cookie.secure(), cookie.domain(), cookie.sameSite());
             setSessionCookieFromFlowData(ctx, cookie);
 
-            // return_to にリダイレクト
             FinalRedirect redirect = flow.context().get(FinalRedirect.class);
+            LOG.log(System.Logger.Level.INFO, "[callback] redirecting to: {0}", redirect.url());
             ctx.redirect(redirect.url());
 
         } else if (currentState == AuthState.MFA_PENDING) {
-            // MFA チャレンジページにリダイレクト
+            LOG.log(System.Logger.Level.INFO, "[callback] MFA required, redirecting to challenge");
             ctx.redirect(appConfig.baseUrl() + "/mfa/challenge?flow_id=" + flowId);
 
         } else {
+            LOG.log(System.Logger.Level.WARNING, "[callback] auth failed, state={0}", currentState);
             ctx.status(401).result("Authentication failed");
         }
     }

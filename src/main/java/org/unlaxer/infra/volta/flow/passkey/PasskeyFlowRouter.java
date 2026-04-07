@@ -45,7 +45,7 @@ public final class PasskeyFlowRouter {
      */
     private void handleStart(Context ctx) {
         PasskeyRequest request = new PasskeyRequest(
-                clientIp(ctx), ctx.userAgent(), ctx.queryParam("return_to"));
+                HttpSupport.clientIp(ctx), ctx.userAgent(), ctx.queryParam("return_to"));
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         Map<Class<?>, Object> initialData = Map.of((Class) PasskeyRequest.class, request);
@@ -123,9 +123,4 @@ public final class PasskeyFlowRouter {
         ctx.header("Set-Cookie", cookie);
     }
 
-    private static String clientIp(Context ctx) {
-        String forwarded = ctx.header("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
-        return ctx.ip();
-    }
 }

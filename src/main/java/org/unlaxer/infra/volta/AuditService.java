@@ -24,7 +24,7 @@ public final class AuditService {
             store.insertAuditLog(
                     eventType,
                     actor == null ? null : actor.userId(),
-                    clientIp(ctx),
+                    HttpSupport.clientIp(ctx),
                     actor == null ? null : actor.tenantId(),
                     targetType,
                     targetId,
@@ -44,11 +44,4 @@ public final class AuditService {
         }
     }
 
-    private static String clientIp(Context ctx) {
-        String forwarded = ctx.header("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return ctx.ip();
-    }
 }

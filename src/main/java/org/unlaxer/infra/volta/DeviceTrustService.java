@@ -43,7 +43,7 @@ public final class DeviceTrustService {
     public TrustedDevice trustDevice(Context ctx, UUID userId) {
         UUID deviceId = UUID.randomUUID();
         String userAgent = ctx.userAgent();
-        String ip = clientIp(ctx);
+        String ip = HttpSupport.clientIp(ctx);
         String deviceName = DeviceNameResolver.fromUserAgent(userAgent);
 
         // Enforce max devices (LRU eviction)
@@ -98,12 +98,6 @@ public final class DeviceTrustService {
                 + "; HttpOnly; SameSite=Lax";
         if (ctx.req().isSecure()) cookie += "; Secure";
         ctx.header("Set-Cookie", cookie);
-    }
-
-    private static String clientIp(Context ctx) {
-        String forwarded = ctx.header("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
-        return ctx.ip();
     }
 
     // ─── Record ─────────────────────────────────────────────

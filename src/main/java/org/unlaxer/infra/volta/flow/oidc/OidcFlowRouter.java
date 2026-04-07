@@ -102,7 +102,7 @@ public final class OidcFlowRouter {
 
         OidcRequest request = new OidcRequest(
                 provider, returnTo, inviteCode,
-                clientIp(ctx), ctx.userAgent()
+                HttpSupport.clientIp(ctx), ctx.userAgent()
         );
 
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -245,14 +245,6 @@ public final class OidcFlowRouter {
     private static void setNoStore(Context ctx) {
         ctx.header("Cache-Control", "no-store, no-cache, must-revalidate, private");
         ctx.header("Pragma", "no-cache");
-    }
-
-    private static String clientIp(Context ctx) {
-        String forwarded = ctx.header("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return ctx.ip();
     }
 
     private void checkDeviceAndNotify(AuthPrincipal principal, Context ctx) {

@@ -22,6 +22,21 @@ public final class HttpSupport {
         ctx.json(Map.of("error", Map.of("code", code, "message", message)));
     }
 
+    /**
+     * Resolve client IP. Prefers CF-Connecting-IP (Cloudflare Tunnel),
+     * then X-Real-IP (Traefik/Nginx), then X-Forwarded-For first entry,
+     * then Javalin's ctx.ip() as fallback.
+     */
+    public static String clientIp(Context ctx) {
+        String cfIp = ctx.header("CF-Connecting-IP");
+        if (cfIp != null && !cfIp.isBlank()) return cfIp.trim();
+        String realIp = ctx.header("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) return realIp.trim();
+        String forwarded = ctx.header("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
+        return ctx.ip();
+    }
+
     public static boolean isAllowedReturnTo(String returnTo, String allowedDomainsCsv) {
         if (returnTo == null || returnTo.isBlank()) {
             return false;
@@ -40,5 +55,23 @@ public final class HttpSupport {
                 .filter(s -> !s.isBlank())
                 .collect(Collectors.toSet());
         return allowedDomains.contains(uri.getHost());
+    }
+
+    public static int parseOffset(String offsetRaw) {
+        if (offsetRaw == null) return 0;
+        try {
+            return Math.max(0, Integer.parseInt(offsetRaw));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    public static int parseLimit(String limitRaw) {
+        if (limitRaw == null) return 20;
+        try {
+            return Math.min(100, Math.max(1, Integer.parseInt(limitRaw)));
+        } catch (NumberFormatException e) {
+            return 20;
+        }
     }
 }

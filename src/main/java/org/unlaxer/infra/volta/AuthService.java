@@ -30,7 +30,7 @@ public final class AuthService {
             String token = auth.substring("Bearer ".length()).trim();
             if (token.startsWith("volta-service:")) {
                 String provided = token.substring("volta-service:".length());
-                if (!config.serviceToken().isBlank() && config.serviceToken().equals(provided)) {
+                if (!config.serviceToken().isBlank() && SecurityUtils.constantTimeEquals(config.serviceToken(), provided)) {
                     return Optional.of(new AuthPrincipal(
                             new UUID(0L, 0L),
                             "service@volta.local",

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS session_scopes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_scopes_lookup
-    ON session_scopes(session_id, scope) WHERE expires_at > now();
+    ON session_scopes(session_id, scope);
 
 -- Step-up authentication log
 CREATE TABLE IF NOT EXISTS step_up_log (

@@ -24,6 +24,7 @@ public final class Database {
         Flyway.configure()
                 .dataSource(dataSource)
                 .locations("classpath:db/migration")
+                .outOfOrder(true)
                 .load()
                 .migrate();
     }

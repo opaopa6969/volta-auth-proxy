@@ -160,12 +160,20 @@ public final class OidcFlowRouter {
             if (code.isBlank() || state.isBlank()) {
                 throw new ApiException(400, "BAD_REQUEST", "code/state is required");
             }
+            System.getLogger("volta.oidc").log(System.Logger.Level.INFO,
+                    "[callbackPost] code=present state={0}", state.substring(0, Math.min(20, state.length())) + "...");
             String redirectTo = completeCallback(ctx, code, state);
+            System.getLogger("volta.oidc").log(System.Logger.Level.INFO,
+                    "[callbackPost] success, redirectTo={0}", redirectTo);
             ctx.json(Map.of("redirect_to", redirectTo));
         } catch (ApiException e) {
+            System.getLogger("volta.oidc").log(System.Logger.Level.ERROR,
+                    "[callbackPost] ApiException: {0} {1}", e.code(), e.getMessage());
             throw e;
         } catch (Exception e) {
-            throw new ApiException(400, "BAD_REQUEST", "Invalid request body");
+            System.getLogger("volta.oidc").log(System.Logger.Level.ERROR,
+                    "[callbackPost] Exception: {0}", e.toString(), e);
+            throw new ApiException(400, "CALLBACK_ERROR", "Callback processing failed: " + e.getMessage());
         }
     }
 
@@ -175,7 +183,14 @@ public final class OidcFlowRouter {
     private String completeCallback(Context ctx, String code, String state) {
         // Decode HMAC-signed state → flow_id
         String flowId = stateCodec.decode(state)
-                .orElseThrow(() -> new ApiException(400, "INVALID_STATE", "Invalid or tampered state parameter"));
+                .orElseThrow(() -> {
+                    System.getLogger("volta.oidc").log(System.Logger.Level.ERROR,
+                            "[completeCallback] INVALID_STATE: decode failed for state={0}",
+                            state.substring(0, Math.min(20, state.length())) + "...");
+                    return new ApiException(400, "INVALID_STATE", "Invalid or tampered state parameter");
+                });
+        System.getLogger("volta.oidc").log(System.Logger.Level.INFO,
+                "[completeCallback] flowId={0}", flowId);
 
         // Resume flow with callback data
         OidcCallback callback = new OidcCallback(code, state);
@@ -183,7 +198,12 @@ public final class OidcFlowRouter {
         @SuppressWarnings({"unchecked", "rawtypes"})
         Map<Class<?>, Object> externalData = Map.of((Class) OidcCallback.class, callback);
 
+        System.getLogger("volta.oidc").log(System.Logger.Level.INFO,
+                "[completeCallback] resuming flow {0}", flowId);
         FlowInstance<OidcFlowState> flow = engine.resumeAndExecute(flowId, definition, externalData);
+        System.getLogger("volta.oidc").log(System.Logger.Level.INFO,
+                "[completeCallback] flow state={0} completed={1} exit={2}",
+                flow.currentState(), flow.isCompleted(), flow.exitState());
 
         if (!flow.isCompleted()) {
             throw new ApiException(500, "FLOW_INCOMPLETE", "OIDC flow did not complete");

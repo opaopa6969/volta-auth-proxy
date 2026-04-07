@@ -3,6 +3,7 @@
 ## Phase: 2
 ## Priority: Medium
 ## Category: DX / Documentation
+## Status: Done — tools/glossary-linker/GlossaryLinker.java (356 en / 320 ja terms)
 
 ---
 

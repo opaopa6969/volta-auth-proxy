@@ -57,6 +57,28 @@ public final class HttpSupport {
         return allowedDomains.contains(uri.getHost());
     }
 
+    private static final boolean FORCE_SECURE_COOKIE =
+            "true".equalsIgnoreCase(System.getenv("FORCE_SECURE_COOKIE"));
+
+    /**
+     * Set a session cookie with proper security attributes.
+     * Secure flag is added if the request is over HTTPS or FORCE_SECURE_COOKIE=true.
+     */
+    public static void setSessionCookie(Context ctx, String cookieName, String value, int maxAgeSeconds) {
+        String cookieDomain = System.getenv("COOKIE_DOMAIN");
+        StringBuilder sb = new StringBuilder();
+        sb.append(cookieName).append("=").append(value)
+                .append("; Path=/; Max-Age=").append(maxAgeSeconds)
+                .append("; HttpOnly; SameSite=Lax");
+        if (cookieDomain != null && !cookieDomain.isEmpty()) {
+            sb.append("; Domain=").append(cookieDomain);
+        }
+        if (FORCE_SECURE_COOKIE || ctx.req().isSecure()) {
+            sb.append("; Secure");
+        }
+        ctx.header("Set-Cookie", sb.toString());
+    }
+
     public static int parseOffset(String offsetRaw) {
         if (offsetRaw == null) return 0;
         try {

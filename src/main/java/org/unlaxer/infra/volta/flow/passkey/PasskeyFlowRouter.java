@@ -114,13 +114,7 @@ public final class PasskeyFlowRouter {
     }
 
     private static void setSessionCookie(Context ctx, UUID sessionId, int sessionTtlSeconds) {
-        String cookieDomain = System.getenv("COOKIE_DOMAIN");
-        String cookie = AuthService.SESSION_COOKIE + "=" + sessionId
-                + "; Path=/; Max-Age=" + sessionTtlSeconds
-                + "; HttpOnly; SameSite=Lax";
-        if (cookieDomain != null && !cookieDomain.isEmpty()) cookie += "; Domain=" + cookieDomain;
-        if (ctx.req().isSecure()) cookie += "; Secure";
-        ctx.header("Set-Cookie", cookie);
+        HttpSupport.setSessionCookie(ctx, AuthService.SESSION_COOKIE, sessionId.toString(), sessionTtlSeconds);
     }
 
 }

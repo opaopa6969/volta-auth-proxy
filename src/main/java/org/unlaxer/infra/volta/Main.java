@@ -171,9 +171,13 @@ public final class Main {
                     || ctx.path().startsWith("/scim/v2/")) {
                 return;
             }
-            if (isJsonOrXhr(ctx)) {
+            // API requests with valid Origin are exempt from CSRF token check
+            // (SameSite=Lax cookie prevents cross-origin cookie attachment)
+            String origin = ctx.header("Origin");
+            if (origin != null && isAllowedOrigin(origin)) {
                 return;
             }
+            // No Origin header or unknown Origin → require CSRF token (form submission)
             String sessionCookie = ctx.cookie(AuthService.SESSION_COOKIE);
             if (sessionCookie == null) {
                 throw new ApiException(403, "CSRF_INVALID", "CSRF トークンが無効です。");
@@ -181,7 +185,8 @@ public final class Main {
             SessionRecord session = sessionStore.findSession(UUID.fromString(sessionCookie))
                     .orElseThrow(() -> new ApiException(403, "CSRF_INVALID", "CSRF トークンが無効です。"));
             String csrf = ctx.formParam("_csrf");
-            if (csrf == null || session.csrfToken() == null || !session.csrfToken().equals(csrf)) {
+            if (csrf == null) csrf = ctx.header("X-CSRF-Token");
+            if (csrf == null || session.csrfToken() == null || !SecurityUtils.constantTimeEquals(session.csrfToken(), csrf)) {
                 throw new ApiException(403, "CSRF_INVALID", "CSRF トークンが無効です。");
             }
         });
@@ -471,15 +476,6 @@ public final class Main {
     private static boolean isLocalRequest(Context ctx) {
         String ip = HttpSupport.clientIp(ctx);
         return ip.equals("127.0.0.1") || ip.equals("::1") || ip.equals("0:0:0:0:0:0:0:1");
-    }
-
-    private static boolean isJsonOrXhr(Context ctx) {
-        String accept = ctx.header("Accept");
-        String contentType = ctx.header("Content-Type");
-        String xrw = ctx.header("X-Requested-With");
-        return (accept != null && accept.toLowerCase().contains("application/json"))
-                || (contentType != null && contentType.toLowerCase().contains("application/json"))
-                || "XMLHttpRequest".equalsIgnoreCase(xrw);
     }
 
     private static void renderErrorPage(Context ctx, int status, String code, String message) {

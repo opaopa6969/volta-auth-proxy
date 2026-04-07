@@ -53,8 +53,10 @@ public final class ApiRouter {
                 return;
             }
             String authHeader = ctx.header("Authorization");
-            if ((authHeader == null || !authHeader.startsWith("Bearer "))
-                    && !isJsonOrXhr(ctx)) {
+            boolean hasBearerToken = authHeader != null && authHeader.startsWith("Bearer ");
+            String origin = ctx.header("Origin");
+            boolean hasValidOrigin = origin == null || isAllowedOrigin(origin);
+            if (!hasBearerToken && !hasValidOrigin) {
                 HttpSupport.jsonError(ctx, 403, "CSRF_INVALID", "CSRF トークンが無効です。");
                 ctx.skipRemainingHandlers();
                 return;
@@ -989,13 +991,18 @@ public final class ApiRouter {
         policy.enforceMinRole(principal, "OWNER");
     }
 
-    private static boolean isJsonOrXhr(io.javalin.http.Context ctx) {
-        String accept = ctx.header("Accept");
-        String contentType = ctx.header("Content-Type");
-        String xrw = ctx.header("X-Requested-With");
-        return (accept != null && accept.toLowerCase().contains("application/json"))
-                || (contentType != null && contentType.toLowerCase().contains("application/json"))
-                || "XMLHttpRequest".equalsIgnoreCase(xrw);
+    private static boolean isAllowedOrigin(String origin) {
+        try {
+            java.net.URI uri = java.net.URI.create(origin);
+            String host = uri.getHost();
+            if (host == null) return false;
+            return host.equals("unlaxer.org")
+                    || host.endsWith(".unlaxer.org")
+                    || host.equals("localhost")
+                    || host.startsWith("localhost:");
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static String maskIp(String ip) {

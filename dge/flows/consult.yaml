@@ -1,6 +1,8 @@
 name: consult
 display_name: "🏥 症例検討 — 主治医所見 → 各科コンサル → 統合カンファ"
 auto_merge: false
+decisions: true
+decisions_dir: dge/decisions/
 
 trigger_keywords: ["診断して", "consult", "症例検討", "各科で見て", "専門家に聞いて"]
 
@@ -100,5 +102,7 @@ post_actions:
     display_name: "Gap から Spec を生成"
   - id: switch_roundtable
     display_name: "座談会型に切替"
+  - id: record_decision
+    display_name: "設計判断を記録する"
   - id: later
     display_name: "後で"

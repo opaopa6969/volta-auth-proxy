@@ -2,7 +2,7 @@
 @param java.util.List<java.util.Map<String, Object>> tenants
 @param String returnTo
 @param String csrfToken
-!{var msg = com.volta.authproxy.Messages.current();}
+!{var msg = org.unlaxer.infra.volta.Messages.current();}
 <!doctype html>
 <html lang="${msg.locale()}">
 <head>

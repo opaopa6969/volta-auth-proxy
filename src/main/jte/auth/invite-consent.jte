@@ -8,7 +8,7 @@
 @param String inviteLoginHref
 @param boolean isEmailMismatch = false
 @param String currentEmail = ""
-!{var msg = com.volta.authproxy.Messages.current();}
+!{var msg = org.unlaxer.infra.volta.Messages.current();}
 <!doctype html>
 <html lang="${msg.locale()}">
 <head>

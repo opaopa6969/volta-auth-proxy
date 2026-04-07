@@ -1,6 +1,8 @@
 name: pitch
 display_name: "💰 VC ピッチ — ピッチ → 質疑 → 投資判断"
 auto_merge: false
+decisions: true
+decisions_dir: dge/decisions/
 
 trigger_keywords: ["ピッチして", "pitch", "投資判断", "Go/No-Go", "VC", "事業計画"]
 
@@ -94,5 +96,7 @@ post_actions:
     display_name: "Gap から Spec を生成"
   - id: switch_roundtable
     display_name: "座談会型に切替"
+  - id: record_decision
+    display_name: "設計判断を記録する"
   - id: later
     display_name: "後で"

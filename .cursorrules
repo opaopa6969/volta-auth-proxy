@@ -9,6 +9,7 @@ When the user says "DDE して", "ドキュメントレビュー", "用語集を
 - Generate docs/glossary/<term>.md for undefined terms
 - Run: npx dde-link <file>
 
+
 ## DGE — Dialogue-driven Gap Extraction
 
 When the user says "DGE", "run DGE", "DGE して", "壁打ち", "find gaps", "brainstorm":

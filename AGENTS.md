@@ -24,6 +24,7 @@ npx dde-link <file>
 
 Details: `dde/method.md`, `dde/flows/`, `.claude/skills/dde-session.md`
 
+
 ## DGE — Dialogue-driven Gap Extraction
 
 When the user says "DGE", "run DGE", "DGE して", "壁打ち", "find gaps", "brainstorm":

@@ -1,6 +1,6 @@
 @param String currentPath = ""
 @param String userEmail = ""
-!{var msg = com.volta.authproxy.Messages.current();}
+!{var msg = org.unlaxer.infra.volta.Messages.current();}
 <nav style="display:flex;align-items:center;gap:1.5em;padding:0.75em 1.5em;background:#1a1a2e;border-bottom:1px solid #333;font-size:0.9em">
     <a href="/settings/security" style="color:${currentPath.startsWith("/settings") ? "#fff" : "#aaa"};text-decoration:none">${msg.get("navbar.security")}</a>
     <a href="/auth/sessions" style="color:${currentPath.equals("/auth/sessions") ? "#fff" : "#aaa"};text-decoration:none">${msg.get("navbar.sessions")}</a>

@@ -236,3 +236,8 @@ stateDiagram-v2
 | specs/*.md | Spec ファイル | 実装時 | Step 10（自動） |
 | projects/*.md | プロジェクト管理 | Step 9B | Step 7（自動更新） |
 | bin/dge-tool.js | MUST 強制 CLI | Step 1, 7, 8 | toolkit 提供 |
+| AGENTS.md | Codex/汎用 DGE 指示 | Codex, Cursor | install.sh |
+| GEMINI.md | Gemini CLI DGE 指示 | Gemini CLI | install.sh |
+| .cursorrules | Cursor DGE 指示 | Cursor | install.sh |
+| agents-dge-section.md | DGE 指示テンプレ（ja） | install.sh | toolkit 提供 |
+| agents-dge-section.en.md | DGE 指示テンプレ（en） | install.sh | toolkit 提供 |

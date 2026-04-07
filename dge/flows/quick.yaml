@@ -1,6 +1,8 @@
 name: quick
 display_name: "⚡ クイック — 会話劇で Gap を見つける"
 auto_merge: true  # 素の LLM レビューを自動でバックグラウンド実行。false で無効化
+decisions: true  # post_actions に「設計判断を記録」を表示。false で非表示
+decisions_dir: dge/decisions/  # DD ファイルの保存先。オーバーライド可
 
 trigger_keywords: ["DGE して", "DGE", "壁打ち", "gap を探して"]
 
@@ -55,5 +57,7 @@ post_actions:
     display_name: "詳しくやる → design-review に切替"
   - id: merge_plain
     display_name: "素の LLM でも回してマージ"
+  - id: record_decision
+    display_name: "設計判断を記録する"
   - id: later
     display_name: "後で"

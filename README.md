@@ -7,7 +7,7 @@
 [Multi-tenant](docs/glossary/multi-tenant.md) [identity gateway](docs/glossary/identity-gateway.md) for [SaaS](docs/glossary/saas.md).
 Handles [authentication](docs/glossary/authentication-vs-authorization.md), [tenant](docs/glossary/tenant.md)s, [role](docs/glossary/role.md)s, [invitations](docs/glossary/invitation-flow.md) so [downstream](docs/glossary/downstream-app.md) apps don't have to.
 
-**No [Keycloak](docs/glossary/keycloak.md). No [oauth2-proxy](docs/glossary/reverse-proxy.md). Control is king.**
+**No [Keycloak](docs/glossary/keycloak.md). No [oauth2-proxy](docs/glossary/reverse-proxy.md). Auth as Code.**
 
 > **Auth terminology is hard. But pretending you understand is the most dangerous thing.**
 > Every technical term in this document links to a [glossary article](docs/glossary/).
@@ -86,44 +86,86 @@ open http://localhost:7070/login
 - External audit sink options: `postgres | kafka | elasticsearch`
 - Notification channels: `smtp | sendgrid | none`
 
+## Auth as Code
+
+[Terraform](docs/glossary/terraform.md) brought **Infrastructure as Code**. volta brings **Auth as Code**.
+
+[Authentication](docs/glossary/authentication-vs-authorization.md) flows are [Java](docs/glossary/java.md) code — version-controlled, reviewed in PRs, tested in CI, deployed through your pipeline. Not XML. Not an admin console. Not a visual editor. **Code.**
+
+| | [Keycloak](docs/glossary/keycloak.md) | [Authentik](docs/glossary/authentik.md) | [Auth0](docs/glossary/auth0.md) | **volta** |
+|---|---|---|---|---|
+| Flow definition | Admin UI | Visual editor | Rules/Actions | **Code** ([tramli](https://github.com/opaopa6969/tramli)) |
+| Change process | Click in UI | Drag & drop | Dashboard toggle | **PR → review → deploy** |
+| Validation | Runtime | Runtime | Runtime | **Definition-time** ([`build()`](docs/glossary/state-machine.md)) |
+| Rollback | Manual | Manual | Manual | **`git revert`** |
+
+> volta is to [Keycloak](docs/glossary/keycloak.md) what [SQLite](docs/glossary/sqlite.md) is to [PostgreSQL](docs/glossary/postgresql.md) — embedded, lighter, focused. Not a replacement for the full-featured system. If you need [SAML](docs/glossary/sso.md), [SCIM](docs/glossary/scim.md), or a visual flow editor, use [Keycloak](docs/glossary/keycloak.md) or [Authentik](docs/glossary/authentik.md).
+
+***
+
 ## State Machine Architecture
 
-All [authentication](docs/glossary/authentication-vs-authorization.md) flows are driven by a **constrained [state machine](docs/glossary/state-machine.md)** — invalid transitions cannot exist. The engine is ~120 lines with zero business logic.
+All [authentication](docs/glossary/authentication-vs-authorization.md) flows are driven by **[tramli](https://github.com/opaopa6969/tramli)** — a constrained [state machine](docs/glossary/state-machine.md) engine where invalid transitions cannot exist. The diagrams below are **generated from code** via `MermaidGenerator.generate(definition)` — they never go stale.
 
-> The [state machine](docs/glossary/state-machine.md) core was extracted into a standalone library: **[tramli](https://github.com/opaopa6969/tramli)** — usable in any [Java](docs/glossary/java.md) 21+ project.
+> **[tramli](https://github.com/opaopa6969/tramli)** is a standalone library usable in any [Java](docs/glossary/java.md) 21+ project.
 > For the design pattern guide, see [STATE-MACHINE-PATTERN-GUIDE.md](docs/STATE-MACHINE-PATTERN-GUIDE.md).
 
-```
-flow/
-  FlowEngine              ~120 lines, zero business logic
-  FlowDefinition           Builder DSL + 8-item build() validation
-  FlowContext              Type-safe data accumulator (Class-keyed)
-
-  oidc/                    OIDC login flow (9 states)
-    OidcInitProcessor       → IdP redirect
-    OidcCallbackGuard       → code/state validation
-    OidcTokenExchangeProcessor → code → token exchange
-    UserResolveProcessor    → user upsert + tenant resolution
-    RiskCheckProcessor      → fraud-alert API integration
-    RiskAndMfaBranch        → 3-way: COMPLETE / MFA_PENDING / BLOCKED
-
-  passkey/                 Passkey login flow (6 states)
-  mfa/                     MFA verification flow (4 states)
-  invite/                  Invitation acceptance flow (6 states)
-```
+#### OIDC Login Flow (9 states)
 
 ```mermaid
 stateDiagram-v2
     [*] --> INIT
     INIT --> REDIRECTED : OidcInitProcessor
     REDIRECTED --> CALLBACK_RECEIVED : [OidcCallbackGuard]
-    CALLBACK_RECEIVED --> TOKEN_EXCHANGED
-    TOKEN_EXCHANGED --> USER_RESOLVED
+    CALLBACK_RECEIVED --> TOKEN_EXCHANGED : OidcTokenExchangeProcessor
+    TOKEN_EXCHANGED --> USER_RESOLVED : UserResolveProcessor
     USER_RESOLVED --> RISK_CHECKED : RiskCheckProcessor
-    RISK_CHECKED --> COMPLETE : RiskAndMfaBranch(no_mfa)
-    RISK_CHECKED --> COMPLETE_MFA_PENDING : RiskAndMfaBranch(mfa)
-    RISK_CHECKED --> BLOCKED : RiskAndMfaBranch(risk=5)
+    RISK_CHECKED --> COMPLETE : RiskAndMfaBranch
+    RISK_CHECKED --> COMPLETE_MFA_PENDING : RiskAndMfaBranch
+    RISK_CHECKED --> BLOCKED : RiskAndMfaBranch
+    RETRIABLE_ERROR --> INIT : RetryProcessor
     COMPLETE --> [*]
+    COMPLETE_MFA_PENDING --> [*]
+    BLOCKED --> [*]
+    TERMINAL_ERROR --> [*]
+```
+
+#### Passkey Login Flow (6 states)
+
+```mermaid
+stateDiagram-v2
+    [*] --> INIT
+    INIT --> CHALLENGE_ISSUED : PasskeyChallengeProcessor
+    CHALLENGE_ISSUED --> ASSERTION_RECEIVED : [PasskeyAssertionGuard]
+    ASSERTION_RECEIVED --> USER_RESOLVED : PasskeyVerifyProcessor
+    USER_RESOLVED --> COMPLETE : SessionIssueProcessor
+    COMPLETE --> [*]
+    TERMINAL_ERROR --> [*]
+```
+
+#### MFA Verification Flow (4 states)
+
+```mermaid
+stateDiagram-v2
+    [*] --> CHALLENGE_SHOWN
+    CHALLENGE_SHOWN --> VERIFIED : [MfaCodeGuard]
+    VERIFIED --> [*]
+    TERMINAL_ERROR --> [*]
+    EXPIRED --> [*]
+```
+
+#### Invitation Acceptance Flow (6 states)
+
+```mermaid
+stateDiagram-v2
+    [*] --> CONSENT_SHOWN
+    CONSENT_SHOWN --> ACCEPTED : EmailMatchBranch
+    CONSENT_SHOWN --> ACCOUNT_SWITCHING : EmailMatchBranch
+    ACCOUNT_SWITCHING --> ACCEPTED : [ResumeGuard]
+    ACCEPTED --> COMPLETE : InviteCompleteProcessor
+    COMPLETE --> [*]
+    TERMINAL_ERROR --> [*]
+    EXPIRED --> [*]
 ```
 
 ### Conditional Access + Device Trust

@@ -1,7 +1,7 @@
 @param String title
 @param String code
 @param String state
-!{var msg = com.volta.authproxy.Messages.current();}
+!{var msg = org.unlaxer.infra.volta.Messages.current();}
 <!doctype html>
 <html lang="${msg.locale()}">
 <head>

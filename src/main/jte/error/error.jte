@@ -4,7 +4,7 @@
 @param java.util.List<java.util.Map<String, String>> actions
 @param boolean showSupport
 @param String supportContact
-!{var msg = com.volta.authproxy.Messages.current();}
+!{var msg = org.unlaxer.infra.volta.Messages.current();}
 <!doctype html>
 <html lang="${msg.locale()}">
 <head>

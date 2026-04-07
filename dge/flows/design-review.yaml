@@ -1,6 +1,8 @@
 name: design-review
 display_name: "🔍 設計レビュー — 仕様の穴を見つけて Spec に変換"
 auto_merge: true
+decisions: true
+decisions_dir: dge/decisions/
 
 trigger_keywords: ["詳しく", "本格的に", "full", "設計レビュー", "Spec"]
 
@@ -109,6 +111,8 @@ post_actions:
     display_name: "実装する → Spec 化"
   - id: merge_plain
     display_name: "素の LLM でも回してマージ"
+  - id: record_decision
+    display_name: "設計判断を記録する"
   - id: later
     display_name: "後で"
 

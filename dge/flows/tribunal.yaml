@@ -1,6 +1,8 @@
 name: tribunal
 display_name: "⚖ 査読劇 — 独立評価 → 反論対話 → 統合"
 auto_merge: false  # 構造自体がマルチフェーズのため auto_merge 不要
+decisions: true
+decisions_dir: dge/decisions/
 
 trigger_keywords: ["査読して", "査読劇", "tribunal", "review play", "裁判型"]
 
@@ -114,5 +116,7 @@ post_actions:
     display_name: "Gap から Spec を生成"
   - id: switch_roundtable
     display_name: "座談会型に切替"
+  - id: record_decision
+    display_name: "設計判断を記録する"
   - id: later
     display_name: "後で"

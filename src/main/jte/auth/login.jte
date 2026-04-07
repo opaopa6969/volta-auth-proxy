@@ -1,10 +1,10 @@
 @param String title
 
 @param java.util.Map<String, String> inviteContext
-@param java.util.List<com.volta.authproxy.IdpProvider> providers
+@param java.util.List<org.unlaxer.infra.volta.IdpProvider> providers
 @param String baseParams
 @param boolean isSwitchAccount = false
-!{var msg = com.volta.authproxy.Messages.current();}
+!{var msg = org.unlaxer.infra.volta.Messages.current();}
 <!doctype html>
 <html lang="${msg.locale()}">
 <head>
@@ -27,7 +27,7 @@
     <p>${msg.get("login.switch_account")}</p>
     <button class="button" id="passkey-login" onclick="startPasskeyLogin()">${msg.get("login.passkey_button")}</button>
     <div class="separator"><span>${msg.get("common.or")}</span></div>
-    @for(com.volta.authproxy.IdpProvider p : providers)
+    @for(org.unlaxer.infra.volta.IdpProvider p : providers)
         <a class="button button-${p.id().toLowerCase()}"
            href="/login?start=1&provider=${p.id()}${baseParams}">${p.label()} ${msg.get("login.login_with")}</a>
     @endfor

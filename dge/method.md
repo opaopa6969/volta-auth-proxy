@@ -253,6 +253,22 @@ DGE の得意領域（判断）:
 DGE toolkit の auto_merge 機能はこの補完関係を自動で実現する。
 DGE セッションと素の LLM レビューを並行実行し、結果をマージして表示する。
 
+## Gap と Design Decision (DD) の関係
+
+Gap と DD は別の概念:
+
+```
+Gap  = 「ここが未定義だ」「ここに矛盾がある」— 穴の発見（Observation）
+DD   = 「こう決めた。なぜならこうだから」— 穴に対する判断の記録（Decision）
+```
+
+Gap から DD が生まれることもあるが、1:1 ではない。
+1 つの Gap から複数の DD が生まれることもあるし、Gap に紐づかない DD もある（例: 命名の議論）。
+Session : DD = 1:N、DD : Session = 1:1。
+
+DD は `dge/decisions/` に保存し、セッションファイルと相互リンクする。
+詳細は `kit/templates/decision.md` と `kit/skills/dge-session.md` の Step 9.5 を参照。
+
 ## クイックスタート（どの LLM でも使える）
 
 ### 方法 A: 汎用プロンプト（ChatGPT / Gemini / Claude 等）

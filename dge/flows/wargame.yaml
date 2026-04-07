@@ -1,6 +1,8 @@
 name: wargame
 display_name: "⚔ 兵棋演習 — 攻撃計画 → 防御計画 → 審判評価"
 auto_merge: false
+decisions: true
+decisions_dir: dge/decisions/
 
 trigger_keywords: ["攻撃して", "兵棋演習", "wargame", "セキュリティ攻撃", "penetration", "red team exercise"]
 
@@ -90,5 +92,7 @@ post_actions:
     display_name: "Gap から Spec を生成"
   - id: switch_roundtable
     display_name: "座談会型に切替"
+  - id: record_decision
+    display_name: "設計判断を記録する"
   - id: later
     display_name: "後で"

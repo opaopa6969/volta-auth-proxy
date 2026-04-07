@@ -1,12 +1,12 @@
 {
   "version": "1.0.0",
-  "generated_at": "2026-04-06T22:21:00.493Z",
+  "generated_at": "2026-04-07T06:37:32.726Z",
   "stats": {
-    "sessions": 23,
+    "sessions": 39,
     "gaps": 111,
     "decisions": 0,
     "annotations": 0,
-    "specs": 4
+    "specs": 6
   },
   "nodes": [
     {
@@ -2723,6 +2723,507 @@
       "warnings": []
     },
     {
+      "type": "session",
+      "id": "2026-04-07-conditional-access-r2",
+      "data": {
+        "id": "2026-04-07-conditional-access-r2",
+        "date": "2026-04-07",
+        "theme": "conditional-access-r2",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-conditional-access-r2.md",
+        "content": "# DGE Session: 条件付きアクセス — Round 2 (Critical 深掘り)\n\n> Date: 2026-04-07\n> Structure: 🗣 座談会 (roundtable)\n> Characters: ☕ヤン / 👤今泉 / 🎩千石 / 😈Red Team / 🏥ハウス / 🎨深澤\n> Theme: G1/G3/G8 の Critical Gap を解決する\n> Round: 2\n> New Gaps: 8 (G12-G19)\n\n## Scene 1: G1 スコープ確定\n\nスコープを「新デバイスからのログイン検知 + 対応」に限定。\n除外: Cookie窃取対策（HttpOnly/SameSite/Secureで十分）、地理制限（GeoIP精度問題+VPN無力化）、時間帯制限。\n除外理由をADRとして記録すべき。\n\n→ G1 解決案確定\n→ Gap G12: スコープ外のADR記録 [Medium]\n\n## Scene 2: G3 評価タイミング確定\n\n2層:\n1. ログイン時 — 新デバイス判定 → 通知 or step-up\n2. ForwardAuth — User-Agent変更のみ軽量チェック（warning flag、即ブロックなし）\n\n→ G3 解決案確定\n→ Gap G13: UA変更時アクション未定義 [Medium]\n→ Gap G14: ForwardAuth UA比較処理 [Low]\n\n## Scene 3: G8 デバイス識別確定\n\nPersistent Cookie方式:\n  名前: __volta_device_trust\n  値: UUID (デバイスID)\n  Max-Age: 90日, HttpOnly, SameSite=Lax, Secure, Path=/login\n  DB: trusted_devices テーブル (max 10台, LRU削除)\n\nFingerprinting は GDPR リスク + 精度低下で除外。\nUser-Agent + IP の組み合わせも不十分（IP変動、UA共通）で除外。\n\n「このデバイスを記憶する」はMFA通過後に表示。\n\n→ G8 解決案確定\n→ Gap G15: trusted_devices テーブル設計 [High]\n→ Gap G16: 「記憶する」UIタイミング [Medium]\n→ Gap G17: Cookie削除/プライベートブラウジング時の頻度制限 [Low]\n\n## Scene 4: 統合アーキテクチャ\n\n```\nログイン成功:\n  __volta_device_trust cookie 確認\n  → 既知: last_seen_at更新、通常ログイン\n  → 未知: メール通知 + (テナント設定で) step-up\n  → step-up通過後: 「記憶しますか？」→ cookie発行 + DB INSERT\n\nForwardAuth:\n  → UA変更検知 → warning flag (audit_log記録のみ)\n\nJWT amr:\n  → [\"oidc:google\"], [\"passkey\"], [\"oidc:google\", \"otp\"]\n  → step-up後にJWT再発行でamr更新\n```\n\nSM統合: SessionIssueProcessor後にデバイスチェック（state追加不要、Processor内ロジック）。\n\n→ Gap G18: 通知送信先と頻度制御 [Medium]\n→ Gap G19: SM統合ポイント [Medium]\n\n## Gap Summary (Cumulative: Round 1 + 2)\n\n| # | Gap | Severity | Status |\n|---|-----|----------|--------|\n| G1 | スコープ | Critical | **RESOLVED** — 新デバイス検知に限定 |\n| G2 | 誤検知UX | High | Open |\n| G3 | 評価タイミング | Critical | **RESOLVED** — 2層(ログイン時+ForwardAuth UA) |\n| G4 | 条件の主体 | High | Open |\n| G5 | IP変更の扱い | High | Partially — ForwardAuthはUA比較のみ |\n| G6 | amr更新タイミング | Medium | Open |\n| G7 | 認証状態3表現の関係 | Medium | Open |\n| G8 | デバイス識別 | Critical | **RESOLVED** — Persistent Cookie + trusted_devices |\n| G9 | 検知/対応レイヤー分離 | High | Open |\n| G10 | 通知メッセージトーン | Medium | Open |\n| G11 | amr値セット | Low | Open |\n| G12 | ADR記録の仕組み | Medium | New |\n| G13 | UA変更時アクション | Medium | New |\n| G14 | ForwardAuth UA比較 | Low | New |\n| G15 | trusted_devicesテーブル設計 | High | New |\n| G16 | 「記憶する」UIタイミング | Medium | New |\n| G17 | Cookie削除時の頻度制限 | Low | New |\n| G18 | 通知送信先と頻度 | Medium | New |\n| G19 | SM統合ポイント | Medium | New |\n\nCritical: 3 (all resolved) / High: 5 / Medium: 8 / Low: 3 — Total: 19\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-conditional-access-r2#dialogue",
+      "data": {
+        "session_id": "2026-04-07-conditional-access-r2",
+        "has_content": true,
+        "scene_count": 4,
+        "char_count": 6
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-conditional-access-r3",
+      "data": {
+        "id": "2026-04-07-conditional-access-r3",
+        "date": "2026-04-07",
+        "theme": "conditional-access-r3",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-conditional-access-r3.md",
+        "content": "# DGE Session: 条件付きアクセス — Round 3 (Pluggable 検知 + 残 High)\n\n> Date: 2026-04-07\n> Structure: 🗣 座談会 (roundtable)\n> Characters: ☕ヤン / 👤今泉 / 🎩千石 / 😈Red Team / 🏥ハウス / 🎨深澤\n> Theme: 検知レイヤーの pluggable 化 + G2/G4/G5/G15 解決\n> Round: 3\n> New Gaps: 7 (G20-G26)\n\n## Scene 1: G9 — Pluggable 検知/対応アーキテクチャ\n\n```java\ninterface RiskSignalProvider {\n    String name();\n    RiskSignal evaluate(LoginContext ctx);\n}\n\nrecord RiskSignal(String provider, String level, String reason, Map<String, Object> metadata) {}\n// level: \"none\" | \"low\" | \"medium\" | \"high\" | \"critical\"\n\ninterface RiskResponseHandler {\n    void handle(AuthPrincipal principal, List<RiskSignal> signals, ResponseContext ctx);\n}\n```\n\nBuilt-in providers (Phase 1):\n  - NewDeviceSignalProvider (同期)\n  - RateLimitSignalProvider (同期)\n\nPhase N providers:\n  - ImpossibleTravelProvider (非同期, GeoIP)\n  - ThreatIntelProvider (非同期, 外部API)\n  - ExternalApiSignalProvider (pluggable, HTTP)\n\nBuilt-in handlers:\n  - NotifyHandler (メール通知)\n  - StepUpHandler (MFA 再要求)\n  - SessionRevokeHandler (即時 revoke)\n  - AuditOnlyHandler (ログのみ)\n\n同期 vs 非同期:\n  - 同期: ログインフロー内で即座に評価。ログイン体験を止めない軽量なもの。\n  - 非同期: queue に投入 → worker が評価 → critical なら session revoke + 通知。\n\nSM統合: SM の外。Router レベルで session 発行後に RiskEvaluator を呼ぶ。\n\n→ G9 RESOLVED\n→ Gap G20: RiskSignal集約ロジック [High]\n→ Gap G21: 非同期worker設計 [Medium]\n→ Gap G22: 外部API fail-open/closed [High]\n\n## Scene 2: G15 + G4 — テーブル設計 + テナント設定\n\n```sql\nCREATE TABLE trusted_devices (\n    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n    user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n    device_id    UUID NOT NULL,\n    device_name  VARCHAR(100),\n    user_agent   VARCHAR(500),\n    ip_address   VARCHAR(45),\n    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),\n    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()\n);\nCREATE UNIQUE INDEX idx_trusted_devices_user_device ON trusted_devices(user_id, device_id);\n\nCREATE TABLE tenant_security_policies (\n    tenant_id           UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,\n    new_device_action   VARCHAR(20) NOT NULL DEFAULT 'notify',  -- 'notify' | 'step_up'\n    notify_user         BOOLEAN NOT NULL DEFAULT true,\n    notify_admin        BOOLEAN NOT NULL DEFAULT false,\n    max_trusted_devices INT NOT NULL DEFAULT 10,\n    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),\n    updated_by          UUID REFERENCES users(id)\n);\n```\n\nblock は YAGNI で除外。notify / step_up の2択。\n\n→ G4 RESOLVED\n→ G15 RESOLVED\n→ Gap G23: 設定UI配置 [Low]\n→ Gap G24: デバイス手動管理API [Medium]\n\n## Scene 3: G2 + G5 — 誤検知UX + IP扱い\n\nstep_up フロー:\n  1. ログイン成功 → 新デバイス検知\n  2. 「セキュリティ確認」画面 → TOTP入力\n  3. 成功 → 「このデバイスを記憶しますか？」[はい/今回だけ]\n  4. ダッシュボードへ\n\nMFA未設定ユーザー: step_up 適用しない。\n前提条件: new_device_action=step_up には tenants.mfa_required=true が必要。\n\nIP: 検知に使わない。通知メール + ログに記録のみ。Impossible Travel は Phase N。\n\n→ G2 RESOLVED\n→ G5 RESOLVED\n→ Gap G25: step_up/MFA整合性バリデーション [High]\n→ Gap G26: 通知メールテンプレート [Medium]\n\n## Cumulative Gap Status (Round 1-3)\n\n| # | Severity | Status | Summary |\n|---|----------|--------|---------|\n| G1 | Critical | RESOLVED | スコープ → 新デバイス検知に限定 |\n| G2 | High | RESOLVED | 誤検知UX → step_up + 記憶オプション |\n| G3 | Critical | RESOLVED | 評価タイミング → 2層(ログイン時+ForwardAuth UA) |\n| G4 | High | RESOLVED | 条件の主体 → tenant_security_policies |\n| G5 | High | RESOLVED | IP → 検知に使わない、記録のみ |\n| G6 | Medium | Open | amr更新タイミング |\n| G7 | Medium | Open | auth_state/scopes/amr関係文書化 |\n| G8 | Critical | RESOLVED | デバイス識別 → Persistent Cookie |\n| G9 | High | RESOLVED | 検知/対応分離 → RiskSignalProvider + RiskResponseHandler |\n| G10 | Medium | Open | 通知メッセージトーン |\n| G11 | Low | Open | amr値セット |\n| G12 | Medium | Open | ADR記録 |\n| G13 | Medium | Open | UA変更時アクション |\n| G14 | Low | Open | ForwardAuth UA比較 |\n| G15 | High | RESOLVED | trusted_devicesテーブル |\n| G16 | Medium | Open | 「記憶する」UIタイミング |\n| G17 | Low | Open | Cookie削除時の頻度制限 |\n| G18 | Medium | Open | 通知送信先と頻度 |\n| G19 | Medium | Open | SM統合ポイント |\n| G20 | High | Open | RiskSignal集約 |\n| G21 | Medium | Open | 非同期worker |\n| G22 | High | Open | 外部API fail-open/closed |\n| G23 | Low | Open | 設定UI配置 |\n| G24 | Medium | Open | デバイス手動管理API |\n| G25 | High | Open | step_up/MFA整合性 |\n| G26 | Medium | Open | 通知メールテンプレート |\n\nCritical: 3/3 RESOLVED / High: 8 (5 RESOLVED, 3 Open) / Medium: 10 Open / Low: 4 Open\nTotal: 26 Gap (8 RESOLVED, 18 Open)\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-conditional-access-r3#dialogue",
+      "data": {
+        "session_id": "2026-04-07-conditional-access-r3",
+        "has_content": true,
+        "scene_count": 3,
+        "char_count": 6
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-conditional-access-r4",
+      "data": {
+        "id": "2026-04-07-conditional-access-r4",
+        "date": "2026-04-07",
+        "theme": "conditional-access-r4",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-conditional-access-r4.md",
+        "content": "# DGE Session: 条件付きアクセス — Round 4 (fraud-alert 統合)\n\n> Date: 2026-04-07\n> Structure: 🗣 座談会 (roundtable)\n> Characters: ☕ヤン / 👤今泉 / 🎩千石 / 😈Red Team / 🏥ハウス / 🎨深澤\n> Theme: fraud-alert (既存の不正検知プロダクト) との統合設計\n> Round: 4\n> New Gaps: 5 (G27-G31)\n> Context: fraud-alert はユーザー自身が設計・実装した現職のプロダクト\n\n## Key Decision: 検知は fraud-alert、対応は volta\n\n責務分離:\n  fraud-alert = 検知 (50+ Checker → relativeSuspiciousValue 1-5)\n  volta = 対応 (ポリシー適用: 通知 / step-up / ブロック)\n\nvolta 側でスコア集約ロジックを持つ必要なし。\nCustom Functions (TinyExpression DSL) でサイト別チューニング可能。\n\n## Scene 1: API 統合ポイント\n\n```\nSM フロー:\n  TOKEN_EXCHANGED → USER_RESOLVED → RISK_CHECKED → Branch → COMPLETE / MFA_PENDING / BLOCKED\n\nfraud-alert 呼出:\n  1. RiskCheckProcessor → /c/checkOnly (timeout 3s, fail-open)\n  2. SessionIssueProcessor 後 → /c/loginSucceed (非同期)\n  3. Guard 拒否時 → /c/loginFailed (非同期)\n```\n\nExternalRiskService interface:\n```java\ninterface ExternalRiskService {\n    RiskResult check(RiskRequest request, Duration timeout);\n    void reportSuccess(LoginContext ctx);\n    void reportFailure(LoginContext ctx);\n}\n\nrecord RiskResult(\n    int relativeSuspiciousValue,\n    int totalSuspiciousValue,\n    Map<String, Integer> byKind,\n    boolean blocked\n) {}\n```\n\n→ G9 RESOLVED (再設計)\n→ G20 RESOLVED (集約不要、fraud-alert に委譲)\n→ G22 RESOLVED (fail-open, timeout 3s)\n→ G19 RESOLVED (RISK_CHECKED state + 3分岐)\n\n## Scene 2: Branch 判定ロジック\n\n```\nrelativeSuspicious 1-3 && !mfaRequired → \"no_mfa\" → COMPLETE\nrelativeSuspicious 1-3 && mfaRequired  → \"mfa_required\" → COMPLETE_MFA_PENDING\nrelativeSuspicious 4+                  → \"mfa_required\" → COMPLETE_MFA_PENDING\nrelativeSuspicious 5                   → \"blocked\" → TERMINAL_ERROR\n```\n\nテナント設定:\n  risk_action_threshold: 4 (このレベル以上で step-up)\n  risk_block_threshold: 5 (このレベルでブロック)\n\n## Scene 3: volta ローカルチェック vs fraud-alert\n\n```\nvolta (LocalRiskCheck, ms 単位):\n  - trusted_devices で既知デバイス判定\n  - 結果: known / unknown\n  - 用途: 通知メール、「記憶する」UI\n\nfraud-alert (ExternalRiskService, 100ms-3s):\n  - 50+ Checker 総合スコア\n  - 結果: relativeSuspiciousValue 1-5\n  - 用途: step-up / ブロック判定\n```\n\n対応マトリクス:\n  新デバイス + risk 1-2 → 通知のみ\n  新デバイス + risk 3   → 通知 + (テナント設定次第で step-up)\n  新デバイス + risk 4   → 通知 + MFA 再要求\n  新デバイス + risk 5   → ブロック\n  既知デバイス + risk 1-3 → 何もしない\n  既知デバイス + risk 4   → MFA 再要求\n  既知デバイス + risk 5   → ブロック\n\n## New Gaps\n\n| # | Gap | Severity |\n|---|-----|----------|\n| G27 | テナント ↔ siteId マッピング | High |\n| G28 | userHash 生成方法 | Medium |\n| G29 | BLOCKED 時 UI | Medium |\n| G30 | loginSucceed/Failed タイミング | Low |\n| G31 | デバイス×リスク マトリクス vs 閾値 | Medium |\n\n## Cumulative: 31 Gaps (11 RESOLVED, 20 Open)\nCritical 3/3 RESOLVED / High 2 Open (G25, G27) / Medium 13 Open / Low 5 Open\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-conditional-access-r4#dialogue",
+      "data": {
+        "session_id": "2026-04-07-conditional-access-r4",
+        "has_content": true,
+        "scene_count": 3,
+        "char_count": 6
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-conditional-access-r5",
+      "data": {
+        "id": "2026-04-07-conditional-access-r5",
+        "date": "2026-04-07",
+        "theme": "conditional-access-r5",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-conditional-access-r5.md",
+        "content": "# DGE Session: 条件付きアクセス — Round 5 (Final: High 完遂 + トリアージ)\n\n> Date: 2026-04-07\n> Structure: 🗣 座談会 (roundtable)\n> Characters: ☕ヤン / 👤今泉 / 🎩千石 / 😈Red Team / 🏥ハウス / 🎨深澤\n> Round: 5 (Final)\n> New Gaps: 0\n> Resolved: G25, G27, G28\n\n## G25 解決: step_up / MFA 整合性バリデーション\n\n双方向バリデーション:\n- step_up 有効化 → mfa_required が前提\n- risk_action_threshold < 5 → mfa_required が前提\n- mfa_required 無効化 → step_up が先に無効化されていること\n管理画面: MFA OFF ならstep_up ラジオボタンがグレーアウト。\n\n## G27 解決: テナント ↔ siteId マッピング\n\nvolta 全体で 1 siteId。テナント分離は userHash で:\n  userHash = SHA256(tenantId + \":\" + userId)\nスコアリング共通、閾値はテナント別 (tenant_security_policies.risk_action_threshold)。\nfraud-alert 側の変更不要。\n\n## G28 解決: userHash 生成\n\nSHA256(tenantId + \":\" + userId)。テナント ID を含めてテナント間分離。\n\n## Medium/Low トリアージ\n\n実装時に自然に決まる:\n  G6 → JWT再発行時にamr再計算\n  G11 → RFC 8176 標準値: pwd, otp, hwk, fed\n  G14 → session.user_agent vs req.User-Agent の equals()\n  G30 → Router末尾で非同期 fire-and-forget\n\nSpec/文書化が必要:\n  G7 → ADR として auth_state/scopes/amr 関係を記録\n  G10 → messages_ja/en.properties に通知文追加\n  G12 → dge/decisions/ に ADR 記録 (DVE 連携)\n  G13 → audit_log 記録のみ (Phase 1)\n  G26 → jte テンプレート + Messages\n\nUI/フロント:\n  G16 → MFA後に「記憶する」表示\n  G23 → admin/security ページに追加\n  G24 → /api/v1/users/{id}/devices CRUD\n  G29 → error.jte バリエーション\n\nYAGNI / Phase N:\n  G17 → 実運用で問題が出てから\n  G21 → OutboxWorker 統合\n  G31 → Phase 1 は閾値のみ\n\n## Final Status: 全 31 Gap\n\n| Status | Count |\n|--------|-------|\n| Critical RESOLVED | 3/3 |\n| High RESOLVED | 10/10 |\n| Medium Open (実装時解決) | 13 |\n| Low Open (YAGNI含む) | 5 |\n\n**Critical + High = 全 RESOLVED。設計判断は全て完了。実装着手可能。**\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-conditional-access-r5#dialogue",
+      "data": {
+        "session_id": "2026-04-07-conditional-access-r5",
+        "has_content": true,
+        "scene_count": 0,
+        "char_count": 6
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-conditional-access",
+      "data": {
+        "id": "2026-04-07-conditional-access",
+        "date": "2026-04-07",
+        "theme": "conditional-access",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-conditional-access.md",
+        "content": "# DGE Session: 条件付きアクセス / リスクベース認証\n\n> Date: 2026-04-07\n> Structure: 🗣 座談会 (roundtable)\n> Characters: ☕ヤン / 👤今泉 / 🎩千石 / 😈Red Team / 🏥ハウス / 🎨深澤\n> Theme: volta-auth-proxy に条件付きアクセスをどう設計するか\n> Round: 1\n> Gaps: 11\n\n## Scene 1: そもそも何を守るのか\n\nヤン: 今の仕組み（MFA, session TTL, ForwardAuth）で何が守れてないのか？\n今泉: 具体的に誰がどう困っている？\nRed Team: 正規クレデンシャルを盗んだ攻撃者がブラジルから深夜3時にログインしても通る。「誰が」は見てるが「どこから」「いつ」は見てない。\n千石: 認証は「誰か」を確認するが「今のアクセスは信頼できる状況か」を確認していない。\nハウス: Cookie窃取前提の設計 vs 異常パターン検知 — 全然違う病気。\nヤン: 80%の価値は異常パターン検知。新デバイスからのログイン検知 + step-up要求で十分では。\n深澤: 「不審なアクセスです」で正当ユーザーが仕事できなくなる恐怖。\n\n→ Gap G1: 条件付きアクセスのスコープ未定義 [Critical]\n→ Gap G2: 誤検知時のUX・回復フロー未設計 [High]\n\n## Scene 2: 評価タイミングと判定基準\n\n今泉: ログイン時だけ？毎リクエスト？\nヤン: 毎リクエストは重すぎる。\n千石: ログイン時に信頼スコアを算出→セッションに記録→ForwardAuthはスコアだけ見る。\nRed Team: モバイルのWi-Fi→LTE切替でIP変わる。IP変更=不審にすると誤検知だらけ。\nハウス: 条件の定義を誰がするのか。管理者か？プラットフォームか？\n深澤: 管理者が厳しくしすぎて自分がロックアウト。設定プレビューがないと危険。\n今泉: テナント管理者が本当にこの設定を欲しいと言ったのか？\n\n→ Gap G3: 評価タイミング未定義 [Critical]\n→ Gap G4: 条件の主体不明 + セルフロックアウト防止 [High]\n→ Gap G5: IP変更の扱い（正当 vs ハイジャック） [High]\n\n## Scene 3: amr と step-up の関係\n\nヤン: amr と session_scopes は同じことを2箇所で管理してないか？\n千石: amr=認証方法の記録、step-up=追加認証の要求。別物。\nRed Team: JWT内のamrはsession TTL内は変わらない。step-up後に更新されるか？\nハウス: auth_state / session_scopes / amr — 3つの認証状態表現が共存。本当に必要か？\nヤン: 3つとも役割が違うから共存は正しい。ただ更新タイミングを決めないと。\n深澤: amrを条件分岐に使えたら便利（passkey持ちは地理制限緩和など）。\n\n→ Gap G6: amr更新タイミング未定義 [Medium]\n→ Gap G7: 3つの認証状態表現の関係未文書化 [Medium]\n\n## Scene 4: 最小実装と段階的拡張\n\nヤン提案:\n  Phase 1: 新デバイス/IP検知 → メール通知 + amr JWT追加\n  Phase 2: 新デバイス時にstep-up（MFA再要求）+ テナント管理者設定\n  Phase 3: 地理/時間帯制限 + カスタム条件UI + amrベース条件分岐\n\nRed Team: 通知だけは弱いが、検知の仕組みを先に作るのは正しい。\n千石: 検知レイヤーと対応レイヤーを分離すれば段階的に進められる。\nハウス: デバイス判定方法を決めてない。曖昧な検知は誤検知の温床。\n深澤: 通知メールのトーン。「不審なログイン」はパニックを起こす。\n\n→ Gap G8: デバイス識別方法未定義（004-3と密結合） [Critical]\n→ Gap G9: 検知/対応レイヤーの分離設計なし [High]\n→ Gap G10: 通知メッセージのトーン設計 [Medium]\n→ Gap G11: amr値セット未定義 [Low]\n\n## Gap Summary\n\n| # | Gap | Severity | Category |\n|---|-----|----------|----------|\n| G1 | スコープ未定義（Cookie窃取 vs 異常検知 vs ポリシー） | Critical | Architecture |\n| G2 | 誤検知時UX・回復フロー | High | UX |\n| G3 | 評価タイミング（login / IP変更 / 毎req） | Critical | Architecture |\n| G4 | 条件の主体 + セルフロックアウト防止 | High | Policy |\n| G5 | IP変更の扱い（正当 vs ハイジャック） | High | Security |\n| G6 | amr更新タイミング | Medium | Protocol |\n| G7 | auth_state/session_scopes/amr 関係文書化 | Medium | Documentation |\n| G8 | デバイス識別方法（004-3密結合） | Critical | Architecture |\n| G9 | 検知/対応レイヤー分離 | High | Architecture |\n| G10 | 通知メッセージトーン | Medium | UX |\n| G11 | amr値セット | Low | Protocol |\n\nCritical: 3 / High: 4 / Medium: 3 / Low: 1 — Total: 11\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-conditional-access#dialogue",
+      "data": {
+        "session_id": "2026-04-07-conditional-access",
+        "has_content": true,
+        "scene_count": 4,
+        "char_count": 6
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-device-trust",
+      "data": {
+        "id": "2026-04-07-device-trust",
+        "date": "2026-04-07",
+        "theme": "device-trust",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-device-trust.md",
+        "content": "# DGE Session: デバイストラスト (004-3)\n\n> Date: 2026-04-07\n> Structure: 🗣 座談会 (roundtable)\n> Characters: ☕ヤン / 👤今泉 / 🎩千石 / 😈Red Team / 🏥ハウス / 🎨深澤\n> Theme: デバイストラストのライフサイクル、管理UI、Passkey連携\n> Round: 1 (003-2 で基盤設計済み、差分のみ)\n> Gaps: 8\n\n## 前提 (003-2 で確定済み)\n\n- デバイス識別: Persistent Cookie (__volta_device_trust, UUID, 90日, HttpOnly)\n- DB: trusted_devices テーブル (max 10台, LRU削除)\n- テナント設定: tenant_security_policies (new_device_action: notify/step_up)\n- fraud-alert 連携: ExternalRiskService 経由\n\n## Scene 1: ライフサイクル\n\n信頼の開始: ユーザーが「記憶する」選択 → DB INSERT + cookie 発行\n信頼の継続: ログイン時に cookie + DB マッチ → last_seen_at 更新、cookie リフレッシュ\n信頼の失効:\n  A. cookie 期限切れ (90日未使用) → 新デバイス扱い\n  B. ユーザー手動削除 (設定画面)\n  C. 管理者強制削除 (全デバイス)\n  D. パスワード/MFA リセット時 → 全デバイス自動失効\n  E. DB GC (180日 last_seen_at から)\n\n→ Gap DT-1: デバイス失効 ≠ アクセスブロック の UX 説明 [Medium]\n→ Gap DT-2: パスワード/MFA リセット時の全デバイス自動失効トリガー [High]\n→ Gap DT-3: DB GC 設計 [Low]\n\n## Scene 2: API + UI\n\nユーザー API:\n  GET    /api/v1/users/me/devices         → 一覧 (IP一部マスク)\n  DELETE /api/v1/users/me/devices/{id}    → 個別削除\n  DELETE /api/v1/users/me/devices         → 全削除\n\n管理者 API:\n  GET    /api/v1/tenants/{tid}/users/{uid}/devices  → 閲覧のみ\n  DELETE /api/v1/tenants/{tid}/users/{uid}/devices   → 全削除\n\nデバイス名: User-Agent からブラウザ + OS を自動推定\n  例: \"Chrome on macOS\", \"Safari on iPhone\"\n\n→ Gap DT-4: API 設計 + IP マスク [Medium]\n→ Gap DT-5: UA → デバイス名の共通化 [Low]\n\n## Scene 3: Passkey との関係\n\nPasskey = 認証方法（秘密鍵）。信頼デバイス = 通知ポリシー（cookie）。別概念。\nPasskey でログイン → 自動デバイス信頼 (デフォルト ON、テナント設定で OFF 可)。\n理由: Passkey = そのデバイスに秘密鍵がある = 本人のデバイスの可能性が高い。\nただしクラウド同期あり → 100% ではない → paranoid なテナントは OFF に。\n\n→ Gap DT-6: Passkey 自動信頼設定 [Medium]\n→ Gap DT-7: Passkey vs 信頼デバイスの関係文書化 [Low]\n\n## Scene 4: セキュリティ設定画面\n\n/settings/security に「信頼済みデバイス」セクション追加:\n  - デバイス一覧 (名前, 最終アクセス, IP)\n  - 個別削除 / 全削除\nパスキー一覧とは別セクション（混同防止）。\n\n→ Gap DT-8: 設定画面セクション追加 [Medium]\n\n## Gap Summary\n\n| # | Gap | Severity |\n|---|-----|----------|\n| DT-1 | 失効 ≠ ブロックの UX 説明 | Medium |\n| DT-2 | パスワード/MFA リセット時の全デバイス失効 | High |\n| DT-3 | DB GC (180日) | Low |\n| DT-4 | デバイス API + IP マスク | Medium |\n| DT-5 | UA → デバイス名推定の共通化 | Low |\n| DT-6 | Passkey 自動信頼設定 | Medium |\n| DT-7 | Passkey vs 信頼デバイスの文書化 | Low |\n| DT-8 | 設定画面セクション追加 | Medium |\n\nHigh: 1 / Medium: 4 / Low: 3 — Total: 8\n003-2 の基盤上のライフサイクル + UI 差分のみ。構造的設計判断は完了。\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-device-trust#dialogue",
+      "data": {
+        "session_id": "2026-04-07-device-trust",
+        "has_content": true,
+        "scene_count": 4,
+        "char_count": 6
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-fraud-detection-local",
+      "data": {
+        "id": "2026-04-07-fraud-detection-local",
+        "date": "2026-04-07",
+        "theme": "fraud-detection-local",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-fraud-detection-local.md",
+        "content": "# DGE Session: 不正検知 — volta 内ローカルルール (003-1)\n\n> Date: 2026-04-07\n> Structure: 🗣 座談会 (roundtable)\n> Characters: ☕ヤン / 👤今泉 / 😈Red Team / 🏥ハウス\n> Theme: volta 単体でできる不正検知ルール\n> Round: 1\n> Gaps: 3 (all VOID)\n\n## 前提\n\nfraud-alert 連携済み（ExternalRiskService, /c/checkOnly）。\nここでは「fraud-alert が落ちてる間の volta 単体防御」を議論。\n\n## 結論: YAGNI\n\n既存の3層防御で十分カバーされている:\n\n1. **RateLimiter** — IP ベース 10req/min on /login → 無差別攻撃をブロック\n2. **Guard maxRetries** — Passkey 3回、MFA 5回で TERMINAL_ERROR → per-flow ブロック\n3. **fraud-alert** — 50+ Checker → relativeSuspicious 5 で BLOCKED → 外部スコアリング\n\n追加の LoginFailureTracker (per-user 失敗カウント) は:\n- OIDC → IdP 側がブロックするので volta に失敗が来ない\n- Passkey/MFA → Guard maxRetries で既にブロック\n- credential stuffing → fraud-alert がカバー\n\n**volta 内に不正検知ロジックを持つ必要はない。**\n\n## Gaps (all VOID)\n\n| # | Gap | Status | Reason |\n|---|-----|--------|--------|\n| FA-1 | ログイン失敗回数チェック | VOID | 既存3層で十分 |\n| FA-2 | 失敗カウントのキー | VOID | FA-1 依存 |\n| FA-3 | 一時ロック UX | VOID | FA-1 依存 |\n\n## 将来的にやるなら\n\n- パスワードログイン機能を追加した場合 → LoginFailureTracker が必要になる\n- fraud-alert 側で volta 専用の Checker を追加する方が効果的\n  (volta の audit_logs を fraud-alert に feed して学習させる等)\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-fraud-detection-local#dialogue",
+      "data": {
+        "session_id": "2026-04-07-fraud-detection-local",
+        "has_content": true,
+        "scene_count": 0,
+        "char_count": 4
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-gateway-phase2-design",
+      "data": {
+        "id": "2026-04-07-gateway-phase2-design",
+        "date": "2026-04-07",
+        "theme": "gateway-phase2-design",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gateway-phase2-design.md",
+        "content": "# DGE Session: volta-gateway Phase 2 設計\n\n> Date: 2026-04-07\n> Structure: 🗣 座談会 (roundtable)\n> Characters: ☕ヤン / 🌐Proxy専門家 / ⚔リヴァイ / 😈Red Team\n> Theme: Phase 2 の8項目を設計\n\n## Decisions\n\n### HTTP/2\nauto::Builder でインバウンド H1/H2 自動判別。\nbackend H2 は routing config に `h2: bool`。\nTLS 終端は Phase 3（CF 前提は変わらない）。\n\n### Per-IP Rate Limiting\nHashMap<IpAddr, (count, window_start)> + Mutex。\nBackground GC task (30秒ごと、60秒以上 idle のエントリを削除)。\nConfig: global_rps: 1000, per_ip_rps: 100。\n\n### Prometheus\ncrate 不要。AtomicU64 カウンタ + plain text exposition format。\n/metrics エンドポイント。~80行。\nCounters: requests_total, sm_terminal_total, rate_limited_total。\nHistogram: request_duration_seconds。Gauge: active_connections。\n\n### Config Validation\n起動時に validate()。失敗は error + exit(1)。warning ではない。\nチェック: routing 空、port 範囲、host 重複。\n\n### IP Allowlist\nPer-route 設定: ip_allowlist: [\"10.0.0.0/8\"]\nipnet crate で CIDR パース。\nVALIDATED state でチェック。範囲外 → DENIED。\n\n### Connection Pool\nConfig: max_idle_per_host, idle_timeout_secs, max_retries。\nhyper::Client に渡すだけ。\n\n### Chunked Body\nhyper max_buf_size(10MB)。1行。\n\n### 移行ガイド\ndocs/migration-from-traefik.md。\nTraefik labels → volta-gateway.yaml のマッピング表。\n\n## Implementation Plan\n\nDay 1: PH2-1 (H2) + PH2-2 (per-IP rate limit) + PH2-7 (chunked)\nDay 2: PH2-3 (Prometheus) + PH2-5 (IP allowlist) + PH2-4 (config) + PH2-6 (pool)\nDay 3: PH2-8 (移行ガイド) + tribunal v3\n\n## Gap Summary\n\nHigh: 2 (PH2-1, PH2-2)\nMedium: 2 (PH2-3, PH2-5)\nLow: 4 (PH2-4, PH2-6, PH2-7, PH2-8)\nTotal: 8\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-gateway-phase2-design#dialogue",
+      "data": {
+        "session_id": "2026-04-07-gateway-phase2-design",
+        "has_content": true,
+        "scene_count": 0,
+        "char_count": 3
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-gateway-tribunal-v2",
+      "data": {
+        "id": "2026-04-07-gateway-tribunal-v2",
+        "date": "2026-04-07",
+        "theme": "gateway-tribunal-v2",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gateway-tribunal-v2.md",
+        "content": "# DGE 査読劇 v2: volta-gateway — 論文再提出\n\n> Date: 2026-04-07\n> Structure: ⚖ 査読劇 (tribunal) — Round 2\n> Subject: volta-gateway v0.1.0 + 5 tribunal fixes\n\n## 改訂内容\n\n5 fixes from v1 tribunal:\n  GW-5 (Critical): Graceful shutdown → implemented (SIGTERM drain)\n  GW-3 (High): Rate limiting → implemented (1000 req/sec global)\n  GW-4 (High): Security headers → implemented (HSTS, nosniff, DENY)\n  GW-2 (Medium): Error reason → implemented (generic to client)\n  GW-6 (Medium): client_ip in log → implemented\n\n## Verdicts\n\n| Reviewer | v1 | v2 |\n|----------|----|----|\n| 🌐 Proxy専門家 | Major Revision | **Minor Revision** |\n| 🎩 千石 | Major Revision | **Accept** |\n| 😈 Red Team | Major Revision | **Accept** |\n\n## New Gaps (v2)\n\n| # | Gap | Severity | Action |\n|---|-----|----------|--------|\n| GW-15 | Drain timeout (30s forced exit) | Medium | 今すぐ |\n| GW-16 | Per-IP rate limiting | Medium | Phase 2 |\n\n## Remaining from v1 (Phase 2)\n\nGW-1 HTTP/2, GW-7 chunked body, GW-8 config validation,\nGW-9 Prometheus, GW-10 移行ガイド, GW-12 IP allowlist,\nGW-14 connection tuning\n\n## Summary\n\nv1: 14 gaps, 3x Major Revision\nv2: 2 new gaps, 2x Accept + 1x Minor Revision\nConsensus: **Accept with drain timeout fix**\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-gateway-tribunal-v2#dialogue",
+      "data": {
+        "session_id": "2026-04-07-gateway-tribunal-v2",
+        "has_content": true,
+        "scene_count": 0,
+        "char_count": 2
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-gateway-tribunal-v3",
+      "data": {
+        "id": "2026-04-07-gateway-tribunal-v3",
+        "date": "2026-04-07",
+        "theme": "gateway-tribunal-v3",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gateway-tribunal-v3.md",
+        "content": "# DGE 査読劇 v3: volta-gateway — Phase 2 完了、全員 Accept\n\n> Date: 2026-04-07\n> Structure: ⚖ 査読劇 (tribunal) — Round 3\n> Subject: volta-gateway + Phase 2 (8 items)\n\n## Phase 2 Implementation Summary\n\nDay 1: HTTP/2 (auto::Builder) + per-IP rate limit + chunked body 10MB\nDay 2: Prometheus /metrics + config validation + IP allowlist + connection pool\nDay 3: Traefik migration guide (en/ja)\n\n## Verdicts\n\n| Reviewer | v1 | v2 | v3 |\n|----------|----|----|-----|\n| 🌐 Proxy専門家 | Major Revision | Minor Revision | **Accept** |\n| 🎩 千石 | Major Revision | Accept | **Accept** |\n| 😈 Red Team | Major Revision | Accept | **Accept** (note) |\n\n## Remaining\n\n| # | Gap | Severity | Status |\n|---|-----|----------|--------|\n| GW-17 | IP allowlist enforcement in RequestValidator | Medium | Phase 3 |\n| GW-11 | mTLS (proxy→backend) | Medium | Phase N |\n\n## Journey\n\nv1: 14 gaps, 3x Major Revision → 5 fixes\nv2: 2 gaps, 2x Accept + 1x Minor → drain timeout fix\nv3: 8 Phase 2 items, 3x Accept 🎉\n\nTotal across 3 rounds: 24 gaps identified, 22 resolved, 2 deferred.\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-gateway-tribunal-v3#dialogue",
+      "data": {
+        "session_id": "2026-04-07-gateway-tribunal-v3",
+        "has_content": true,
+        "scene_count": 0,
+        "char_count": 2
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-gateway-tribunal-v4",
+      "data": {
+        "id": "2026-04-07-gateway-tribunal-v4",
+        "date": "2026-04-07",
+        "theme": "gateway-tribunal-v4",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gateway-tribunal-v4.md",
+        "content": "# DGE 査読劇 v4: 「乗り換える気にならない」— 厳しい声\n\n> Date: 2026-04-07\n> Structure: ⚖ 査読劇 (tribunal) — Round 4 (harsh)\n> Evaluators: 🏗️ Traefik SRE / 🌐 Proxy専門家(きつめ) / 🔧 App開発者\n> Subject: volta-gateway Phase 2 完了版\n\n## Verdicts\n\n| Reviewer | Verdict |\n|----------|---------|\n| 🏗️ Traefik SRE | **Reject** — 本番運用の基本機能不足 |\n| 🌐 Proxy専門家 | **Major Revision** — WebSocket + streaming なしは SaaS proxy として不可 |\n| 🔧 App開発者 | **Major Revision** — CORS もエラーページもない。使いたいと思えない |\n\n## Key Insight\n\n**volta-gateway は Traefik の代替ではない。**\n小規模 SaaS 向け認証特化 proxy。\n\n大規模 (50+ サービス, K8s, Canary) → Traefik + volta-auth-proxy\n小規模 (5-10 サービス, 認証レイテンシ重要) → volta-gateway\n\n## Gaps (9 new)\n\n| # | Gap | Severity | Phase |\n|---|-----|----------|-------|\n| GW-18 | README positioning 変更 | High | 今すぐ |\n| GW-19 | WebSocket | Critical | Phase 3 |\n| GW-20 | Streaming body | High | Phase 3 |\n| GW-21 | CORS Processor | High | Phase 3 |\n| GW-22 | Config hot reload | High | Phase 3 |\n| GW-23 | Load balancing (round-robin) | Critical | Phase 3 |\n| GW-24 | Pretty log | Low | Phase 3 |\n| GW-25 | カスタムエラーページ | Medium | Phase N |\n| GW-26 | IPv6 Host パース | Low | Phase 3 |\n\n## SRE の言葉（記録に値する）\n\n「50サービスの YAML を手動管理？ 冗談でしょう。」\n「証明書管理を『別のサービスでやって』は proxy の仕事を放棄してる。」\n「単一 backend = SPOF。本番に出せない。」\n\n## App 開発者の言葉\n\n「proxy なんか意識したくない。labels 書けばルーティングされる。それが壊れなければいい。」\n「SM, FlowDefinition, Processor — 知らない概念が多すぎる。使い方がわからない。」\n「4ms → 0.5ms の差はユーザーには見えない。」\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-gateway-tribunal-v4#dialogue",
+      "data": {
+        "session_id": "2026-04-07-gateway-tribunal-v4",
+        "has_content": false,
+        "scene_count": 0,
+        "char_count": 0
+      },
+      "confidence": 0.3,
+      "warnings": [
+        "会話劇テキスト未保存"
+      ]
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-gateway-tribunal",
+      "data": {
+        "id": "2026-04-07-gateway-tribunal",
+        "date": "2026-04-07",
+        "theme": "gateway-tribunal",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gateway-tribunal.md",
+        "content": "# DGE 査読劇: volta-gateway — Traefik が査読する\n\n> Date: 2026-04-07\n> Structure: ⚖ 査読劇 (tribunal)\n> Evaluators: 🌐Proxy専門家 / 🎩千石 / 😈Red Team\n> Respondents: ☕ヤン (先輩) + 🤝後輩\n> Subject: volta-gateway v0.1.0 — Rust SM reverse proxy\n> Verdict: Major Revision (all 3 reviewers)\n\n## Phase 1: 独立評価\n\n### 🌐 Proxy専門家 — Major Revision\nStrengths: SM可視化の新規性, fail-closed, X-Volta-* stripping\nWeaknesses: HTTP/2未対応, graceful shutdown なし, connection tuning なし,\n  chunked body制限なし, access logにclient IPなし\n\n### 🎩 千石 — Major Revision\nStrengths: YAML 1ファイル設定, 教育的README, tramli レビュー公開の誠実さ\nWeaknesses: エラーメッセージ不親切, config validation なし,\n  メトリクス不足, 移行ガイドなし\n\n### 😈 Red Team — Major Revision\nStrengths: SM構造的制約で middleware bypass不可能, X-Volta-* strip, fail-closed default\nWeaknesses: cargo audit なし, rate limiting 未実装, mTLS 非対応,\n  IP allowlist なし, セキュリティヘッダ未付与\n\n## Phase 2: 反論\n\n今すぐ (5件):\n  GW-2 エラーメッセージ reason (generic to client, detailed to log)\n  GW-3 Global rate limiting (tower::RateLimitLayer)\n  GW-4 セキュリティヘッダ (HSTS, nosniff, DENY)\n  GW-5 Graceful shutdown (SIGTERM → drain → exit)\n  GW-6 Access log client_ip\n\nPhase 2 (7件):\n  GW-1 HTTP/2 (auto::Builder), GW-7 chunked body, GW-8 config validation,\n  GW-9 Prometheus, GW-10 移行ガイド, GW-12 IP allowlist, GW-14 connection tuning\n\nPhase N (1件): GW-11 mTLS\nCI (1件): GW-13 cargo audit\n\n## Gap Summary\n\nCritical: 1 (GW-5 graceful shutdown)\nHigh: 3 (GW-1 HTTP/2, GW-3 rate limit, GW-4 security headers)\nMedium: 6\nLow: 4\nTotal: 14\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-gateway-tribunal#dialogue",
+      "data": {
+        "session_id": "2026-04-07-gateway-tribunal",
+        "has_content": true,
+        "scene_count": 0,
+        "char_count": 5
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-gdpr",
+      "data": {
+        "id": "2026-04-07-gdpr",
+        "date": "2026-04-07",
+        "theme": "gdpr",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gdpr.md",
+        "content": "# DGE Session: GDPR データエクスポート / Right to be Forgotten (004-2)\n\n> Date: 2026-04-07\n> Structure: 🗣 座談会 (roundtable)\n> Characters: ☕ヤン / 👤今泉 / ⚖ソウル / 🎩千石 / 🏥ハウス / 🎨深澤\n> Theme: GDPR Article 17 (Right to Erasure) + Article 20 (Data Portability) の設計\n> Round: 1\n> Gaps: 15\n\n## Scene 1: 適用範囲と個人データインベントリ\n\nGDPR は EU 居住者のデータを扱う全サービスに適用。\n日本の APPI も同様の要件あり → GDPR ベースで設計すれば APPI もカバー。\n\n個人データを持つテーブル:\n  users (email, display_name, google_sub)\n  sessions (ip_address, user_agent)\n  trusted_devices (user_agent, ip_address)\n  auth_flows (context JSONB — PII含む)\n  auth_flow_transitions (context_snapshot — @Sensitive redacted)\n  audit_logs (actor_ip, detail JSONB)\n  user_mfa (secret — 暗号化済み)\n  passkeys (credential_id, public_key)\n  memberships (user_id ↔ tenant_id)\n  invitations (email)\n\n→ Gap GDPR-1: 個人データインベントリ [Critical]\n→ Gap GDPR-2: APPI/GDPR 両対応確認 [Medium]\n\n## Scene 2: データエクスポート\n\nAPI: POST /api/v1/users/me/data-export → 非同期 → download URL\n形式: JSON (GDPR Article 20 要件: 構造化・機械可読)\n含める: users, memberships, sessions, trusted_devices, passkeys(メタのみ), mfa(状態のみ), audit_log\n除外: TOTP secret, passkey 秘密鍵, recovery code hash (漏洩時のリスク)\n完了通知: メールで通知\nファイル有効期限: 24時間後に自動削除\n\n→ Gap GDPR-3: エクスポート API [High]\n→ Gap GDPR-4: 含む/含まないデータ [High]\n→ Gap GDPR-5: 完了通知 [Medium]\n→ Gap GDPR-6: ファイル保管・有効期限 [Medium]\n\n## Scene 3: データ削除 (Right to be Forgotten)\n\n削除対象の分類:\n  即時削除: users, sessions, trusted_devices, user_mfa, passkeys, auth_flows PII\n  匿名化: audit_logs (actor_id→\"DELETED_USER\", actor_ip→null)\n  保持: audit_logs のイベント構造 (匿名化後), billing関連\n\n猶予期間: 30日間は論理削除 (deleted_at)。ログインで撤回可能。30日後に物理削除。\nApp 連携: Webhook (user.deletion_requested / user.deletion_completed)\nFK 制約: audit_logs は ON DELETE SET NULL に変更\n\nPhase 1: 同期エクスポート + 論理削除 + GCジョブ + audit匿名化\nPhase 2: 非同期エクスポート + Webhook + 管理画面\nPhase 3: DPA テンプレート + テナント別保持ポリシー + 削除レポート\n\n→ Gap GDPR-7: 削除対象の分類 [Critical]\n→ Gap GDPR-8: 30日猶予設計 [High]\n→ Gap GDPR-9: audit_logs匿名化 [High]\n→ Gap GDPR-10: App削除連携 Webhook [High]\n→ Gap GDPR-11: FK制約見直し [High]\n→ Gap GDPR-12: 削除UI + 確認フロー [Medium]\n\n## Scene 4: エッジケース\n\n再登録: 同一メールで再登録しても新規ユーザー扱い。以前のデータは復元しない。以前のアカウントの存在を暗示しない。\nプライバシーポリシー: 削除猶予期間、エクスポート手段、保持期間を明記。\nDB: users に deleted_at カラム追加。auth_logs の FK を SET NULL に変更。\n\n→ Gap GDPR-13: 再登録時の扱い [Medium]\n→ Gap GDPR-14: プライバシーポリシー更新 [Medium]\n→ Gap GDPR-15: DB migration [High]\n\n## Gap Summary\n\n| # | Gap | Severity |\n|---|-----|----------|\n| GDPR-1 | 個人データインベントリ | Critical |\n| GDPR-2 | APPI/GDPR 両対応 | Medium |\n| GDPR-3 | エクスポート API | High |\n| GDPR-4 | エクスポート対象定義 | High |\n| GDPR-5 | 完了通知 | Medium |\n| GDPR-6 | ファイル保管・有効期限 | Medium |\n| GDPR-7 | 削除対象分類 | Critical |\n| GDPR-8 | 30日猶予設計 | High |\n| GDPR-9 | audit_logs匿名化 | High |\n| GDPR-10 | App削除Webhook | High |\n| GDPR-11 | FK制約見直し | High |\n| GDPR-12 | 削除UI | Medium |\n| GDPR-13 | 再登録扱い | Medium |\n| GDPR-14 | プライバシーポリシー | Medium |\n| GDPR-15 | DB migration | High |\n\nCritical: 2 / High: 7 / Medium: 6 — Total: 15\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-gdpr#dialogue",
+      "data": {
+        "session_id": "2026-04-07-gdpr",
+        "has_content": true,
+        "scene_count": 4,
+        "char_count": 5
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-rust-sm-proxy-r2",
+      "data": {
+        "id": "2026-04-07-rust-sm-proxy-r2",
+        "date": "2026-04-07",
+        "theme": "rust-sm-proxy-r2",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-rust-sm-proxy-r2.md",
+        "content": "# DGE Session: Rust SM Reverse Proxy — Round 2 (スコープ + Auth 確定)\n\n> Date: 2026-04-07\n> Round: 2\n> New Gaps: 4 (RP-12 ~ RP-15)\n> Resolved: RP-1, RP-4, RP-7\n\n## RP-1 解決: Phase 1 スコープ\n\n```\nPhase 1:\n  ✅ HTTP サーバー (hyper, port 8080)\n  ✅ SM routing (Host → backend, YAML config)\n  ✅ Auth integration (localhost HTTP → volta /auth/verify)\n  ✅ Proxy forwarding (hyper client → backend)\n  ✅ Access logging (tracing + SM 遷移ログ)\n  ✅ Health check (/healthz)\n  ✅ Config file (YAML)\n\nPhase 2:\n  TLS 終端 (rustls)\n  Load balancing\n  Circuit breaker / Retry\n  WebSocket / gRPC\n  ACME (Let's Encrypt)\n  Per-tenant dynamic routing (DB)\n```\n\n本番は CF が TLS 終端 → proxy は HTTP でよい。\n\n## RP-4 解決: Auth integration\n\n```\nproxy → volta localhost:7070/auth/verify\n  - Cookie ヘッダ透過転送\n  - X-Forwarded-Host/Uri/Proto 付与\n  - Connection pool (hyper::Client, max 32)\n  - Timeout 500ms\n  - Fail-closed (volta down → 502)\n\nSM 分岐:\n  200 → FORWARDED (X-Volta-* 付きで backend へ)\n  401 → REDIRECT (/login へ)\n  302 → REDIRECT (volta のリダイレクト先)\n  403 → DENIED\n  5xx/timeout → BAD_GATEWAY\n```\n\n## RP-7 解決: SM State 定義\n\n```\nRECEIVED → ROUTED → AUTH_CHECKED → FORWARDED → RESPONSE_RECEIVED → COMPLETED\n                     ├── AUTH_REDIRECT (401/302)\n                     ├── AUTH_DENIED (403)\n                     └── AUTH_ERROR (5xx/timeout) → BAD_GATEWAY\n```\n\n## 実装計画\n\nDay 1: hyper server + YAML routing + 単純 proxy\nDay 2: tramli-rs + SM 統合 + auth integration\nDay 3: logging + error handling + /healthz + テスト\n\nプロジェクト名候補: volta-gateway\n\n## Gap Summary (Cumulative)\n\nCritical: 2/2 RESOLVED\nHigh: 6 (1 RESOLVED, 5 Open → 実装で解決)\nMedium: 5\nLow: 2\nTotal: 15 gaps\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-rust-sm-proxy-r2#dialogue",
+      "data": {
+        "session_id": "2026-04-07-rust-sm-proxy-r2",
+        "has_content": false,
+        "scene_count": 0,
+        "char_count": 0
+      },
+      "confidence": 0.3,
+      "warnings": [
+        "会話劇テキスト未保存"
+      ]
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-rust-sm-proxy-r3",
+      "data": {
+        "id": "2026-04-07-rust-sm-proxy-r3",
+        "date": "2026-04-07",
+        "theme": "rust-sm-proxy-r3",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-rust-sm-proxy-r3.md",
+        "content": "# DGE Session: Rust SM Reverse Proxy — Round 3 (L7防御 + tower統合)\n\n> Date: 2026-04-07\n> Round: 3\n> New Gaps: 3 (RP-16 ~ RP-18)\n> Resolved: RP-3, RP-9\n\n## RP-3 解決: L7 攻撃の SM 防御\n\n```\nhyper が防ぐ: HTTP smuggling, header injection, HTTP/2 violations\nSM VALIDATED state: host validation (known hosts only), path normalization (reject ../),\n  header/body size limits (8KB headers, 10MB body)\ntower: rate limiting (100 req/sec), total timeout (30s)\nhyper config: header_read_timeout(10s) for Slowloris\n```\n\nVALIDATED state を RECEIVED と ROUTED の間に追加:\n```\nRECEIVED → VALIDATED → ROUTED → AUTH_CHECKED → FORWARDED → RESPONSE_RECEIVED → COMPLETED\n```\n\nRequestValidator processor:\n  1. Header size check (8KB)\n  2. Body size check (10MB configurable)\n  3. Host header must exist and be in known hosts\n  4. Path normalization (reject .., //)\n\n## RP-9 解決: hyper + tower + SM 統合\n\nB方式: SM は sync 判断のみ、async I/O は SM の外\n\n```\nflow.start() → RECEIVED → VALIDATED → ROUTED (sync, μs)\n── async: volta /auth/verify ──\nflow.resume(auth_result) → AUTH_CHECKED (sync, μs)\n── async: backend HTTP forward ──\nflow.resume(response) → FORWARDED → COMPLETED (sync, μs)\n```\n\nメリット:\n  - tramli-rs は sync のまま（Java 版と同じ設計）\n  - async の複雑性は tower パイプラインに閉じる\n  - SM は「判断」、tower は「実行」の関心分離\n\ntower::ServiceBuilder スタック:\n  TraceLayer → RateLimitLayer → TimeoutLayer → SmProxyService\n\nExternal 遷移が2つ: auth check + backend forward\n  → 異なる state からの External なので SM ルール上問題なし\n\n## New Gaps\n\n| # | Gap | Severity |\n|---|-----|----------|\n| RP-16 | backend からの X-Volta-* strip (偽装防止) | High |\n| RP-17 | 2 External の FlowContext 設計 | Medium |\n| RP-18 | Streaming response の扱い | Medium |\n\n## Cumulative: 18 gaps\n\nCritical: 2/2 RESOLVED\nHigh: 8 (4 RESOLVED, 1 user-owned tramli-rs, 3 Open)\nMedium: 7\nLow: 2\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-rust-sm-proxy-r3#dialogue",
+      "data": {
+        "session_id": "2026-04-07-rust-sm-proxy-r3",
+        "has_content": false,
+        "scene_count": 0,
+        "char_count": 0
+      },
+      "confidence": 0.3,
+      "warnings": [
+        "会話劇テキスト未保存"
+      ]
+    },
+    {
+      "type": "session",
+      "id": "2026-04-07-rust-sm-proxy",
+      "data": {
+        "id": "2026-04-07-rust-sm-proxy",
+        "date": "2026-04-07",
+        "theme": "rust-sm-proxy",
+        "flow": "quick",
+        "structure": "roundtable",
+        "characters": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-rust-sm-proxy.md",
+        "content": "# DGE Session: Rust SM Reverse Proxy — Traefik/CF を自前で置き換える\n\n> Date: 2026-04-07\n> Structure: 🗣 座談会 (roundtable)\n> Characters: ☕ヤン / 👤今泉 / ⚔リヴァイ / 😈Red Team / 🏥ハウス / 👑ラインハルト / 🌐Proxy専門家\n> Theme: Reverse proxy を Rust + SM パターンで自作する是非と設計\n> Round: 1\n> Gaps: 11\n\n## Key Decisions\n\n1. hyper + tower の上に SM routing layer。HTTP 処理は hyper に全委譲\n2. Auth: proxy=Rust, auth=Java volta (localhost HTTP 呼出)。将来 Rust 完全移行の余地残す\n3. 差別化: auth-aware routing (latency 半減), per-tenant 動的ルーティング, 全遷移可観測性\n4. 実装量: ~1,600行 (tramli-rs ~500, proxy SM ~100, auth client ~200, routing ~200, tower service ~300, TLS ~100, config ~200)\n\n## Scene 1: なぜ自作するか\n\nTraefik の問題:\n  - 設定が外部ファイルに散らばる (Docker labels, traefik.yml, middleware chain)\n  - デバッグ困難（Traefik 内部が不透明）\n  - ForwardAuth = 2 HTTP 往復 (4-10ms 追加)\n\n自作のメリット:\n  - auth check がパイプライン内部 (0.5-1ms)\n  - per-tenant 動的ルーティング（DB ベース）\n  - 全遷移が可観測 (Mermaid 図)\n  - L7 攻撃を SM で構造的に排除\n\n→ Gap RP-1: スコープ定義 [Critical]\n\n## Scene 2: SM パターンが効くポイント\n\nHTTP リクエストライフサイクルを SM で管理:\n  RECEIVED → ROUTED → AUTH_CHECKED → FORWARDED → RESPONSE_RECEIVED → COMPLETED\n\nメリット:\n  - 各 Processor が独立テスト可能\n  - 想定外の状態遷移（HTTP smuggling 等）を構造的に拒否\n  - 1遷移 300-500ns、6遷移で ~2μs。全体の1%未満\n\n→ Gap RP-2: ForwardAuth 廃止の影響 [High]\n→ Gap RP-3: L7 攻撃の SM 防御具体設計 [High]\n\n## Scene 3: Rust で何を作るか\n\n使う crate: hyper, tokio, rustls, tower\n自作: SM フレームワーク (tramli-rs), routing, auth client, config\n\nAuth integration は E 方式:\n  proxy=Rust, auth=Java volta (localhost HTTP)\n  → Traefik ForwardAuth より 5-10 倍速い\n  → volta の Java 資産をそのまま活用\n  → 将来 Rust 完全移行 (D) も可能\n\n→ Gap RP-4: Auth integration 方式 [Critical]\n→ Gap RP-5: tramli-rs 設計 [High]\n\n## Scene 4: 差別化\n\n1. Auth-aware routing: auth がパイプラインの一部 → latency 半減\n2. 全遷移可観測: access log がステップ別 → ボトルネック特定\n3. Per-tenant 動的 routing: DB → routing table → テナント別 backend\n4. Fraud check 統合: RiskCheckProcessor がパイプライン内\n5. Mermaid 図: proxy 設定を可視化\n\n→ Gap RP-6: Per-tenant routing 設計 [High]\n→ Gap RP-7: SM state 定義 [Medium]\n→ Gap RP-8: Traefik 移行パス [High]\n\n## Scene 5: リスク\n\nhyper が HTTP パース/HTTP2/keep-alive を全部やる。\nSM は「routing → auth → forwarding」のビジネスレイヤーのみ制御。\nHTTP 仕様の低レベル処理には触らない → バグリスク最小化。\n\n```\ntower::Service パイプライン:\n  hyper (HTTP parse) → SM middleware → backend proxy (hyper client)\n```\n\n→ Gap RP-9: hyper + tower + SM 統合 [High]\n→ Gap RP-10: WebSocket / SSE / gRPC [Medium]\n→ Gap RP-11: Let's Encrypt ACME [Medium]\n\n## Gap Summary\n\n| # | Gap | Severity |\n|---|-----|----------|\n| RP-1 | スコープ (何を置き換えるか) | Critical |\n| RP-2 | ForwardAuth 廃止の影響 | High |\n| RP-3 | L7 攻撃の SM 防御 | High |\n| RP-4 | Auth integration 方式 | Critical |\n| RP-5 | tramli-rs 設計 | High |\n| RP-6 | Per-tenant dynamic routing | High |\n| RP-7 | SM state 定義 | Medium |\n| RP-8 | Traefik 移行パス | High |\n| RP-9 | hyper + tower + SM 統合 | High |\n| RP-10 | WebSocket / SSE / gRPC | Medium |\n| RP-11 | Let's Encrypt ACME | Medium |\n\nCritical: 2 / High: 6 / Medium: 3 — Total: 11\n"
+      },
+      "confidence": 0.6,
+      "warnings": [
+        "No gap markers found"
+      ]
+    },
+    {
+      "type": "dialogue",
+      "id": "2026-04-07-rust-sm-proxy#dialogue",
+      "data": {
+        "session_id": "2026-04-07-rust-sm-proxy",
+        "has_content": true,
+        "scene_count": 5,
+        "char_count": 5
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "spec",
+      "id": "conditional-access-and-privacy",
+      "data": {
+        "id": "conditional-access-and-privacy",
+        "title": "Spec: 条件付きアクセス + デバイストラスト + GDPR",
+        "type": "TECH",
+        "status": "draft",
+        "decision_refs": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/specs/conditional-access-and-privacy.md",
+        "content": "# Spec: 条件付きアクセス + デバイストラスト + GDPR\n\n> Generated: 2026-04-07\n> Source: DGE Sessions — 7 Rounds, 54 Gaps\n>   003-2 条件付きアクセス (5 rounds, 31 gaps)\n>   004-3 デバイストラスト (1 round, 8 gaps)\n>   004-2 GDPR (1 round, 15 gaps)\n\n---\n\n## 1. Overview\n\nvolta-auth-proxy に以下の3機能を段階的に追加する:\n\n1. **条件付きアクセス** — 新デバイスからのログインを検知し、通知 or step-up 認証を要求\n2. **デバイストラスト** — 信頼済みデバイスの管理（登録・一覧・失効）\n3. **GDPR 対応** — データエクスポート + Right to be Forgotten (削除権)\n\n### Scope（やること / やらないこと）\n\n| やること | やらないこと (ADR) |\n|---------|-------------------|\n| 新デバイスからのログイン検知 | Cookie 窃取対策 (HttpOnly/SameSite/Secure で十分) |\n| fraud-alert API 連携 | volta 内でのスコアリングロジック実装 |\n| テナント別の対応設定 (notify/step_up) | 地理制限・時間帯制限 (GeoIP 精度問題 + VPN 無力化) |\n| Persistent Cookie によるデバイス識別 | Device Fingerprinting (GDPR リスク + 精度低下) |\n| JSON データエクスポート | PDF エクスポート |\n| 30日猶予付き論理削除 | 即時物理削除 |\n\n---\n\n## 2. Architecture\n\n### 2.1 検知/対応の責務分離\n\n```\n┌──────────────────────────────────────────────────────┐\n│ volta-auth-proxy                                     │\n│                                                      │\n│  ┌──────────────────┐    ┌───────────────────────┐   │\n│  │ LocalRiskCheck   │    │ ExternalRiskService   │   │\n│  │ (同期, ms単位)    │    │ (同期, timeout 3s)    │   │\n│  │                  │    │                       │   │\n│  │ NewDeviceCheck   │    │ fraud-alert /c/check  │   │\n│  │ (trusted_devices │    │ Only                  │   │\n│  │  + cookie)       │    │ → relativeSuspicious  │   │\n│  └────────┬─────────┘    │   Value (1-5)         │   │\n│           │              └───────────┬───────────┘   │\n│           │                          │               │\n│           └──────────┬───────────────┘               │\n│                      ▼                               │\n│           ┌──────────────────────┐                   │\n│           │ RiskAndMfaBranch     │                   │\n│           │ (SM Branch判定)       │                   │\n│           │                      │                   │\n│           │ risk 1-3 + !mfa      │                   │\n│           │   → COMPLETE         │                   │\n│           │ risk 1-3 + mfa       │                   │\n│           │   → MFA_PENDING      │                   │\n│           │ risk 4+              │                   │\n│           │   → MFA_PENDING      │                   │\n│           │ risk 5               │                   │\n│           │   → BLOCKED          │                   │\n│           └──────────────────────┘                   │\n│                                                      │\n│  Policy: tenant_security_policies                    │\n│    risk_action_threshold (default: 4)                │\n│    risk_block_threshold (default: 5)                 │\n│    new_device_action: notify | step_up               │\n└──────────────────────────────────────────────────────┘\n         │\n         │ HTTP API\n         ▼\n┌──────────────────────────────────────┐\n│ fraud-alert (外部サービス)            │\n│                                      │\n│ /c/checkOnly   → relativeSuspicious  │\n│ /c/loginSucceed → デバイス学習        │\n│ /c/loginFailed  → 失敗パターン学習    │\n│                                      │\n│ 50+ Checker 並列実行                  │\n│ Custom Functions (TinyExpression DSL) │\n│ Blacklist/Whitelist 強制オーバーライド │\n└──────────────────────────────────────┘\n```\n\n### 2.2 SM フロー変更\n\n```\n既存:\n  TOKEN_EXCHANGED → USER_RESOLVED → Branch(mfa) → COMPLETE / MFA_PENDING\n\n変更後:\n  TOKEN_EXCHANGED → USER_RESOLVED → RISK_CHECKED → Branch(risk+mfa) → COMPLETE / MFA_PENDING / BLOCKED\n```\n\n`RISK_CHECKED` state を追加。`RiskCheckProcessor` が fraud-alert + ローカルチェックを実行。\n\n### 2.3 評価タイミング\n\n| タイミング | チェック内容 | コスト |\n|-----------|------------|--------|\n| ログイン成功時 | 新デバイス判定 + fraud-alert checkOnly | ms + ~3s (API) |\n| ForwardAuth (毎リクエスト) | User-Agent 変更検知のみ | ~0 (文字列比較) |\n\nForwardAuth の UA 変更検知は warning flag のみ。即ブロックはしない。\n\n---\n\n## 3. DB Schema\n\n### 3.1 trusted_devices (新規)\n\n```sql\nCREATE TABLE trusted_devices (\n    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n    user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n    device_id    UUID NOT NULL,\n    device_name  VARCHAR(100),\n    user_agent   VARCHAR(500),\n    ip_address   VARCHAR(45),\n    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),\n    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()\n);\n\nCREATE UNIQUE INDEX idx_trusted_devices_user_device\n    ON trusted_devices(user_id, device_id);\nCREATE INDEX idx_trusted_devices_user\n    ON trusted_devices(user_id);\n```\n\n制約: 1ユーザー最大10台。INSERT 前に COUNT → 超過時は LRU (last_seen_at ASC) で削除。\n\n### 3.2 tenant_security_policies (新規)\n\n```sql\nCREATE TABLE tenant_security_policies (\n    tenant_id              UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,\n    new_device_action      VARCHAR(20) NOT NULL DEFAULT 'notify',\n    risk_action_threshold  INT NOT NULL DEFAULT 4,\n    risk_block_threshold   INT NOT NULL DEFAULT 5,\n    notify_user            BOOLEAN NOT NULL DEFAULT true,\n    notify_admin           BOOLEAN NOT NULL DEFAULT false,\n    auto_trust_passkey     BOOLEAN NOT NULL DEFAULT true,\n    max_trusted_devices    INT NOT NULL DEFAULT 10,\n    updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),\n    updated_by             UUID REFERENCES users(id)\n);\n```\n\nバリデーション:\n- `new_device_action = 'step_up'` → `tenants.mfa_required = true` が前提\n- `risk_action_threshold < 5` → `tenants.mfa_required = true` が前提\n- `mfa_required` を OFF にする際 → 上記が先に OFF であること\n\n### 3.3 users テーブル変更 (GDPR)\n\n```sql\nALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;\nCREATE INDEX idx_users_deleted ON users(deleted_at) WHERE deleted_at IS NOT NULL;\n```\n\n### 3.4 FK 制約変更 (GDPR)\n\n```sql\n-- audit_logs: CASCADE → SET NULL\nALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_user_id_fkey;\nALTER TABLE audit_logs ADD CONSTRAINT audit_logs_user_id_fkey\n    FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL;\n```\n\n---\n\n## 4. Cookie\n\n### __volta_device_trust\n\n```\n名前:     __volta_device_trust\n値:       UUID (デバイスID)\nMax-Age:  7776000 (90日)\nHttpOnly: true\nSameSite: Lax\nSecure:   true\nPath:     /login\n```\n\nスライディング有効期限: ログインのたびに Max-Age をリセット。\nCookie が消された場合: 「新デバイス」扱い（通知が来るだけ、ブロックではない）。\n\n---\n\n## 5. fraud-alert 連携\n\n### 5.1 API 呼び出し\n\n```java\ninterface ExternalRiskService {\n    RiskResult check(RiskRequest request, Duration timeout);\n    void reportSuccess(LoginContext ctx);\n    void reportFailure(LoginContext ctx);\n}\n\nrecord RiskRequest(\n    String siteId,          // volta 全体で 1 siteId\n    String userHash,        // SHA256(tenantId + \":\" + userId)\n    String sessionId,       // SM の flowId\n    String ipAddress,\n    String userAgent\n) {}\n\nrecord RiskResult(\n    int relativeSuspiciousValue,    // 1-5\n    int totalSuspiciousValue,\n    Map<String, Integer> byKind,\n    boolean blocked\n) {}\n```\n\n### 5.2 Timeout / Failure\n\n- API timeout: 3s\n- Failure 時: fail-open (relativeSuspiciousValue = 1 として扱う)\n- audit_log に `risk_check_timeout` or `risk_check_error` を記録\n\n### 5.3 siteId / userHash\n\n- siteId: volta 全体で 1 siteId（fraud-alert 側の変更不要）\n- userHash: `SHA256(tenantId + \":\" + userId)` — テナント間分離\n- スコアリング: fraud-alert が算出（共通）\n- 閾値: volta のテナント設定 (`risk_action_threshold`) で対応を分ける\n\n### 5.4 フィードバックループ\n\n```\nログイン成功 → Router が /c/loginSucceed を非同期呼出 (fire-and-forget)\nログイン失敗 → Router が /c/loginFailed を非同期呼出\n```\n\nOutboxWorker 経由 or 直接非同期 HTTP。Phase 1 は直接非同期。\n\n---\n\n## 6. amr (Authentication Methods References)\n\n### 6.1 JWT に追加\n\n```json\n{\n  \"volta_amr\": [\"oidc:google\", \"otp\"],\n  ...existing claims...\n}\n```\n\n### 6.2 値セット (RFC 8176 ベース)\n\n| 値 | 認証方法 |\n|----|---------|\n| `pwd` | パスワード (OIDC 経由の IdP パスワード) |\n| `otp` | TOTP (MFA) |\n| `hwk` | Hardware Key (Passkey / WebAuthn) |\n| `fed` | Federated (OIDC SSO) |\n| `fed:google` | Google OIDC (provider 付き) |\n| `fed:github` | GitHub OIDC |\n| `fed:microsoft` | Microsoft OIDC |\n| `fed:saml` | SAML SSO |\n\n### 6.3 更新タイミング\n\n- ログイン時: 初期 amr を設定\n- step-up 後: JWT 再発行時に amr を追加（例: `[\"fed:google\"]` → `[\"fed:google\", \"otp\"]`）\n- `/auth/refresh` エンドポイントで最新の JWT を発行\n\n---\n\n## 7. デバイストラスト ライフサイクル\n\n### 7.1 信頼の開始\n\n```\n条件: ユーザーが「このデバイスを記憶する」を選択\n  or  Passkey ログイン + auto_trust_passkey = true\n\n処理:\n  1. UUID を生成 (deviceId)\n  2. trusted_devices INSERT (user_id, device_id, device_name, user_agent, ip_address)\n  3. __volta_device_trust cookie 発行\n```\n\n### 7.2 信頼の継続\n\n```\nログイン時:\n  1. cookie から device_id 取得\n  2. trusted_devices で (user_id, device_id) を検索\n  3. 見つかった → last_seen_at 更新 + cookie Max-Age リフレッシュ\n  4. 見つからない → 「新デバイス」扱い\n```\n\n### 7.3 信頼の失効\n\n| トリガー | 処理 |\n|---------|------|\n| Cookie 期限切れ (90日未使用) | 次回ログインで「新デバイス」扱い |\n| ユーザーが手動削除 | trusted_devices DELETE |\n| 管理者が全削除 | trusted_devices DELETE WHERE user_id = ? |\n| パスワード/MFA リセット | trusted_devices DELETE WHERE user_id = ? (自動) |\n| DB GC (180日) | last_seen_at < now() - 180d のレコードを定期削除 |\n\n### 7.4 デバイス名の自動生成\n\n```java\nstatic String deviceName(String userAgent) {\n    String browser = inferBrowser(userAgent);  // Chrome, Safari, Edge, Firefox, Other\n    String os = inferOS(userAgent);            // macOS, Windows, iOS, Android, Linux\n    return browser + \" on \" + os;\n}\n```\n\n### 7.5 API\n\n```\nユーザー:\n  GET    /api/v1/users/me/devices          → 一覧 (IP 部分マスク)\n  DELETE /api/v1/users/me/devices/{id}     → 個別削除\n  DELETE /api/v1/users/me/devices          → 全削除\n\n管理者:\n  GET    /api/v1/tenants/{tid}/users/{uid}/devices  → 閲覧\n  DELETE /api/v1/tenants/{tid}/users/{uid}/devices   → 全削除\n```\n\n---\n\n## 8. GDPR 対応\n\n### 8.1 個人データインベントリ\n\n| テーブル | PII カラム | エクスポート | 削除時の処理 |\n|---------|-----------|------------|-------------|\n| users | email, display_name, google_sub | Yes | 物理削除 |\n| sessions | ip_address, user_agent | Yes | CASCADE 削除 |\n| trusted_devices | user_agent, ip_address | Yes | CASCADE 削除 |\n| auth_flows | context (JSONB) | No (一時データ) | CASCADE 削除 |\n| auth_flow_transitions | context_snapshot | No | CASCADE 削除 |\n| audit_logs | actor_id, actor_ip, detail | Yes (匿名化後) | 匿名化 |\n| user_mfa | secret | No (秘密鍵) | 物理削除 |\n| passkeys | credential_id, public_key | メタのみ | 物理削除 |\n| memberships | user_id | Yes | SET NULL |\n| invitations | email | 該当分のみ | 匿名化 |\n\n### 8.2 データエクスポート API\n\n```\nPOST /api/v1/users/me/data-export\n  → 202 { \"request_id\": \"uuid\", \"status\": \"processing\" }\n\nGET /api/v1/users/me/data-export/{request_id}\n  → 200 { \"status\": \"ready\", \"download_url\": \"...\" }\n\nGET /api/v1/users/me/data-export/{request_id}/download\n  → 200 application/json (Content-Disposition: attachment)\n```\n\nエクスポート内容: JSON。user, memberships, sessions, trusted_devices, passkeys (メタ), mfa (状態), audit_log。\n除外: TOTP secret, passkey 秘密鍵, recovery code hash。\nファイル有効期限: 24時間後に自動削除。\n完了通知: メール。\n\n### 8.3 データ削除 (Right to be Forgotten)\n\n```\nDELETE /api/v1/users/me\n  → 200 { \"status\": \"scheduled\", \"delete_at\": \"2026-05-07T...\" }\n```\n\n**30日猶予:**\n1. `users.deleted_at = now()` — 論理削除\n2. 全セッション無効化\n3. 全信頼済みデバイス失効\n4. ログイン不可\n5. 30日以内にログイン試行 → 「アカウント削除を撤回しますか？」→ `deleted_at = null`\n6. 30日後 → GC ジョブが物理削除を実行\n\n**物理削除の処理:**\n```sql\n-- 1. audit_logs 匿名化\nUPDATE audit_logs SET actor_id = NULL, actor_ip = NULL,\n    detail = detail - 'email' - 'ip' - 'user_agent'\nWHERE actor_id = ?;\n\n-- 2. invitations 匿名化\nUPDATE invitations SET email = 'deleted@redacted' WHERE email = ?;\n\n-- 3. memberships SET NULL\nUPDATE memberships SET user_id = NULL WHERE user_id = ?;\n\n-- 4. 物理削除 (CASCADE: sessions, trusted_devices, auth_flows, user_mfa, passkeys)\nDELETE FROM users WHERE id = ?;\n```\n\n**App 連携 Webhook:**\n```\nuser.deletion_requested  → 猶予期間開始\nuser.deletion_cancelled  → ユーザーが撤回\nuser.deletion_completed  → 物理削除実行\n```\n\n### 8.4 再登録\n\n同一メールで再登録 → 完全な新規ユーザー。以前のデータは一切復元しない。以前のアカウントの存在を暗示しない。\n\n---\n\n## 9. 通知メール\n\n### 9.1 新デバイスログイン通知\n\n```\n件名: [volta] 新しいデバイスからのログイン\n\n{display_name} さん\n\n新しいデバイスからアカウントにログインがありました。\n\n  デバイス: Chrome on macOS\n  IP アドレス: 203.0.113.***\n  日時: 2026-04-07 14:30 (JST)\n\n心当たりがない場合は、以下のリンクから全てのセッションを無効化できます:\n  {base_url}/settings/security\n\n※ このメールに心当たりがある場合は、何もする必要はありません。\n```\n\nトーン: 「不審なアクセス」ではなく「新しいデバイスからのログイン」。パニックを避ける。\n\n### 9.2 アカウント削除確認メール\n\n```\n件名: [volta] アカウント削除のご確認\n\n{display_name} さん\n\nアカウントの削除リクエストを受け付けました。\n\n  削除予定日: 2026-05-07\n  \n30日以内にログインすると、削除をキャンセルできます。\n削除予定日を過ぎると、全てのデータが完全に削除されます。\n\nこの操作に心当たりがない場合は、すぐにログインしてパスワードを変更してください。\n```\n\n---\n\n## 10. 段階的実装計画\n\n### Phase 1 (最小)\n\n```\nDB:\n  - trusted_devices テーブル作成\n  - tenant_security_policies テーブル作成\n  - users.deleted_at カラム追加\n  - audit_logs FK 変更 (ON DELETE SET NULL)\n\n機能:\n  - __volta_device_trust cookie 発行/検証\n  - 新デバイス検知 → メール通知\n  - tenant_security_policies の CRUD API\n  - amr を JWT に追加\n  - ForwardAuth の UA 変更検知 (warning flag)\n  - データエクスポート API (同期、Phase 1)\n  - アカウント論理削除 + 30日 GC ジョブ\n  - audit_logs 匿名化処理\n\nSM 変更:\n  - OidcFlowState に RISK_CHECKED 追加\n  - RiskCheckProcessor 作成\n  - RiskAndMfaBranch で 3分岐 (no_mfa / mfa_required / blocked)\n```\n\n### Phase 2\n\n```\n  - fraud-alert API 連携 (ExternalRiskService)\n  - テナント設定で step_up 有効化\n  - 非同期エクスポート (大規模テナント)\n  - App 削除連携 Webhook\n  - デバイス管理 UI + API\n  - 「記憶する」UI\n```\n\n### Phase 3\n\n```\n  - fraud-alert loginSucceed/loginFailed フィードバック\n  - デバイス × リスクレベル マトリクス設定\n  - DPA テンプレート生成\n  - テナント別データ保持ポリシー\n  - 削除レポート (監査用)\n```\n\n---\n\n## 11. 認証状態の3つの表現\n\n```\nauth_state (Session SM):\n  → ユーザーの認証ライフサイクル\n  → AUTHENTICATING → FULLY_AUTHENTICATED → EXPIRED/REVOKED\n  → sessions テーブルの auth_state カラム\n\nsession_scopes (時限スコープ):\n  → 特定操作の一時的な許可\n  → step-up 認証で付与、5分で期限切れ\n  → session_scopes テーブル\n\namr (JWT claim):\n  → 認証方法の記録（App が参照）\n  → [\"fed:google\", \"otp\"]\n  → JWT に埋め込み、/auth/refresh で更新\n```\n\n3つは**別の責務**を持ち、共存する:\n- auth_state = 「今どの段階にいるか」\n- session_scopes = 「今何ができるか」\n- amr = 「どうやって認証したか」\n\n---\n\n## Appendix: DGE Session Files\n\n```\ndge/sessions/\n  2026-04-07-conditional-access.md      Round 1: スコープ + 評価タイミング (11 gaps)\n  2026-04-07-conditional-access-r2.md   Round 2: Critical 解決 (8 gaps)\n  2026-04-07-conditional-access-r3.md   Round 3: Pluggable 検知 (7 gaps)\n  2026-04-07-conditional-access-r4.md   Round 4: fraud-alert 統合 (5 gaps)\n  2026-04-07-conditional-access-r5.md   Round 5: Final (0 gaps, triage)\n  2026-04-07-device-trust.md            デバイストラスト (8 gaps)\n  2026-04-07-gdpr.md                    GDPR (15 gaps)\n```\n\nTotal: 7 sessions, 54 gaps, 11 RESOLVED at design level.\n"
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
       "type": "spec",
       "id": "implementation-all-phases",
       "data": {
@@ -2778,6 +3279,21 @@
         "decision_refs": [],
         "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/specs/ux-specs-phase1.md",
         "content": "# volta-auth-proxy UI/UX Specs — Phase 1\n> ⚠️ DGE 生成 — 人間レビュー必須\n> status: draft\n> source: DGE UI/UX Design Review + Auto-iterate + LLM merge, 2026-03-31\n\n## 技術スタック\n\n```\nサーバー:          Javalin 6.x\nテンプレート:      jte 3.x (型安全、コンパイル時チェック)\nCSS:              単一ファイル volta.css (モバイルファースト、media queries)\nJS:               volta-sdk-js (~150行、vanilla JS)\nフレームワーク:    なし (server-rendered HTML)\n```\n\n## ディレクトリ構造\n\n```\nsrc/main/\n  jte/\n    layout/base.jte\n    auth/login.jte, callback.jte, tenant-select.jte,\n         invite-consent.jte, sessions.jte\n    error/error.jte\n  resources/public/\n    css/volta.css\n    js/volta.js\n```\n\n## 全ルート一覧\n\n| Method | Path | 説明 | 応答 |\n|--------|------|------|------|\n| before | /* | Content Negotiation filter | - |\n| GET | /login | ログインページ | HTML |\n| GET | /callback | OIDC コールバック処理 → リダイレクト | 302 |\n| POST | /auth/refresh | セッションリフレッシュ | JSON |\n| POST | /auth/logout | ログアウト | 302 |\n| GET | /select-tenant | テナント選択画面 | HTML |\n| POST | /auth/switch-tenant | テナント切替 | JSON |\n| GET | /invite/{code} | 招待着地ページ | HTML |\n| POST | /invite/{code}/accept | 招待承諾 | 302 |\n| GET | /settings/sessions | セッション管理 | HTML |\n| DELETE | /auth/sessions/{id} | セッション個別削除 | JSON |\n| POST | /auth/sessions/revoke-all | 全セッション削除 | JSON |\n| POST | /dev/token | テスト用 JWT (DEV_MODE のみ) | JSON |\n\n---\n\n## UC-UX-01: ログイン後リダイレクト (🔴 Critical)\n\n**Trigger**: ユーザーが App にアクセスし、未認証で Gateway にリダイレクトされる\n\n**Flow**:\n1. App が JWT なし検知 → `https://auth.example.com/login?return_to={current_url}`\n2. Gateway が `return_to` を session に保存（ホワイトリスト検証後）\n3. Google OIDC フロー\n4. 認証成功 → session 作成 → JWT 発行\n5. `return_to` へ 302 リダイレクト\n\n**Exceptions**:\n- return_to 未指定 → デフォルトページ\n- return_to がホワイトリスト外 → 無視（オープンリダイレクト防止）\n- return_to が別テナント → テナント切替確認画面\n\n**Tech**:\n- `GET /login?return_to={url}` — session に保存\n- `ALLOWED_REDIRECT_DOMAINS` 環境変数でホワイトリスト管理\n- sessions テーブルに `return_to VARCHAR(2048)` カラム追加\n\n---\n\n## UC-UX-02: 認証切れ → 再認証 → 元画面復帰 (🔴 Critical)\n\n**重要**: Gateway は `Accept: application/json` リクエストには **絶対に 302 リダイレクトを返さない**。常に 401 JSON を返す。302 はブラウザの HTML リクエストのみ。これにより SPA の fetch が Google ログイン HTML を受け取る問題を防止。\n\n**Trigger**: SPA の API 呼び出しで 401 受信\n\n**Flow**:\n1. 401 受信 → volta-sdk-js がインターセプト\n2. `POST /auth/refresh`（Cookie session）→ 新 JWT → 元リクエストリトライ\n3. session も無効 → `/login?return_to={current_url}` にリダイレクト\n4. 再ログイン後、元の画面に復帰\n\n**SDK 責務**:\n- volta-sdk (Java): JWT 検証、VoltaContext\n- volta-sdk-js (Browser): 401 インターセプト、refresh、ログインリダイレクト\n\n**Tech**:\n```\nPOST /auth/refresh\n  Cookie: __volta_session\n  200 → { \"token\": \"<new-jwt>\" }\n  401 → { \"error\": { \"code\": \"SESSION_EXPIRED\" } }\n\nvolta-sdk-js API:\n  new VoltaClient({ gatewayUrl })\n  volta.setupInterceptor(axiosInstance)\n  volta.fetch(url, options)\n```\n\n---\n\n## UC-UX-03: 招待リンク初回体験 (🟠 High)\n\n**Flow（3 画面以内）**:\n\n画面 1 — 招待着地ページ:\n- テナント名 / ロゴ\n- 「{招待者}さんが {テナント名} に招待しています」\n- ロール表示\n- [Google でログインして参加] ボタン\n\n画面 2 — Google ログイン（Google 側）\n\n画面 3 — 参加完了:\n- 「✅ {テナント名} に参加しました」\n- [App を開く] ボタン → 3 秒後自動リダイレクト\n\n**Tech**:\n```\nGET /invite/{code}\n  有効 → 着地ページ HTML（テナント名・招待者名・ロール）\n  期限切れ → 期限切れページ（再招待リクエストボタン）\n  使用済み → 「すでに使用されています」\n  不正 → 404\n\nPOST /invite/{code}/accept\n  Cookie 必須 → membership 作成 → リダイレクト\n```\n\n---\n\n## TECH-UX-04: エラー画面設計 (🟠 High)\n\n| code | メッセージ | 次のアクション |\n|------|----------|---------------|\n| AUTHENTICATION_REQUIRED | ログインが必要です | [ログイン] |\n| SESSION_EXPIRED | セッションの有効期限が切れました | [再ログイン] |\n| SESSION_REVOKED | セッションが無効化されました | [再ログイン] + 管理者連絡先 |\n| FORBIDDEN | アクセスする権限がありません | [戻る] + 権限リクエスト |\n| TENANT_ACCESS_DENIED | ワークスペースへのアクセス権がありません | [招待リクエスト] / [切替] |\n| TENANT_SUSPENDED | ワークスペースは一時停止中です | 管理者連絡先 |\n| ROLE_INSUFFICIENT | この操作の権限がありません | [戻る] + 管理者連絡先 |\n| INVITATION_EXPIRED | 招待リンクの有効期限が切れました | [再招待リクエスト] |\n| INVITATION_EXHAUSTED | この招待リンクは使用済みです | [再招待リクエスト] / [ログイン] |\n| RATE_LIMITED | しばらくお待ちください（{N}秒後） | カウントダウンタイマー |\n\n原則: 技術用語を使わない / 必ず次のアクションを示す / モバイル対応\n\n---\n\n## TECH-UX-05: テナント表示 + 切替 (🟠 High)\n\n**JWT 追加 claims**:\n```json\n{ \"volta_tname\": \"ACME Corp\", \"volta_tslug\": \"acme\" }\n```\n\n**SDK-js API**:\n```javascript\nvolta.getCurrentTenant() → { id, name, slug }\nvolta.switchTenant(tenantId) → POST /auth/switch-tenant → reload\n```\n\n切替時: 新セッション + JWT 発行 → `window.location.reload()`\n\n---\n\n## TECH-UX-06: 開発者 DX — テスト用トークン (🟠 High)\n\n```\nPOST /dev/token  (DEV_MODE=true かつ localhost のみ)\n  Body: { \"userId\": \"test-user\", \"tenantId\": \"test-tenant\", \"roles\": [\"ADMIN\"] }\n  → テスト用 JWT 返却\n```\n\nデフォルト: DEV_MODE=false（本番では無効）\n\n---\n\n## TECH-UX-07: メールなし招待 UX (🟠 High)\n\n- 招待リンクのワンクリックコピー（Clipboard API）\n- QR コード表示（対面招待用）\n- 有効期限の明示\n- 招待一覧: ⏳ 未使用 / ✅ 使用済み / ❌ 期限切れ\n\n---\n\n## Auto-merge: 素の LLM で追加発見された Gap\n\n### TECH-UX-08: Content Negotiation 厳密化 (🔴 Critical, LLM Gap 4)\n\n**ルール**:\n```\nAccept ヘッダ判定:\n  application/json を含む → 必ず JSON レスポンス（302 禁止）\n  text/html or なし → HTML or リダイレクト\n\nGateway の全エンドポイントでこのルールを適用。\nSPA の fetch() が 302 で Google HTML を受け取る事故を防止。\n```\n\n### UC-UX-09: 招待参加の明示的同意 (🟠 High, LLM Gap 12)\n\n招待リンク → Google ログイン → **確認画面（テナント名・ロール・招待者を表示、[参加する] ボタン）** → membership 作成。\nauto_join の場合も初回は確認画面を表示（GDPR 同意）。\n\n### TECH-UX-10: OIDC コールバック中のインタースティシャル (🟠 High, LLM Gap 10)\n\nGoogle コールバック処理中（ユーザー検索・作成・セッション発行）に「ログイン処理中...」画面を表示。\n→ state/nonce 不整合によるリロード事故を防止。\n\n### TECH-UX-11: モバイル対応方針 (🟠 High, LLM Gap 5)\n\n- 全画面レスポンシブ（viewport meta、タッチターゲット 44x44px）\n- Safari ITP: `SameSite=Lax` で対応可能だが、WebView では Cookie 制限あり → Phase 1 は「モバイルブラウザ対応、WebView は対象外」\n- Google OIDC のモバイルブラウザ動作は Google 側が対応済み\n\n### TECH-UX-12: セッション管理 UI (🟠 High, LLM Gap 9)\n\n- `GET /api/me/sessions` → アクティブセッション一覧（デバイス・IP・最終アクセス）\n- `DELETE /api/me/sessions/{id}` → 個別セッション失効\n- `DELETE /api/me/sessions` → 全デバイスログアウト\n- 同時上限到達時: 「ログイン上限に達しています。不要なセッションを終了してください」+ セッション一覧表示\n\n### Phase 2+ 検討 (🟡 Medium)\n\n- UX-17: ローカライゼーション (ja/en) — users テーブルに locale カラム追加、Accept-Language フォールバック\n- UX-18: アクセシビリティ — WCAG 2.1 AA 準拠、aria-label、キーボードナビ\n- UX-19: テナント別ブランディング — tenants に logo_url, primary_color 追加、ThemeProvider interface\n"
+      },
+      "confidence": 1,
+      "warnings": []
+    },
+    {
+      "type": "spec",
+      "id": "volta-gateway",
+      "data": {
+        "id": "volta-gateway",
+        "title": "Spec: volta-gateway — Rust SM Reverse Proxy",
+        "type": "TECH",
+        "status": "draft",
+        "decision_refs": [],
+        "file_path": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/specs/volta-gateway.md",
+        "content": "# Spec: volta-gateway — Rust SM Reverse Proxy\n\n> Generated: 2026-04-07\n> Source: DGE Sessions — 3 Rounds, 18 Gaps\n> Language: Rust\n> Dependencies: hyper, tokio, rustls, tower, tramli-rs\n\n---\n\n## 1. Overview\n\nTraefik を置き換える auth-aware reverse proxy。Rust + SM (tramli) パターンで構築。\n\n### やること / やらないこと\n\n| やること (Phase 1) | やらないこと (Phase 2+) |\n|-------------------|----------------------|\n| HTTP proxy (hyper, port 8080) | TLS 終端 (CF が担当) |\n| SM routing (Host → backend) | Load balancing |\n| Auth integration (volta localhost HTTP) | Circuit breaker / Retry |\n| Access logging (tracing + SM 遷移) | WebSocket / gRPC |\n| Health check (/healthz) | ACME (Let's Encrypt) |\n| YAML config | Per-tenant dynamic routing (DB) |\n| Request validation (VALIDATED state) | Streaming response |\n\n### 差別化\n\n| vs Traefik | volta-gateway |\n|-----------|---------------|\n| ForwardAuth = 2 HTTP往復 (4-10ms) | Auth = localhost 1往復 (0.5-1ms) |\n| Access log = 入って出た | SM 遷移ログ = ステップ別 |\n| 静的ルーティング (Docker labels) | 将来: DB ベース動的ルーティング |\n| 設定が散らばる | 1 YAML ファイル |\n| デバッグ困難 | Mermaid で可視化 |\n\n---\n\n## 2. Architecture\n\n### 2.1 全体構成\n\n```\n本番:\n  Client → Cloudflare (TLS) → volta-gateway (HTTP:8080) → volta-auth-proxy (HTTP:7070)\n                                                        → App A\n                                                        → App B\n\n開発:\n  Client → volta-gateway (rustls:8443) → volta-auth-proxy → App\n```\n\n### 2.2 tower::Service スタック\n\n```\ntower::ServiceBuilder\n  .layer(TraceLayer)              // OpenTelemetry / tracing\n  .layer(RateLimitLayer(100/s))   // IP ベース rate limit\n  .layer(TimeoutLayer(30s))       // total request timeout\n  .service(SmProxyService)        // SM engine\n```\n\n### 2.3 SM フロー\n\n```mermaid\nstateDiagram-v2\n    [*] --> RECEIVED\n    RECEIVED --> VALIDATED : RequestValidator\n    VALIDATED --> ROUTED : RoutingResolver\n    ROUTED --> AUTH_CHECKED : [AuthChecker] (External)\n    AUTH_CHECKED --> FORWARDED : [BackendForwarder] (External)\n    FORWARDED --> RESPONSE_RECEIVED : ResponseProcessor\n    RESPONSE_RECEIVED --> COMPLETED : ResponseSender\n\n    VALIDATED --> BAD_REQUEST : validation failed\n    ROUTED --> BAD_REQUEST : unknown host\n    AUTH_CHECKED --> REDIRECT : 401/302\n    AUTH_CHECKED --> DENIED : 403\n    AUTH_CHECKED --> BAD_GATEWAY : volta error/timeout\n    FORWARDED --> BAD_GATEWAY : backend error\n    FORWARDED --> GATEWAY_TIMEOUT : backend timeout\n\n    COMPLETED --> [*]\n    BAD_REQUEST --> [*]\n    REDIRECT --> [*]\n    DENIED --> [*]\n    BAD_GATEWAY --> [*]\n    GATEWAY_TIMEOUT --> [*]\n```\n\n### 2.4 sync SM + async I/O (B 方式)\n\n```\nengine.start_flow()  → RECEIVED → VALIDATED → ROUTED   (sync, ~1μs)\n  ── async: volta /auth/verify ──\nengine.resume()      → AUTH_CHECKED                      (sync, ~300ns)\n  ── async: hyper client → backend ──\nengine.resume()      → FORWARDED → RESPONSE_RECEIVED → COMPLETED (sync, ~1μs)\n```\n\nSM は sync。async は tower::Service の call() 内で hyper client が担当。\n\n---\n\n## 3. SM Processors\n\n### 3.1 RequestValidator (Auto: RECEIVED → VALIDATED)\n\n```rust\n// Checks:\n// 1. Header total size <= 8KB\n// 2. Content-Length <= 10MB (configurable)\n// 3. Host header exists\n// 4. Host in known_hosts (routing table)\n// 5. Path normalization: reject \"..\", \"//\"\n```\n\n### 3.2 RoutingResolver (Auto: VALIDATED → ROUTED)\n\n```rust\n// Input: Host header\n// Output: BackendTarget { url, app_id }\n// Lookup: routing_table (HashMap<String, BackendTarget>)\n```\n\n### 3.3 AuthChecker (External: ROUTED → AUTH_CHECKED)\n\n```rust\n// HTTP GET volta:7070/auth/verify\n// Headers forwarded:\n//   Cookie (transparent passthrough)\n//   X-Forwarded-Host, X-Forwarded-Uri, X-Forwarded-Proto\n//   X-Volta-App-Id (from routing config)\n//\n// Connection pool: hyper::Client, max 32 idle per host\n// Timeout: 500ms\n// Fail-closed: volta down → BAD_GATEWAY\n//\n// Response mapping:\n//   200 → extract X-Volta-* headers → AUTH_CHECKED\n//   401 → REDIRECT (to /login with return_to)\n//   302 → REDIRECT (follow volta's redirect)\n//   403 → DENIED\n//   5xx → BAD_GATEWAY\n```\n\n### 3.4 HeaderInjector (Auto: AUTH_CHECKED → ready for forward)\n\n```rust\n// Add X-Volta-* headers from auth response to outgoing request\n// Strip any X-Volta-* that backend might have set (RP-16: forgery prevention)\n```\n\n### 3.5 BackendForwarder (External: → FORWARDED)\n\n```rust\n// Forward request to backend URL (from RoutingResolver)\n// Preserve: method, path, query, body, most headers\n// Remove: Host (replace with backend host), Connection\n// Add: X-Forwarded-For, X-Forwarded-Proto, X-Request-Id\n```\n\n### 3.6 ResponseProcessor (Auto: FORWARDED → RESPONSE_RECEIVED)\n\n```rust\n// Strip X-Volta-* headers from backend response (RP-16)\n// Add: X-Request-Id, Server: volta-gateway\n```\n\n---\n\n## 4. Auth Integration\n\n### 4.1 volta /auth/verify プロトコル\n\n```\nRequest:\n  GET http://localhost:7070/auth/verify\n  Cookie: __volta_session=xxx; __volta_device_trust=yyy\n  X-Forwarded-Host: app.example.com\n  X-Forwarded-Uri: /api/v1/resource\n  X-Forwarded-Proto: https\n  X-Volta-App-Id: app-wiki\n\nResponse (200):\n  X-Volta-User-Id: <uuid>\n  X-Volta-Email: user@example.com\n  X-Volta-Tenant-Id: <uuid>\n  X-Volta-Tenant-Slug: acme\n  X-Volta-Roles: ADMIN,MEMBER\n  X-Volta-JWT: eyJhbG...\n  X-Volta-Display-Name: 田中太郎\n```\n\n### 4.2 Connection Pool\n\n```rust\nlet volta_client = hyper::Client::builder()\n    .pool_max_idle_per_host(32)\n    .build_http();\n```\n\n### 4.3 Timeout / Failure\n\n- Timeout: 500ms\n- volta down: 502 Bad Gateway\n- **Fail-closed**: 認証できないなら通さない\n\n---\n\n## 5. Security\n\n### 5.1 SM が防ぐもの\n\n| 攻撃 | 防御ポイント |\n|------|------------|\n| Host header poisoning | VALIDATED: known hosts only |\n| Path traversal | VALIDATED: reject `..`, `//` |\n| Oversized request | VALIDATED: header 8KB, body 10MB |\n| Unknown routes | ROUTED: routing table にないホストは BAD_REQUEST |\n\n### 5.2 hyper が防ぐもの\n\n| 攻撃 | 防御 |\n|------|------|\n| HTTP Request Smuggling | CL/TE 不一致を厳格に拒否 |\n| Header injection | HTTP パーサーが \\r\\n 拒否 |\n| HTTP/2 violations | h2 実装が処理 |\n\n### 5.3 tower が防ぐもの\n\n| 攻撃 | 防御 |\n|------|------|\n| DDoS | RateLimitLayer (100 req/sec per IP) |\n| Slow HTTP | TimeoutLayer (30s total) |\n\n### 5.4 hyper config\n\n```rust\nServer::bind(&addr)\n    .http1_header_read_timeout(Duration::from_secs(10))\n    .http1_keepalive(true)\n```\n\n### 5.5 レスポンスヘッダ Strip (RP-16)\n\nbackend が `X-Volta-*` ヘッダを偽装する攻撃を防止:\n- **リクエスト方向**: proxy が volta から受け取った X-Volta-* のみ注入\n- **レスポンス方向**: backend レスポンスから X-Volta-* を strip\n\n---\n\n## 6. Config\n\n### 6.1 YAML 設定ファイル\n\n```yaml\n# volta-gateway.yaml\nserver:\n  port: 8080\n  read_timeout_secs: 10\n  request_timeout_secs: 30\n\nauth:\n  volta_url: http://localhost:7070\n  verify_path: /auth/verify\n  timeout_ms: 500\n  pool_max_idle: 32\n\nrouting:\n  - host: app.example.com\n    backend: http://localhost:3000\n    app_id: app-wiki\n  - host: admin.example.com\n    backend: http://localhost:3001\n    app_id: app-admin\n  - host: \"*.example.com\"\n    backend: http://localhost:3000\n    app_id: app-default\n\nrate_limit:\n  requests_per_second: 100\n\nhealthcheck:\n  interval_secs: 30\n  path: /healthz\n\nlogging:\n  level: info\n  format: json  # or \"pretty\" for dev\n```\n\n### 6.2 Hot Reload\n\nSIGHUP → YAML 再読込 → routing table を AtomicSwap。\n接続中のリクエストは古いテーブルで完了。\n\n---\n\n## 7. Observability\n\n### 7.1 Access Log (SM 遷移ベース)\n\n```json\n{\n  \"timestamp\": \"2026-04-07T12:00:00Z\",\n  \"request_id\": \"uuid\",\n  \"method\": \"GET\",\n  \"host\": \"app.example.com\",\n  \"path\": \"/api/v1/resource\",\n  \"client_ip\": \"203.0.113.1\",\n  \"transitions\": [\n    {\"from\": \"RECEIVED\", \"to\": \"VALIDATED\", \"duration_us\": 5},\n    {\"from\": \"VALIDATED\", \"to\": \"ROUTED\", \"duration_us\": 2},\n    {\"from\": \"ROUTED\", \"to\": \"AUTH_CHECKED\", \"duration_us\": 850},\n    {\"from\": \"AUTH_CHECKED\", \"to\": \"FORWARDED\", \"duration_us\": 12500},\n    {\"from\": \"FORWARDED\", \"to\": \"COMPLETED\", \"duration_us\": 3}\n  ],\n  \"total_us\": 13360,\n  \"status\": 200,\n  \"user_id\": \"uuid\",\n  \"tenant_id\": \"uuid\",\n  \"exit_state\": \"COMPLETED\"\n}\n```\n\n**ステップ別の duration が見える** — どこがボトルネックか一目瞭然。\n\n### 7.2 /healthz\n\n```json\n{\n  \"status\": \"ok\",\n  \"volta\": \"ok\",        // localhost:7070/healthz の結果\n  \"backends\": {\n    \"app-wiki\": \"ok\",\n    \"app-admin\": \"degraded\"\n  },\n  \"uptime_secs\": 86400\n}\n```\n\n### 7.3 Mermaid Diagram\n\n`MermaidGenerator::generate(&proxy_flow_def)` でリクエストライフサイクル図を自動生成。\n\n---\n\n## 8. Implementation Plan\n\n### Day 1: Skeleton\n\n```\ncargo init volta-gateway\nCargo.toml: hyper, tokio, tower, serde, serde_yaml, tracing\nmain.rs: hyper server (port 8080)\nconfig.rs: YAML → Config struct\nrouting.rs: HashMap<String, BackendTarget>\nproxy.rs: 最も単純な forward proxy (Host → backend)\n```\n\n### Day 2: SM Integration\n\n```\ntramli-rs を依存に追加 (or git submodule)\nstate.rs: ProxyState enum (8 states + 5 terminals)\nprocessors.rs: RequestValidator, RoutingResolver, HeaderInjector, ResponseProcessor\nservice.rs: tower::Service<Request> 実装 (SmProxyService)\nauth.rs: volta /auth/verify client (connection pool)\n```\n\n### Day 3: Polish\n\n```\nlogging.rs: tracing + SM 遷移ログ (JSON)\nhealth.rs: /healthz endpoint\nsecurity.rs: X-Volta-* strip on response\nhot_reload.rs: SIGHUP → config reload\ntests/: mock volta + mock backend\n```\n\n### Estimated Size\n\n```\ntramli-rs:       ~500 lines (ユーザーが自作)\nvolta-gateway:   ~1,100 lines\n  config.rs:      ~100\n  routing.rs:     ~100\n  state.rs:       ~50\n  processors.rs:  ~200\n  auth.rs:        ~150\n  service.rs:     ~200\n  health.rs:      ~50\n  logging.rs:     ~50\n  security.rs:    ~50\n  main.rs:        ~100\n  tests/:         ~300\n```\n\n---\n\n## 9. Migration Path (Strangler Fig)\n\n```\nPhase 0 (現在):\n  Client → CF → Traefik → volta (ForwardAuth) → App\n\nPhase 1 (並行運用):\n  Client → CF → Traefik → volta → App        (既存)\n  Client → CF → volta-gateway → volta → App   (新、テスト用サブドメイン)\n\nPhase 2 (切り替え):\n  Client → CF → volta-gateway → volta → App   (全トラフィック)\n  Traefik 停止\n\nPhase 3 (統合):\n  Client → CF → volta-gateway (auth 内蔵) → App  (volta が gateway に統合)\n```\n\n---\n\n## Appendix: DGE Session Files\n\n```\ndge/sessions/\n  2026-04-07-rust-sm-proxy.md       Round 1: メリット整理 + Auth方式選定 (11 gaps)\n  2026-04-07-rust-sm-proxy-r2.md    Round 2: スコープ確定 + Auth詳細 (4 gaps)\n  2026-04-07-rust-sm-proxy-r3.md    Round 3: L7防御 + tower統合 (3 gaps)\n```\n\nTotal: 3 rounds, 18 gaps (6 resolved, 1 user-owned)\n"
       },
       "confidence": 1,
       "warnings": []
@@ -3587,6 +4103,102 @@
       "target": "2026-04-06-auth-state-machine#G-017",
       "type": "discovers",
       "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-conditional-access-r2",
+      "target": "2026-04-07-conditional-access-r2#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-conditional-access-r3",
+      "target": "2026-04-07-conditional-access-r3#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-conditional-access-r4",
+      "target": "2026-04-07-conditional-access-r4#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-conditional-access-r5",
+      "target": "2026-04-07-conditional-access-r5#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-conditional-access",
+      "target": "2026-04-07-conditional-access#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-device-trust",
+      "target": "2026-04-07-device-trust#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-fraud-detection-local",
+      "target": "2026-04-07-fraud-detection-local#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-gateway-phase2-design",
+      "target": "2026-04-07-gateway-phase2-design#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-gateway-tribunal-v2",
+      "target": "2026-04-07-gateway-tribunal-v2#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-gateway-tribunal-v3",
+      "target": "2026-04-07-gateway-tribunal-v3#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-gateway-tribunal-v4",
+      "target": "2026-04-07-gateway-tribunal-v4#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-gateway-tribunal",
+      "target": "2026-04-07-gateway-tribunal#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-gdpr",
+      "target": "2026-04-07-gdpr#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-rust-sm-proxy-r2",
+      "target": "2026-04-07-rust-sm-proxy-r2#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-rust-sm-proxy-r3",
+      "target": "2026-04-07-rust-sm-proxy-r3#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
+    },
+    {
+      "source": "2026-04-07-rust-sm-proxy",
+      "target": "2026-04-07-rust-sm-proxy#dialogue",
+      "type": "contains",
+      "confidence": "explicit"
     }
   ],
   "warnings": [
@@ -4021,6 +4633,70 @@
     {
       "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-06-auth-state-machine-r7.md",
       "message": "2026-04-06-auth-state-machine-r7#G-084: Gap extracted from table (no inline marker found)"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-conditional-access-r2.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-conditional-access-r3.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-conditional-access-r4.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-conditional-access-r5.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-conditional-access.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-device-trust.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-fraud-detection-local.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gateway-phase2-design.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gateway-tribunal-v2.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gateway-tribunal-v3.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gateway-tribunal-v4.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gateway-tribunal.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-gdpr.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-rust-sm-proxy-r2.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-rust-sm-proxy-r3.md",
+      "message": "No gap markers found"
+    },
+    {
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/dge/sessions/2026-04-07-rust-sm-proxy.md",
+      "message": "No gap markers found"
     }
   ],
   "glossary": [

@@ -1,7 +1,7 @@
 @param String tenantName
 @param String role
 @param String dashboardUrl
-!{var msg = com.volta.authproxy.Messages.current();}
+!{var msg = org.unlaxer.infra.volta.Messages.current();}
 <!doctype html>
 <html lang="${msg.locale()}">
 <head>

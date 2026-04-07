@@ -1,6 +1,8 @@
 name: brainstorm
 display_name: "💡 ブレスト — アイデアを発散させる"
 auto_merge: false  # ブレストは素のレビュー不要
+decisions: true
+decisions_dir: dge/decisions/
 
 trigger_keywords: ["ブレスト", "brainstorm", "アイデア", "発想"]
 
@@ -55,5 +57,7 @@ post_actions:
     display_name: "もう一回ブレスト"
   - id: switch_review
     display_name: "アイデアを設計レビューに持ち込む → design-review"
+  - id: record_decision
+    display_name: "設計判断を記録する"
   - id: later
     display_name: "後で"

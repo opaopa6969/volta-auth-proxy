@@ -50,11 +50,19 @@ public final class HttpSupport {
         if (uri.getHost() == null || !"https".equalsIgnoreCase(uri.getScheme()) && !"http".equalsIgnoreCase(uri.getScheme())) {
             return false;
         }
-        Set<String> allowedDomains = Arrays.stream(allowedDomainsCsv.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isBlank())
-                .collect(Collectors.toSet());
-        return allowedDomains.contains(uri.getHost());
+        String host = uri.getHost().toLowerCase();
+        for (String pattern : allowedDomainsCsv.split(",")) {
+            String p = pattern.trim().toLowerCase();
+            if (p.isEmpty()) continue;
+            if (p.startsWith("*.")) {
+                // Wildcard: *.unlaxer.org matches console.unlaxer.org, auth.unlaxer.org, etc.
+                String suffix = p.substring(1); // ".unlaxer.org"
+                if (host.endsWith(suffix) || host.equals(p.substring(2))) return true;
+            } else {
+                if (host.equals(p)) return true;
+            }
+        }
+        return false;
     }
 
     private static final boolean FORCE_SECURE_COOKIE =

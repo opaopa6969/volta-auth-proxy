@@ -35,12 +35,18 @@ public final class AuthData {
 
         /**
          * ForwardAuth ヘッダーから構築。
-         * scheme: X-Forwarded-Proto > BASE_URL の scheme > "http"
+         * scheme: BASE_URL の scheme > X-Forwarded-Proto > "http"
+         *
+         * BASE_URL を優先する理由: CF Tunnel → Traefik HTTP entrypoint の構成では
+         * X-Forwarded-Proto が常に "http" になる（Traefik が上書きする）。
+         * BASE_URL (https://auth.unlaxer.org) は正しい scheme を持っている。
          */
         public static RequestOrigin fromForwardAuth(
                 String fwdProto, String fwdHost, String fwdUri, URI baseUrl) {
             String scheme;
-            if (fwdProto != null && !fwdProto.isBlank()) {
+            if ("https".equals(baseUrl.getScheme())) {
+                scheme = "https";
+            } else if (fwdProto != null && !fwdProto.isBlank()) {
                 scheme = fwdProto;
             } else {
                 scheme = baseUrl.getScheme(); // https from BASE_URL=https://auth.unlaxer.org

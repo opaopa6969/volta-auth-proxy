@@ -142,8 +142,10 @@ public final class Main {
             var authFlowHandler = new org.unlaxer.infra.volta.auth.AuthFlowHandler(
                     flowEngine, authFlowDef, authFlowAuthConfig, authService, config,
                     stateCodec, jwtService, appRegistry, store);
-            // Register unified ForwardAuth endpoint — replaces procedural /auth/verify
-            app.get("/auth/verify", authFlowHandler::verify);
+            // AUTH-010: AuthFlowHandler is ready but not wired to /auth/verify yet.
+            // Full migration requires /callback + /mfa/challenge to also use AuthFlowHandler.
+            // Until then, the procedural /auth/verify handler below remains active.
+            // app.get("/auth/verify", authFlowHandler::verify);
         }
 
         // CORS for auth-console and other subdomains
@@ -399,9 +401,65 @@ public final class Main {
             ));
         });
 
-        // NOTE: /auth/verify is now registered by AuthFlowHandler above (AUTH-010).
-        // The old procedural handler has been replaced by authFlowHandler::verify
-        // which uses RequestOrigin.fromForwardAuth() for correct scheme inference.
+        app.get("/auth/verify", ctx -> {
+            AuthRouter.setNoStore(ctx);
+            // MFA check: if session exists but MFA not verified, redirect to challenge
+            if (authService.isMfaPending(ctx)) {
+                String fwdHost  = ctx.header("X-Forwarded-Host");
+                String fwdUri   = ctx.header("X-Forwarded-Uri");
+                String fwdProto = ctx.header("X-Forwarded-Proto");
+                String baseScheme = config.baseUrl().startsWith("https") ? "https" : "http";
+                String proto = fwdProto != null && !fwdProto.equals("http") ? fwdProto : baseScheme;
+                String returnTo = (fwdHost != null && fwdUri != null)
+                        ? proto + "://" + fwdHost + fwdUri
+                        : "/";
+                ctx.redirect(config.baseUrl() + "/mfa/challenge?return_to=" + java.net.URLEncoder.encode(
+                        returnTo, java.nio.charset.StandardCharsets.UTF_8));
+                return;
+            }
+            Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
+            if (principalOpt.isEmpty()) {
+                if (isSuspendedTenantSession(ctx, sessionStore, store)) {
+                    ctx.status(403);
+                    return;
+                }
+                String fwdHost  = ctx.header("X-Forwarded-Host");
+                String fwdUri   = ctx.header("X-Forwarded-Uri");
+                String fwdProto = ctx.header("X-Forwarded-Proto");
+                if (fwdHost != null && fwdUri != null) {
+                    String baseScheme2 = config.baseUrl().startsWith("https") ? "https" : "http";
+                    String proto    = fwdProto != null && !fwdProto.equals("http") ? fwdProto : baseScheme2;
+                    String returnTo = proto + "://" + fwdHost + fwdUri;
+                    ctx.redirect(config.baseUrl() + "/login?return_to=" + java.net.URLEncoder.encode(
+                            returnTo, java.nio.charset.StandardCharsets.UTF_8));
+                    return;
+                }
+                ctx.status(401);
+                return;
+            }
+            AuthPrincipal principal = principalOpt.get();
+            String appId = ctx.header("X-Volta-App-Id");
+            String forwardedHost = ctx.header("X-Forwarded-Host");
+            Optional<AppRegistry.AppPolicy> appPolicy = appRegistry.resolve(appId, forwardedHost);
+            if (appId != null && !appId.isBlank() && appPolicy.isEmpty()) {
+                ctx.status(401);
+                return;
+            }
+            if (appPolicy.isPresent() && Collections.disjoint(principal.roles(), appPolicy.get().allowedRoles())) {
+                ctx.status(401);
+                return;
+            }
+            String jwt = jwtService.issueToken(principal);
+            ctx.header("X-Volta-User-Id", principal.userId().toString());
+            ctx.header("X-Volta-Email", principal.email());
+            ctx.header("X-Volta-Tenant-Id", principal.tenantId().toString());
+            ctx.header("X-Volta-Tenant-Slug", principal.tenantSlug());
+            ctx.header("X-Volta-Roles", String.join(",", principal.roles()));
+            ctx.header("X-Volta-Display-Name", principal.displayName() == null ? "" : principal.displayName());
+            ctx.header("X-Volta-JWT", jwt);
+            appPolicy.ifPresent(ap -> ctx.header("X-Volta-App-Id", ap.id()));
+            ctx.status(200);
+        });
 
         // SIGHUP: reload IdP list without restart
         try {

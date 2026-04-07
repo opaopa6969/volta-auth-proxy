@@ -380,10 +380,13 @@ public final class Main {
                 String fwdHost  = ctx.header("X-Forwarded-Host");
                 String fwdUri   = ctx.header("X-Forwarded-Uri");
                 String fwdProto = ctx.header("X-Forwarded-Proto");
+                // Infer scheme from BASE_URL when X-Forwarded-Proto is missing or
+                // unreliable (CF Tunnel → Traefik HTTP entrypoint → proto=http).
+                String baseScheme = config.baseUrl().startsWith("https") ? "https" : "http";
+                String proto = fwdProto != null && !fwdProto.equals("http") ? fwdProto : baseScheme;
                 String returnTo = (fwdHost != null && fwdUri != null)
-                        ? (fwdProto != null ? fwdProto : "http") + "://" + fwdHost + fwdUri
+                        ? proto + "://" + fwdHost + fwdUri
                         : "/";
-                // Use absolute URL with BASE_URL to avoid leaking internal IP
                 ctx.redirect(config.baseUrl() + "/mfa/challenge?return_to=" + java.net.URLEncoder.encode(
                         returnTo, java.nio.charset.StandardCharsets.UTF_8));
                 return;
@@ -401,7 +404,8 @@ public final class Main {
                 String fwdUri   = ctx.header("X-Forwarded-Uri");
                 String fwdProto = ctx.header("X-Forwarded-Proto");
                 if (fwdHost != null && fwdUri != null) {
-                    String proto    = fwdProto != null ? fwdProto : "http";
+                    String baseScheme2 = config.baseUrl().startsWith("https") ? "https" : "http";
+                    String proto    = fwdProto != null && !fwdProto.equals("http") ? fwdProto : baseScheme2;
                     String returnTo = proto + "://" + fwdHost + fwdUri;
                     ctx.redirect(config.baseUrl() + "/login?return_to=" + java.net.URLEncoder.encode(
                             returnTo, java.nio.charset.StandardCharsets.UTF_8));

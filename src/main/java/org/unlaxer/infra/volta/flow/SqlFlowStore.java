@@ -28,6 +28,27 @@ public final class SqlFlowStore implements FlowStore {
         this.dataSource = dataSource;
         this.objectMapper = objectMapper;
         this.registry = registry;
+        verifySchema();
+    }
+
+    private void verifySchema() {
+        try (Connection conn = dataSource.getConnection();
+             var rs = conn.getMetaData().getTables(null, null, "auth_flows", null)) {
+            if (!rs.next()) {
+                throw new IllegalStateException(
+                        "[volta] FATAL: 'auth_flows' table does not exist. "
+                        + "Flyway migrations V11-V21 may not have been applied. "
+                        + "Run: docker-compose up -d --build volta-auth-proxy "
+                        + "or manually: mvn flyway:migrate");
+            }
+            System.getLogger("volta.flow").log(System.Logger.Level.INFO,
+                    "[SqlFlowStore] auth_flows table verified OK");
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            System.getLogger("volta.flow").log(System.Logger.Level.WARNING,
+                    "[SqlFlowStore] Could not verify auth_flows table: {0}", e.getMessage());
+        }
     }
 
     @Override

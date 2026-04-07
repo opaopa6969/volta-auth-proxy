@@ -3,7 +3,7 @@
 ## Phase: 2
 ## Priority: Medium
 ## Category: DX / Documentation
-## Status: Done — tools/glossary-linker/GlossaryLinker.java (356 en / 320 ja terms)
+## Status: Done — DDE-toolkit に dde-link CLI が既存。Java 自前版は削除、DDE を使用
 
 ---
 

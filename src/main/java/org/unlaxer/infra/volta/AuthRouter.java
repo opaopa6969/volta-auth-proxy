@@ -305,13 +305,19 @@ public final class AuthRouter {
                     false
             );
             UUID sessionId = authService.issueSession(switched, null, HttpSupport.clientIp(ctx), ctx.userAgent());
-            setSessionCookie(ctx, sessionId, config.sessionTtlSeconds());
+            // Carry over MFA verification from old session
             if (oldSessionRaw != null) {
                 try {
-                    sessionStore.revokeSession(UUID.fromString(oldSessionRaw));
+                    UUID oldSessionId = UUID.fromString(oldSessionRaw);
+                    SessionRecord oldSession = sessionStore.findSession(oldSessionId).orElse(null);
+                    if (oldSession != null && oldSession.mfaVerifiedAt() != null) {
+                        authService.markMfaVerified(sessionId);
+                    }
+                    sessionStore.revokeSession(oldSessionId);
                 } catch (IllegalArgumentException ignored) {
                 }
             }
+            setSessionCookie(ctx, sessionId, config.sessionTtlSeconds());
             auditService.log(ctx, "TENANT_SWITCH", switched, "TENANT", tenantId.toString(), Map.of());
             ctx.json(Map.of("ok", true, "tenantId", tenantId.toString()));
         });

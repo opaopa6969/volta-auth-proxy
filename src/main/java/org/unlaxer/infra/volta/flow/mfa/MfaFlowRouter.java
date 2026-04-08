@@ -54,13 +54,8 @@ public final class MfaFlowRouter {
             return;
         }
 
-        // Check for existing MFA flow
-        String existingFlowId = ctx.cookie(MFA_FLOW_COOKIE);
-        if (existingFlowId != null && !existingFlowId.isBlank()) {
-            // Flow already exists — just render the challenge page
-            renderChallengePage(ctx);
-            return;
-        }
+        // Always create a fresh MFA flow (clears any stale/expired flow cookie)
+        clearMfaFlowCookie(ctx);
 
         // Start new MFA flow
         SessionRecord session = resolveSession(ctx);

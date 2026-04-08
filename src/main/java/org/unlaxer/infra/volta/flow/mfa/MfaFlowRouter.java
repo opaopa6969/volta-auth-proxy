@@ -86,7 +86,9 @@ public final class MfaFlowRouter {
     private void handleVerify(Context ctx) {
         String flowId = ctx.cookie(MFA_FLOW_COOKIE);
         if (flowId == null || flowId.isBlank()) {
-            throw new ApiException(400, "MFA_NO_FLOW", "No MFA flow in progress");
+            // No flow cookie — redirect to challenge to start a new flow
+            ctx.json(Map.of("ok", false, "redirect_to", "/mfa/challenge"));
+            return;
         }
 
         try {
@@ -107,18 +109,19 @@ public final class MfaFlowRouter {
                 ctx.json(Map.of("ok", true, "redirect_to", verified.redirectTo()));
             } else if (flow.isCompleted()) {
                 clearMfaFlowCookie(ctx);
-                throw new ApiException(400, "MFA_FAILED", "MFA verification failed");
+                ctx.json(Map.of("ok", false, "error", Map.of("code", "MFA_FAILED", "message", "MFA verification failed. Please try again."),
+                        "redirect_to", "/mfa/challenge"));
             } else {
                 // Guard rejected but retries remain
-                throw new ApiException(400, "MFA_INVALID_CODE", "Invalid code, please try again");
+                ctx.json(Map.of("ok", false, "error", Map.of("code", "MFA_INVALID_CODE", "message", "Invalid code, please try again")));
             }
-        } catch (ApiException | FlowException e) {
-            if (e instanceof FlowException fe && "MFA_INVALID_CODE".equals(fe.code())) {
-                throw new ApiException(400, "MFA_INVALID_CODE", fe.getMessage());
-            }
-            throw e;
+        } catch (FlowException fe) {
+            // Flow not found (expired/completed) — clear stale cookie and redirect
+            clearMfaFlowCookie(ctx);
+            ctx.json(Map.of("ok", false, "redirect_to", "/mfa/challenge",
+                    "error", Map.of("code", "MFA_EXPIRED", "message", "MFA session expired. Please try again.")));
         } catch (Exception e) {
-            throw new ApiException(400, "BAD_REQUEST", "Invalid request");
+            ctx.json(Map.of("ok", false, "error", Map.of("code", "BAD_REQUEST", "message", "Invalid request: " + e.getMessage())));
         }
     }
 

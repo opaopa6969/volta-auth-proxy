@@ -71,6 +71,8 @@ async function verify(body) {
         }
         if (data.ok) {
             window.location.href = data.redirect_to || '/';
+        } else if (data.redirect_to) {
+            window.location.href = data.redirect_to;
         } else {
             errEl.textContent = data.error?.message || '${msg.get("mfa.invalid_code")}';
             errEl.style.display = 'block';

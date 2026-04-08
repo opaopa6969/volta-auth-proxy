@@ -66,15 +66,9 @@
   }
 
   function logout() {
-    // Prevent "unsaved changes" dialog during logout navigation
+    // Navigate directly — avoids beforeunload dialog that fetch+redirect triggers
     window.onbeforeunload = null;
-    return fetch(_gatewayUrl + "/auth/logout", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
-    }).then(function () {
-      window.location.href = _gatewayUrl + "/login";
-    });
+    window.location.href = _gatewayUrl + "/auth/logout";
   }
 
   function getSession() {

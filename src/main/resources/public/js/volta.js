@@ -66,6 +66,8 @@
   }
 
   function logout() {
+    // Prevent "unsaved changes" dialog during logout navigation
+    window.onbeforeunload = null;
     return fetch(_gatewayUrl + "/auth/logout", {
       method: "POST",
       credentials: "same-origin",

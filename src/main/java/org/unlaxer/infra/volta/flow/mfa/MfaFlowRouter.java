@@ -135,13 +135,10 @@ public final class MfaFlowRouter {
     }
 
     private static void setMfaFlowCookie(Context ctx, String flowId) {
-        String cookie = MFA_FLOW_COOKIE + "=" + flowId
-                + "; Path=/; Max-Age=300; HttpOnly; SameSite=Lax";
-        if (ctx.req().isSecure()) cookie += "; Secure";
-        ctx.header("Set-Cookie", cookie);
+        HttpSupport.setSessionCookie(ctx, MFA_FLOW_COOKIE, flowId, 300);
     }
 
     private static void clearMfaFlowCookie(Context ctx) {
-        ctx.header("Set-Cookie", MFA_FLOW_COOKIE + "=; Path=/; Max-Age=0; HttpOnly");
+        ctx.res().addHeader("Set-Cookie", MFA_FLOW_COOKIE + "=; Path=/; Max-Age=0; HttpOnly");
     }
 }

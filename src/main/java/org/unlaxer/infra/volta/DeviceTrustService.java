@@ -89,7 +89,7 @@ public final class DeviceTrustService {
      * Clear the device trust cookie.
      */
     public void clearCookie(Context ctx) {
-        ctx.header("Set-Cookie", DEVICE_COOKIE + "=; Path=/login; Max-Age=0; HttpOnly; SameSite=Lax");
+        ctx.res().addHeader("Set-Cookie", DEVICE_COOKIE + "=; Path=/login; Max-Age=0; HttpOnly; SameSite=Lax");
     }
 
     private void setDeviceCookie(Context ctx, UUID deviceId) {
@@ -97,7 +97,7 @@ public final class DeviceTrustService {
                 + "; Path=/login; Max-Age=" + COOKIE_MAX_AGE
                 + "; HttpOnly; SameSite=Lax";
         if (ctx.req().isSecure()) cookie += "; Secure";
-        ctx.header("Set-Cookie", cookie);
+        ctx.res().addHeader("Set-Cookie", cookie);
     }
 
     // ─── Record ─────────────────────────────────────────────

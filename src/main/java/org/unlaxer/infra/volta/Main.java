@@ -196,6 +196,8 @@ public final class Main {
             if ("/api/v1/billing/stripe/webhook".equals(ctx.path())
                     || "/oauth/token".equals(ctx.path())
                     || "/auth/saml/callback".equals(ctx.path())
+                    || "/auth/mfa/verify".equals(ctx.path())
+                    || "/auth/callback/complete".equals(ctx.path())
                     || ctx.path().startsWith("/scim/v2/")) {
                 return;
             }

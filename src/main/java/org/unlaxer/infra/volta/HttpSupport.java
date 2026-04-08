@@ -84,7 +84,7 @@ public final class HttpSupport {
         if (FORCE_SECURE_COOKIE || ctx.req().isSecure()) {
             sb.append("; Secure");
         }
-        ctx.header("Set-Cookie", sb.toString());
+        ctx.res().addHeader("Set-Cookie", sb.toString());
     }
 
     public static int parseOffset(String offsetRaw) {

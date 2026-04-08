@@ -1066,7 +1066,7 @@ public final class ApiRouter {
         if (value == null || value.isBlank()) {
             return "";
         }
-        ctx.header("Set-Cookie", "__volta_flash=; Path=/; Max-Age=0; SameSite=Lax");
+        ctx.res().addHeader("Set-Cookie", "__volta_flash=; Path=/; Max-Age=0; SameSite=Lax");
         return java.net.URLDecoder.decode(value, java.nio.charset.StandardCharsets.UTF_8);
     }
 }

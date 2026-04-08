@@ -290,7 +290,7 @@ public class AuthFlowHandler {
         if (cookie.secure()) {
             sb.append("; Secure");
         }
-        ctx.header("Set-Cookie", sb.toString());
+        ctx.res().addHeader("Set-Cookie", sb.toString());
     }
 
     /**

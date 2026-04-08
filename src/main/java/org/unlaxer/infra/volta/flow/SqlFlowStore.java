@@ -78,8 +78,7 @@ public final class SqlFlowStore implements FlowStore {
     @SuppressWarnings("unchecked")
     public <S extends Enum<S> & FlowState> Optional<FlowInstance<S>> loadForUpdate(
             String flowId, FlowDefinition<S> definition) {
-        String sql = """
-                SET LOCAL lock_timeout = '5s';
+        String selectSql = """
                 SELECT id, session_id, current_state, context, guard_failure_count, version,
                     created_at, expires_at, exit_state
                 FROM auth_flows
@@ -88,7 +87,10 @@ public final class SqlFlowStore implements FlowStore {
                 """;
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            try (var lockStmt = conn.createStatement()) {
+                lockStmt.execute("SET LOCAL lock_timeout = '5s'");
+            }
+            try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
                 ps.setString(1, flowId);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {

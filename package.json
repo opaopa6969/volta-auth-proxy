@@ -1,8 +1,8 @@
 {
   "dependencies": {
     "@unlaxer/dde-toolkit": "^0.1.4",
-    "@unlaxer/dge-toolkit": "^3.1.0",
+    "@unlaxer/dge-toolkit": "^4.1.0",
     "@unlaxer/dre-toolkit": "^0.1.0",
-    "@unlaxer/dxe-suite": "^0.1.1"
+    "@unlaxer/dxe-suite": "^4.1.0"
   }
 }

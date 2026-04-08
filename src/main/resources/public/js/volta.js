@@ -66,9 +66,14 @@
   }
 
   function logout() {
-    // Navigate directly — avoids beforeunload dialog that fetch+redirect triggers
+    // Suppress all beforeunload handlers to prevent "unsaved changes" dialog
     window.onbeforeunload = null;
-    window.location.href = _gatewayUrl + "/auth/logout";
+    try {
+      // AbortController trick: abort all pending fetches that might block unload
+      if (window._voltaAbort) window._voltaAbort.abort();
+    } catch (e) {}
+    // Use replace() to prevent back-button returning to authenticated page
+    window.location.replace(_gatewayUrl + "/auth/logout");
   }
 
   function getSession() {

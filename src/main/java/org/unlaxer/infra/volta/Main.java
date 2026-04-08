@@ -99,13 +99,29 @@ public final class Main {
             }) { flowRegistry.register(c); }
 
             var flowStore = new org.unlaxer.infra.volta.flow.SqlFlowStore(dataSource, objectMapper, flowRegistry);
-            var flowEngine = new com.tramli.FlowEngine(flowStore);
+            var flowEngine = new com.tramli.FlowEngine(flowStore, true); // strictMode ON
             var stateCodec = new org.unlaxer.infra.volta.flow.OidcStateCodec(config.authFlowHmacKey());
+
+            // tramli Logger API — structured logging for all flow transitions
+            var flowLog = System.getLogger("volta.flow");
+            flowEngine.setTransitionLogger(t ->
+                    flowLog.log(System.Logger.Level.INFO, "[transition] flow={0} {1} → {2} trigger={3}",
+                            t.flowId(), t.from(), t.to(), t.trigger()));
+            flowEngine.setGuardLogger(g ->
+                    flowLog.log(System.Logger.Level.INFO, "[guard] flow={0} state={1} guard={2} result={3} reason={4}",
+                            g.flowId(), g.state(), g.guardName(), g.result(), g.reason()));
+            flowEngine.setErrorLogger(e ->
+                    flowLog.log(System.Logger.Level.ERROR, "[error] flow={0} {1} → {2} trigger={3} cause={4}",
+                            e.flowId(), e.from(), e.to(), e.trigger(), e.cause()));
+
+            // Log build() warnings for all flow definitions
+            var defLog = System.getLogger("volta.flow.def");
 
             // OIDC Flow
             var fraudAlertClient = new org.unlaxer.infra.volta.FraudAlertClient(config, objectMapper);
             var oidcFlowDef = org.unlaxer.infra.volta.flow.oidc.OidcFlowDef.create(
                     oidcService, stateCodec, authService, appRegistry, store, config, fraudAlertClient);
+            oidcFlowDef.warnings().forEach(w -> defLog.log(System.Logger.Level.WARNING, "[oidc] {0}", w));
             new org.unlaxer.infra.volta.flow.oidc.OidcFlowRouter(
                     flowEngine, oidcFlowDef, stateCodec, config, auditService, objectMapper, store, oidcService, fraudAlertClient
             ).register(app);
@@ -113,18 +129,21 @@ public final class Main {
             // Passkey Flow
             var passkeyFlowDef = org.unlaxer.infra.volta.flow.passkey.PasskeyFlowDef.create(
                     config, authService, appRegistry, store);
+            passkeyFlowDef.warnings().forEach(w -> defLog.log(System.Logger.Level.WARNING, "[passkey] {0}", w));
             new org.unlaxer.infra.volta.flow.passkey.PasskeyFlowRouter(
                     flowEngine, passkeyFlowDef, config, auditService, objectMapper
             ).register(app);
 
             // MFA Flow
             var mfaFlowDef = org.unlaxer.infra.volta.flow.mfa.MfaFlowDef.create(store, authService, secretCipher, appRegistry);
+            mfaFlowDef.warnings().forEach(w -> defLog.log(System.Logger.Level.WARNING, "[mfa] {0}", w));
             new org.unlaxer.infra.volta.flow.mfa.MfaFlowRouter(
                     flowEngine, mfaFlowDef, config, authService, objectMapper
             ).register(app);
 
             // Invite Flow
             var inviteFlowDef = org.unlaxer.infra.volta.flow.invite.InviteFlowDef.create(authService, store, config);
+            inviteFlowDef.warnings().forEach(w -> defLog.log(System.Logger.Level.WARNING, "[invite] {0}", w));
             new org.unlaxer.infra.volta.flow.invite.InviteFlowRouter(
                     flowEngine, inviteFlowDef, config, authService, auditService, store, objectMapper
             ).register(app);

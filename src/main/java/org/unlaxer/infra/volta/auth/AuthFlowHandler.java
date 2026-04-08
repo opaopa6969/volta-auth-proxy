@@ -211,7 +211,8 @@ public class AuthFlowHandler {
             ctx.redirect(appConfig.baseUrl() + "/mfa/challenge?flow_id=" + flowId);
 
         } else {
-            LOG.log(System.Logger.Level.WARNING, "[callback] auth failed, state={0}", currentState);
+            LOG.log(System.Logger.Level.WARNING, "[callback] auth failed, state={0} lastError={1}",
+                    currentState, flow.lastError());
             ctx.status(401).result("Authentication failed");
         }
     }

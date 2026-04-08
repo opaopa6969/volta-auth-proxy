@@ -58,7 +58,7 @@ async function startPasskeyLogin() {
         });
         var finishRes = await fetch('/auth/passkey/finish', {
             method: 'POST', credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({
                 flow_id: options.flow_id,
                 id: b64url(credential.rawId),
@@ -70,9 +70,15 @@ async function startPasskeyLogin() {
                 }
             })
         });
-        var result = await finishRes.json();
-        if (result.ok) window.location.href = result.redirect_to || '/console/';
-        else alert(result.error?.message || 'Passkey login failed');
+        var resultText = await finishRes.text();
+        var result;
+        try { result = JSON.parse(resultText); } catch(pe) {
+            alert('Server error ' + finishRes.status + ': ' + resultText.substring(0, 200));
+            return;
+        }
+        if (result.redirect_to) { window.location.href = result.redirect_to; return; }
+        if (result.ok) { window.location.href = '/console/'; return; }
+        alert(result.error?.message || 'Passkey login failed (status ' + finishRes.status + ')');
     } catch (e) {
         console.error('Passkey login error:', e);
         if (e.name !== 'NotAllowedError') alert('Passkey error: ' + e.message);

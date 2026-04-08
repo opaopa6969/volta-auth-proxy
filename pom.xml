@@ -63,7 +63,7 @@
         <dependency>
             <groupId>org.unlaxer</groupId>
             <artifactId>tramli</artifactId>
-            <version>1.15.0</version>
+            <version>1.16.0</version>
         </dependency>
         <dependency>
             <groupId>org.yaml</groupId>

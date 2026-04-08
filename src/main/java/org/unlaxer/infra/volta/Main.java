@@ -105,14 +105,14 @@ public final class Main {
             // tramli Logger API — structured logging for all flow transitions
             var flowLog = System.getLogger("volta.flow");
             flowEngine.setTransitionLogger(t ->
-                    flowLog.log(System.Logger.Level.INFO, "[transition] flow={0} {1} → {2} trigger={3}",
-                            t.flowId(), t.from(), t.to(), t.trigger()));
+                    flowLog.log(System.Logger.Level.INFO, "[transition] {0} flow={1} {2} → {3} trigger={4}",
+                            t.flowName(), t.flowId(), t.from(), t.to(), t.trigger()));
             flowEngine.setGuardLogger(g ->
-                    flowLog.log(System.Logger.Level.INFO, "[guard] flow={0} state={1} guard={2} result={3} reason={4}",
-                            g.flowId(), g.state(), g.guardName(), g.result(), g.reason()));
+                    flowLog.log(System.Logger.Level.INFO, "[guard] {0} flow={1} state={2} guard={3} result={4} reason={5}",
+                            g.flowName(), g.flowId(), g.state(), g.guardName(), g.result(), g.reason()));
             flowEngine.setErrorLogger(e ->
-                    flowLog.log(System.Logger.Level.ERROR, "[error] flow={0} {1} → {2} trigger={3} cause={4}",
-                            e.flowId(), e.from(), e.to(), e.trigger(), e.cause()));
+                    flowLog.log(System.Logger.Level.ERROR, "[error] {0} flow={1} {2} → {3} trigger={4} cause={5}",
+                            e.flowName(), e.flowId(), e.from(), e.to(), e.trigger(), e.cause()));
 
             // Log build() warnings for all flow definitions
             var defLog = System.getLogger("volta.flow.def");

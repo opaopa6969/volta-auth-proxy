@@ -111,10 +111,16 @@ public final class MfaFlowRouter {
                 ctx.json(Map.of("ok", false, "error", Map.of("code", "MFA_INVALID_CODE", "message", "Invalid code, please try again")));
             }
         } catch (FlowException fe) {
-            // Flow not found (expired/completed) — clear stale cookie and redirect
+            // Distinguish error types (tramli 1.16.0)
             clearMfaFlowCookie(ctx);
+            String code = fe.code();
+            String msg = switch (code) {
+                case "FLOW_ALREADY_COMPLETED" -> "MFA session already used. Starting new challenge.";
+                case "FLOW_EXPIRED" -> "MFA session expired. Please try again.";
+                default -> "MFA session not found. Please try again.";
+            };
             ctx.json(Map.of("ok", false, "redirect_to", "/mfa/challenge",
-                    "error", Map.of("code", "MFA_EXPIRED", "message", "MFA session expired. Please try again.")));
+                    "error", Map.of("code", code, "message", msg)));
         } catch (Exception e) {
             ctx.json(Map.of("ok", false, "error", Map.of("code", "BAD_REQUEST", "message", "Invalid request: " + e.getMessage())));
         }

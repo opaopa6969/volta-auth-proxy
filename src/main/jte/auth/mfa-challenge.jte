@@ -59,10 +59,16 @@ async function verify(body) {
         var res = await fetch('/auth/mfa/verify', {
             method: 'POST',
             credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(body)
         });
-        var data = await res.json();
+        var text = await res.text();
+        var data;
+        try { data = JSON.parse(text); } catch(e) {
+            errEl.textContent = 'Server error: ' + res.status + ' — ' + text.substring(0, 100);
+            errEl.style.display = 'block';
+            return;
+        }
         if (data.ok) {
             window.location.href = data.redirect_to || '/';
         } else {

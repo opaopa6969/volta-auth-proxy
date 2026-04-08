@@ -60,6 +60,7 @@ async function startPasskeyLogin() {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                flow_id: options.flow_id,
                 id: b64url(credential.rawId),
                 response: {
                     clientDataJSON: b64url(credential.response.clientDataJSON),

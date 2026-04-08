@@ -198,6 +198,7 @@ public final class Main {
                     || "/auth/saml/callback".equals(ctx.path())
                     || "/auth/mfa/verify".equals(ctx.path())
                     || "/auth/callback/complete".equals(ctx.path())
+                    || ctx.path().startsWith("/auth/passkey/")
                     || ctx.path().startsWith("/scim/v2/")) {
                 return;
             }

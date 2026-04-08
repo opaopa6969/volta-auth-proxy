@@ -46,6 +46,7 @@ class MfaFlowDefTest {
     private FlowDefinition<MfaFlowState> createTestDefinition() {
         return MfaFlowDef.create(null,
                 new AuthService(AppConfig.fromEnv(), null, null, null),
-                new KeyCipher("test-key-for-unit-tests!!"));
+                new KeyCipher("test-key-for-unit-tests!!"),
+                new AppRegistry(java.util.List.of()));
     }
 }

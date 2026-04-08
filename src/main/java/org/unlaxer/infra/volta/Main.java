@@ -118,7 +118,7 @@ public final class Main {
             ).register(app);
 
             // MFA Flow
-            var mfaFlowDef = org.unlaxer.infra.volta.flow.mfa.MfaFlowDef.create(store, authService, secretCipher);
+            var mfaFlowDef = org.unlaxer.infra.volta.flow.mfa.MfaFlowDef.create(store, authService, secretCipher, appRegistry);
             new org.unlaxer.infra.volta.flow.mfa.MfaFlowRouter(
                     flowEngine, mfaFlowDef, config, authService, objectMapper
             ).register(app);

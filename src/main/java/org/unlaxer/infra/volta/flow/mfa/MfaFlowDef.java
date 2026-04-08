@@ -21,7 +21,8 @@ public final class MfaFlowDef {
     public static FlowDefinition<MfaFlowState> create(
             SqlStore store,
             AuthService authService,
-            KeyCipher secretCipher) {
+            KeyCipher secretCipher,
+            AppRegistry appRegistry) {
 
         return FlowDefinition.builder("mfa", MfaFlowState.class)
                 .ttl(Duration.ofMinutes(5))
@@ -30,7 +31,7 @@ public final class MfaFlowDef {
 
                 .from(CHALLENGE_SHOWN).external(VERIFIED,
                         new MfaCodeGuard(),
-                        new MfaVerifyProcessor(store, authService, secretCipher))
+                        new MfaVerifyProcessor(store, authService, secretCipher, appRegistry))
 
                 .onAnyError(TERMINAL_ERROR)
 

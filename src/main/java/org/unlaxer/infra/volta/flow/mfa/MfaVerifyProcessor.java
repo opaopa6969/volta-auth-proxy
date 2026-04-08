@@ -19,11 +19,13 @@ public final class MfaVerifyProcessor implements StateProcessor {
     private final SqlStore store;
     private final AuthService authService;
     private final KeyCipher secretCipher;
+    private final AppRegistry appRegistry;
 
-    public MfaVerifyProcessor(SqlStore store, AuthService authService, KeyCipher secretCipher) {
+    public MfaVerifyProcessor(SqlStore store, AuthService authService, KeyCipher secretCipher, AppRegistry appRegistry) {
         this.store = store;
         this.authService = authService;
         this.secretCipher = secretCipher;
+        this.appRegistry = appRegistry;
     }
 
     @Override public String name() { return "MfaVerifyProcessor"; }
@@ -59,17 +61,24 @@ public final class MfaVerifyProcessor implements StateProcessor {
         authService.markMfaVerified(session.sessionId());
 
         // Resolve redirect
-        String redirectTo = resolveRedirect(session.returnTo());
+        String redirectTo = resolveRedirect(session);
 
         ctx.put(MfaVerified.class, new MfaVerified(session.sessionId(), redirectTo));
     }
 
-    private String resolveRedirect(String returnTo) {
-        if (returnTo == null || returnTo.isBlank()) return "/select-tenant";
-        if (returnTo.startsWith("invite:")) {
+    private String resolveRedirect(MfaSessionContext session) {
+        String returnTo = session.returnTo();
+        if (returnTo != null && returnTo.startsWith("invite:")) {
             return "/invite/" + returnTo.substring("invite:".length());
         }
-        return returnTo;
+        if (returnTo != null && !returnTo.isBlank()) {
+            return returnTo;
+        }
+        // No return_to — check if tenant selection is needed
+        var tenants = store.findTenantsByUser(session.userId());
+        if (tenants.size() > 1) return "/select-tenant";
+        // Single tenant — go directly to app
+        return appRegistry.defaultAppUrl().orElse("/select-tenant");
     }
 
     private static String sha256Hex(String input) {

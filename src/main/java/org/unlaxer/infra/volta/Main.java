@@ -101,56 +101,26 @@ public final class Main {
             var baseFlowStore = new org.unlaxer.infra.volta.flow.SqlFlowStore(dataSource, objectMapper, flowRegistry);
             var stateCodec = new org.unlaxer.infra.volta.flow.OidcStateCodec(config.authFlowHmacKey());
 
-            // tramli Plugin Registry — audit, observability, lint
+            // tramli Plugin Registry — audit, observability, lint (v3.6.0)
             var pluginRegistry = new org.unlaxer.tramli.plugins.api.PluginRegistry();
-
-            // Audit: capture produced-data diffs per transition
             pluginRegistry.register(new org.unlaxer.tramli.plugins.audit.AuditStorePlugin());
-
-            // Lint: default flow policies (applied at build time via analyzeAll)
             pluginRegistry.register(org.unlaxer.tramli.plugins.lint.PolicyLintPlugin.defaults());
 
-            // Apply store plugins (AuditStorePlugin wraps SqlFlowStore)
+            // Apply store plugins + create engine (strictMode ON)
             var flowStore = pluginRegistry.applyStorePlugins(baseFlowStore);
-            var flowEngine = new org.unlaxer.tramli.FlowEngine(flowStore, true); // strictMode ON
+            var flowEngine = new org.unlaxer.tramli.FlowEngine(flowStore, true);
 
-            // Structured logging with durationMicros (tramli 3.5.0)
-            var flowLog = System.getLogger("volta.flow");
-            flowEngine.setTransitionLogger(t ->
-                    flowLog.log(System.Logger.Level.INFO, "[transition] {0} flow={1} {2}→{3} trigger={4} {5}μs",
-                            t.flowName(), t.flowId(), t.from(), t.to(), t.trigger(), t.durationMicros()));
-            flowEngine.setGuardLogger(g ->
-                    flowLog.log(System.Logger.Level.INFO, "[guard] {0} flow={1} {2} guard={3} {4} {5}μs reason={6}",
-                            g.flowName(), g.flowId(), g.state(), g.guardName(), g.result(), g.durationMicros(), g.reason()));
-            flowEngine.setErrorLogger(e ->
-                    flowLog.log(System.Logger.Level.ERROR, "[error] {0} flow={1} {2}→{3} trigger={4} {5}μs cause={6}",
-                            e.flowName(), e.flowId(), e.from(), e.to(), e.trigger(), e.durationMicros(), e.cause()));
-
-            // ObservabilityPlugin in append mode (chains with manual loggers above)
-            var telemetrySink = new org.unlaxer.tramli.plugins.observability.TelemetrySink() {
-                @Override
-                public void emit(org.unlaxer.tramli.plugins.observability.TelemetryEvent event) {
-                    flowLog.log(System.Logger.Level.DEBUG, "[telemetry] {0} {1} flow={2} {3}μs {4}",
-                            event.type(), event.flowName(), event.flowId(), event.durationMicros(), event.message());
-                }
-            };
-            new org.unlaxer.tramli.plugins.observability.ObservabilityPlugin(telemetrySink).install(flowEngine, true);
-
-            // Install engine plugins
+            // Observability: SystemLoggerTelemetrySink (v3.6.0 built-in) in append mode
+            new org.unlaxer.tramli.plugins.observability.ObservabilityPlugin(
+                    new org.unlaxer.tramli.plugins.observability.SystemLoggerTelemetrySink("volta.flow")
+            ).install(flowEngine, true);
             pluginRegistry.installEnginePlugins(flowEngine);
-
-            // Log build() warnings for all flow definitions
-            var defLog = System.getLogger("volta.flow.def");
 
             // OIDC Flow
             var fraudAlertClient = new org.unlaxer.infra.volta.FraudAlertClient(config, objectMapper);
             var oidcFlowDef = org.unlaxer.infra.volta.flow.oidc.OidcFlowDef.create(
                     oidcService, stateCodec, authService, appRegistry, store, config, fraudAlertClient);
-            oidcFlowDef.warnings().forEach(w -> defLog.log(System.Logger.Level.WARNING, "[oidc] {0}", w));
-            var oidcLintReport = pluginRegistry.analyzeAll(oidcFlowDef);
-            oidcLintReport.findings().forEach(f -> defLog.log(
-                    f.severity() == org.unlaxer.tramli.plugins.api.PluginReport.Severity.ERROR ? System.Logger.Level.ERROR : System.Logger.Level.WARNING,
-                    "[lint:oidc] {0} ({1}): {2}", f.severity(), f.pluginId(), f.message()));
+            pluginRegistry.analyzeAll(oidcFlowDef);
             new org.unlaxer.infra.volta.flow.oidc.OidcFlowRouter(
                     flowEngine, oidcFlowDef, stateCodec, config, auditService, objectMapper, store, oidcService, fraudAlertClient
             ).register(app);
@@ -158,21 +128,21 @@ public final class Main {
             // Passkey Flow
             var passkeyFlowDef = org.unlaxer.infra.volta.flow.passkey.PasskeyFlowDef.create(
                     config, authService, appRegistry, store);
-            passkeyFlowDef.warnings().forEach(w -> defLog.log(System.Logger.Level.WARNING, "[passkey] {0}", w));
+            pluginRegistry.analyzeAll(passkeyFlowDef);
             new org.unlaxer.infra.volta.flow.passkey.PasskeyFlowRouter(
                     flowEngine, passkeyFlowDef, config, auditService, objectMapper
             ).register(app);
 
             // MFA Flow
             var mfaFlowDef = org.unlaxer.infra.volta.flow.mfa.MfaFlowDef.create(store, authService, secretCipher, appRegistry);
-            mfaFlowDef.warnings().forEach(w -> defLog.log(System.Logger.Level.WARNING, "[mfa] {0}", w));
+            pluginRegistry.analyzeAll(mfaFlowDef);
             new org.unlaxer.infra.volta.flow.mfa.MfaFlowRouter(
                     flowEngine, mfaFlowDef, config, authService, objectMapper
             ).register(app);
 
             // Invite Flow
             var inviteFlowDef = org.unlaxer.infra.volta.flow.invite.InviteFlowDef.create(authService, store, config);
-            inviteFlowDef.warnings().forEach(w -> defLog.log(System.Logger.Level.WARNING, "[invite] {0}", w));
+            pluginRegistry.analyzeAll(inviteFlowDef);
             new org.unlaxer.infra.volta.flow.invite.InviteFlowRouter(
                     flowEngine, inviteFlowDef, config, authService, auditService, store, objectMapper
             ).register(app);

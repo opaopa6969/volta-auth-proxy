@@ -31,6 +31,7 @@ public final class OidcFlowDef {
                 .ttl(Duration.ofMinutes(5))
                 .maxGuardRetries(3)
                 .initiallyAvailable(OidcRequest.class)
+                .externallyProvided(OidcCallback.class)
 
                 .from(INIT).auto(REDIRECTED,
                         new OidcInitProcessor(oidcService, stateCodec, config))

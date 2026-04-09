@@ -28,6 +28,7 @@ public final class PasskeyFlowDef {
                 .ttl(Duration.ofMinutes(5))
                 .maxGuardRetries(3)
                 .initiallyAvailable(PasskeyRequest.class)
+                .externallyProvided(PasskeyAssertion.class)
 
                 .from(INIT).auto(CHALLENGE_ISSUED,
                         new PasskeyChallengeProcessor(config))

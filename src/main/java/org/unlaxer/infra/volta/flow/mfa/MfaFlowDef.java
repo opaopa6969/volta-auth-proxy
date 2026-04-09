@@ -28,6 +28,7 @@ public final class MfaFlowDef {
                 .ttl(Duration.ofMinutes(5))
                 .maxGuardRetries(5)
                 .initiallyAvailable(MfaSessionContext.class)
+                .externallyProvided(MfaCodeSubmission.class)
 
                 .from(CHALLENGE_SHOWN).external(VERIFIED,
                         new MfaCodeGuard(),

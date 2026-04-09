@@ -114,16 +114,17 @@ public final class Main {
             var flowStore = pluginRegistry.applyStorePlugins(baseFlowStore);
             var flowEngine = new org.unlaxer.tramli.FlowEngine(flowStore, true); // strictMode ON
 
-            // Observability: structured telemetry via System.Logger
+            // Structured logging with durationMicros (tramli 3.3.0)
             var flowLog = System.getLogger("volta.flow");
-            var telemetrySink = new org.unlaxer.tramli.plugins.observability.TelemetrySink() {
-                @Override
-                public void emit(org.unlaxer.tramli.plugins.observability.TelemetryEvent event) {
-                    var level = "error".equals(event.type()) ? System.Logger.Level.ERROR : System.Logger.Level.INFO;
-                    flowLog.log(level, "[{0}] flow={1} {2}", event.type(), event.flowId(), event.message());
-                }
-            };
-            new org.unlaxer.tramli.plugins.observability.ObservabilityPlugin(telemetrySink).install(flowEngine);
+            flowEngine.setTransitionLogger(t ->
+                    flowLog.log(System.Logger.Level.INFO, "[transition] {0} flow={1} {2}→{3} trigger={4} {5}μs",
+                            t.flowName(), t.flowId(), t.from(), t.to(), t.trigger(), t.durationMicros()));
+            flowEngine.setGuardLogger(g ->
+                    flowLog.log(System.Logger.Level.INFO, "[guard] {0} flow={1} {2} guard={3} {4} {5}μs reason={6}",
+                            g.flowName(), g.flowId(), g.state(), g.guardName(), g.result(), g.durationMicros(), g.reason()));
+            flowEngine.setErrorLogger(e ->
+                    flowLog.log(System.Logger.Level.ERROR, "[error] {0} flow={1} {2}→{3} trigger={4} {5}μs cause={6}",
+                            e.flowName(), e.flowId(), e.from(), e.to(), e.trigger(), e.durationMicros(), e.cause()));
 
             // Install engine plugins
             pluginRegistry.installEnginePlugins(flowEngine);

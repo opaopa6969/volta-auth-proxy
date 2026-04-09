@@ -63,12 +63,12 @@
         <dependency>
             <groupId>org.unlaxer</groupId>
             <artifactId>tramli</artifactId>
-            <version>3.6.0</version>
+            <version>3.6.1</version>
         </dependency>
         <dependency>
             <groupId>org.unlaxer</groupId>
             <artifactId>tramli-plugins</artifactId>
-            <version>3.6.0</version>
+            <version>3.6.1</version>
         </dependency>
         <dependency>
             <groupId>org.yaml</groupId>
@@ -148,7 +148,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
-                <version>3.6.0</version>
+                <version>3.6.1</version>
                 <configuration>
                     <mainClass>org.unlaxer.infra.volta.Main</mainClass>
                 </configuration>

@@ -120,7 +120,7 @@ public final class Main {
             var fraudAlertClient = new org.unlaxer.infra.volta.FraudAlertClient(config, objectMapper);
             var oidcFlowDef = org.unlaxer.infra.volta.flow.oidc.OidcFlowDef.create(
                     oidcService, stateCodec, authService, appRegistry, store, config, fraudAlertClient);
-            pluginRegistry.analyzeAll(oidcFlowDef);
+            pluginRegistry.analyzeAndValidate(oidcFlowDef);
             new org.unlaxer.infra.volta.flow.oidc.OidcFlowRouter(
                     flowEngine, oidcFlowDef, stateCodec, config, auditService, objectMapper, store, oidcService, fraudAlertClient
             ).register(app);
@@ -128,21 +128,21 @@ public final class Main {
             // Passkey Flow
             var passkeyFlowDef = org.unlaxer.infra.volta.flow.passkey.PasskeyFlowDef.create(
                     config, authService, appRegistry, store);
-            pluginRegistry.analyzeAll(passkeyFlowDef);
+            pluginRegistry.analyzeAndValidate(passkeyFlowDef);
             new org.unlaxer.infra.volta.flow.passkey.PasskeyFlowRouter(
                     flowEngine, passkeyFlowDef, config, auditService, objectMapper
             ).register(app);
 
             // MFA Flow
             var mfaFlowDef = org.unlaxer.infra.volta.flow.mfa.MfaFlowDef.create(store, authService, secretCipher, appRegistry);
-            pluginRegistry.analyzeAll(mfaFlowDef);
+            pluginRegistry.analyzeAndValidate(mfaFlowDef);
             new org.unlaxer.infra.volta.flow.mfa.MfaFlowRouter(
                     flowEngine, mfaFlowDef, config, authService, objectMapper
             ).register(app);
 
             // Invite Flow
             var inviteFlowDef = org.unlaxer.infra.volta.flow.invite.InviteFlowDef.create(authService, store, config);
-            pluginRegistry.analyzeAll(inviteFlowDef);
+            pluginRegistry.analyzeAndValidate(inviteFlowDef);
             new org.unlaxer.infra.volta.flow.invite.InviteFlowRouter(
                     flowEngine, inviteFlowDef, config, authService, auditService, store, objectMapper
             ).register(app);

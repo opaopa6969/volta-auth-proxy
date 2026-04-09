@@ -4,7 +4,7 @@ import org.unlaxer.infra.volta.IdpProvider;
 import org.unlaxer.infra.volta.AppConfig;
 import org.unlaxer.infra.volta.OidcService;
 import org.unlaxer.infra.volta.SecurityUtils;
-import com.tramli.*;
+import org.unlaxer.tramli.*;
 import org.unlaxer.infra.volta.flow.*;
 
 import java.time.Duration;

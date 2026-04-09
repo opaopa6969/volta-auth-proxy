@@ -1,6 +1,6 @@
 package org.unlaxer.infra.volta.auth;
 
-import com.tramli.*;
+import org.unlaxer.tramli.*;
 import io.javalin.http.Context;
 import org.unlaxer.infra.volta.*;
 import org.unlaxer.infra.volta.auth.AuthData.*;

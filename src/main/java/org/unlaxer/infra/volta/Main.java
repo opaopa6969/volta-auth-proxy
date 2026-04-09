@@ -98,21 +98,35 @@ public final class Main {
                     org.unlaxer.infra.volta.auth.AuthData.FinalRedirect.class
             }) { flowRegistry.register(c); }
 
-            var flowStore = new org.unlaxer.infra.volta.flow.SqlFlowStore(dataSource, objectMapper, flowRegistry);
-            var flowEngine = new com.tramli.FlowEngine(flowStore, true); // strictMode ON
+            var baseFlowStore = new org.unlaxer.infra.volta.flow.SqlFlowStore(dataSource, objectMapper, flowRegistry);
             var stateCodec = new org.unlaxer.infra.volta.flow.OidcStateCodec(config.authFlowHmacKey());
 
-            // tramli Logger API — structured logging for all flow transitions
+            // tramli Plugin Registry — audit, observability, lint
+            var pluginRegistry = new org.unlaxer.tramli.plugins.api.PluginRegistry<>();
+
+            // Audit: capture produced-data diffs per transition
+            pluginRegistry.register(new org.unlaxer.tramli.plugins.audit.AuditStorePlugin());
+
+            // Lint: default flow policies (applied at build time via analyzeAll)
+            pluginRegistry.register(org.unlaxer.tramli.plugins.lint.PolicyLintPlugin.defaults());
+
+            // Apply store plugins (AuditStorePlugin wraps SqlFlowStore)
+            var flowStore = pluginRegistry.applyStorePlugins(baseFlowStore);
+            var flowEngine = new org.unlaxer.tramli.FlowEngine(flowStore, true); // strictMode ON
+
+            // Observability: structured telemetry via System.Logger
             var flowLog = System.getLogger("volta.flow");
-            flowEngine.setTransitionLogger(t ->
-                    flowLog.log(System.Logger.Level.INFO, "[transition] {0} flow={1} {2} → {3} trigger={4}",
-                            t.flowName(), t.flowId(), t.from(), t.to(), t.trigger()));
-            flowEngine.setGuardLogger(g ->
-                    flowLog.log(System.Logger.Level.INFO, "[guard] {0} flow={1} state={2} guard={3} result={4} reason={5}",
-                            g.flowName(), g.flowId(), g.state(), g.guardName(), g.result(), g.reason()));
-            flowEngine.setErrorLogger(e ->
-                    flowLog.log(System.Logger.Level.ERROR, "[error] {0} flow={1} {2} → {3} trigger={4} cause={5}",
-                            e.flowName(), e.flowId(), e.from(), e.to(), e.trigger(), e.cause()));
+            var telemetrySink = new org.unlaxer.tramli.plugins.observability.TelemetrySink() {
+                @Override
+                public void emit(org.unlaxer.tramli.plugins.observability.TelemetryEvent event) {
+                    var level = "error".equals(event.type()) ? System.Logger.Level.ERROR : System.Logger.Level.INFO;
+                    flowLog.log(level, "[{0}] flow={1} {2}", event.type(), event.flowId(), event.message());
+                }
+            };
+            new org.unlaxer.tramli.plugins.observability.ObservabilityPlugin(telemetrySink).install(flowEngine);
+
+            // Install engine plugins
+            pluginRegistry.installEnginePlugins(flowEngine);
 
             // Log build() warnings for all flow definitions
             var defLog = System.getLogger("volta.flow.def");
@@ -122,6 +136,11 @@ public final class Main {
             var oidcFlowDef = org.unlaxer.infra.volta.flow.oidc.OidcFlowDef.create(
                     oidcService, stateCodec, authService, appRegistry, store, config, fraudAlertClient);
             oidcFlowDef.warnings().forEach(w -> defLog.log(System.Logger.Level.WARNING, "[oidc] {0}", w));
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            var oidcLintReport = ((org.unlaxer.tramli.plugins.api.PluginRegistry) pluginRegistry).analyzeAll(oidcFlowDef);
+            oidcLintReport.findings().forEach(f -> defLog.log(
+                    f.severity() == org.unlaxer.tramli.plugins.api.PluginReport.Severity.ERROR ? System.Logger.Level.ERROR : System.Logger.Level.WARNING,
+                    "[lint:oidc] {0} ({1}): {2}", f.severity(), f.pluginId(), f.message()));
             new org.unlaxer.infra.volta.flow.oidc.OidcFlowRouter(
                     flowEngine, oidcFlowDef, stateCodec, config, auditService, objectMapper, store, oidcService, fraudAlertClient
             ).register(app);

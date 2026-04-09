@@ -2,7 +2,7 @@ package org.unlaxer.infra.volta.flow.oidc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.unlaxer.infra.volta.*;
-import com.tramli.*;
+import org.unlaxer.tramli.*;
 import org.unlaxer.infra.volta.flow.*;
 
 import java.net.http.HttpClient;

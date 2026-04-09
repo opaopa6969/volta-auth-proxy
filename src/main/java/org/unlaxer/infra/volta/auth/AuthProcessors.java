@@ -1,6 +1,6 @@
 package org.unlaxer.infra.volta.auth;
 
-import com.tramli.*;
+import org.unlaxer.tramli.*;
 import org.unlaxer.infra.volta.*;
 import org.unlaxer.infra.volta.auth.AuthData.*;
 import org.unlaxer.infra.volta.flow.OidcStateCodec;

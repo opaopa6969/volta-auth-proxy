@@ -2,7 +2,7 @@ package org.unlaxer.infra.volta.flow.oidc;
 
 import org.unlaxer.infra.volta.FraudAlertClient;
 import org.unlaxer.infra.volta.SqlStore;
-import com.tramli.*;
+import org.unlaxer.tramli.*;
 import org.unlaxer.infra.volta.flow.*;
 
 import java.util.Set;

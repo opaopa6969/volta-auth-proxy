@@ -1,0 +1,23 @@
+{
+  "enforcement": {
+    "level": "full",
+    "comment": "full = command + LLM prompt hooks. lite = command only (no token cost)"
+  },
+  "stop_hook": {
+    "llm_decision_review": true,
+    "comment": "true = LLM reviews conversation for implicit decisions on Stop (costs tokens). false = command-only check."
+  },
+  "decision_detection": {
+    "realtime": true,
+    "comment": "true = PostToolUse scans for decision patterns. false = rely on discover-decisions.sh"
+  },
+  "commit_dd_reference": {
+    "enforce": "warn",
+    "comment": "warn = show DD list. block = reject commit without Ref: DD-NNN"
+  },
+  "notifications": {
+    "channel": "slack",
+    "min_level": "critical",
+    "comment": "channel: slack/discord/webhook/desktop/none. min_level: critical/daily/all/none. URL via env: DRE_NOTIFY_URL"
+  }
+}

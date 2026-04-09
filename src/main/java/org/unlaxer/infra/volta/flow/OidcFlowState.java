@@ -1,5 +1,5 @@
 package org.unlaxer.infra.volta.flow;
-import com.tramli.FlowState;
+import org.unlaxer.tramli.FlowState;
 
 public enum OidcFlowState implements FlowState {
     INIT(false, true),

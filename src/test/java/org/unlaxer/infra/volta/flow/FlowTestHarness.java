@@ -1,9 +1,9 @@
 package org.unlaxer.infra.volta.flow;
-import com.tramli.InMemoryFlowStore;
-import com.tramli.FlowDefinition;
-import com.tramli.FlowInstance;
-import com.tramli.FlowEngine;
-import com.tramli.FlowState;
+import org.unlaxer.tramli.InMemoryFlowStore;
+import org.unlaxer.tramli.FlowDefinition;
+import org.unlaxer.tramli.FlowInstance;
+import org.unlaxer.tramli.FlowEngine;
+import org.unlaxer.tramli.FlowState;
 
 import java.util.Map;
 

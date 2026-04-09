@@ -1,7 +1,7 @@
 package org.unlaxer.infra.volta.flow.oidc;
 
-import com.tramli.BranchProcessor;
-import com.tramli.FlowContext;
+import org.unlaxer.tramli.BranchProcessor;
+import org.unlaxer.tramli.FlowContext;
 
 import java.util.Set;
 

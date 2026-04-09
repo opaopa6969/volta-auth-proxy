@@ -1,6 +1,6 @@
 package org.unlaxer.infra.volta.flow.oidc;
 
-import com.tramli.FlowContext;
+import org.unlaxer.tramli.FlowContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

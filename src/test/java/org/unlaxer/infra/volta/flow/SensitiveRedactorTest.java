@@ -1,5 +1,5 @@
 package org.unlaxer.infra.volta.flow;
-import com.tramli.FlowContext;
+import org.unlaxer.tramli.FlowContext;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -1,6 +1,6 @@
 package org.unlaxer.infra.volta.flow;
-import com.tramli.FlowException;
-import com.tramli.FlowContext;
+import org.unlaxer.tramli.FlowException;
+import org.unlaxer.tramli.FlowContext;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 

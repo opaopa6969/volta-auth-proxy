@@ -1,7 +1,7 @@
 package org.unlaxer.infra.volta.flow.oidc;
 
 import org.unlaxer.infra.volta.*;
-import com.tramli.*;
+import org.unlaxer.tramli.*;
 import org.unlaxer.infra.volta.flow.*;
 
 import java.util.List;

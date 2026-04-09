@@ -1,6 +1,6 @@
 package org.unlaxer.infra.volta.auth;
 
-import com.tramli.FlowState;
+import org.unlaxer.tramli.FlowState;
 
 /**
  * volta-auth-proxy の認証フロー全ステート。

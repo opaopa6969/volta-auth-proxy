@@ -1,7 +1,7 @@
 package org.unlaxer.infra.volta.flow.passkey;
 
 import org.unlaxer.infra.volta.*;
-import com.tramli.*;
+import org.unlaxer.tramli.*;
 import org.unlaxer.infra.volta.flow.*;
 import com.webauthn4j.WebAuthnManager;
 import com.webauthn4j.authenticator.AuthenticatorImpl;

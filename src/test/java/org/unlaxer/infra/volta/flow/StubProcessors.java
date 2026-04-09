@@ -1,8 +1,8 @@
 package org.unlaxer.infra.volta.flow;
-import com.tramli.FlowContext;
-import com.tramli.BranchProcessor;
-import com.tramli.TransitionGuard;
-import com.tramli.StateProcessor;
+import org.unlaxer.tramli.FlowContext;
+import org.unlaxer.tramli.BranchProcessor;
+import org.unlaxer.tramli.TransitionGuard;
+import org.unlaxer.tramli.StateProcessor;
 
 import java.util.Map;
 import java.util.Set;

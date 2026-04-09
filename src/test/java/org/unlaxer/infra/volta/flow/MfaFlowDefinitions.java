@@ -1,5 +1,5 @@
 package org.unlaxer.infra.volta.flow;
-import com.tramli.FlowDefinition;
+import org.unlaxer.tramli.FlowDefinition;
 
 import static org.unlaxer.infra.volta.flow.MfaFlowState.*;
 import static org.unlaxer.infra.volta.flow.StubProcessors.*;

@@ -102,7 +102,7 @@ public final class Main {
             var stateCodec = new org.unlaxer.infra.volta.flow.OidcStateCodec(config.authFlowHmacKey());
 
             // tramli Plugin Registry — audit, observability, lint
-            var pluginRegistry = new org.unlaxer.tramli.plugins.api.PluginRegistry<>();
+            var pluginRegistry = new org.unlaxer.tramli.plugins.api.PluginRegistry();
 
             // Audit: capture produced-data diffs per transition
             pluginRegistry.register(new org.unlaxer.tramli.plugins.audit.AuditStorePlugin());
@@ -114,7 +114,7 @@ public final class Main {
             var flowStore = pluginRegistry.applyStorePlugins(baseFlowStore);
             var flowEngine = new org.unlaxer.tramli.FlowEngine(flowStore, true); // strictMode ON
 
-            // Structured logging with durationMicros (tramli 3.3.0)
+            // Structured logging with durationMicros (tramli 3.5.0)
             var flowLog = System.getLogger("volta.flow");
             flowEngine.setTransitionLogger(t ->
                     flowLog.log(System.Logger.Level.INFO, "[transition] {0} flow={1} {2}→{3} trigger={4} {5}μs",
@@ -125,6 +125,16 @@ public final class Main {
             flowEngine.setErrorLogger(e ->
                     flowLog.log(System.Logger.Level.ERROR, "[error] {0} flow={1} {2}→{3} trigger={4} {5}μs cause={6}",
                             e.flowName(), e.flowId(), e.from(), e.to(), e.trigger(), e.durationMicros(), e.cause()));
+
+            // ObservabilityPlugin in append mode (chains with manual loggers above)
+            var telemetrySink = new org.unlaxer.tramli.plugins.observability.TelemetrySink() {
+                @Override
+                public void emit(org.unlaxer.tramli.plugins.observability.TelemetryEvent event) {
+                    flowLog.log(System.Logger.Level.DEBUG, "[telemetry] {0} {1} flow={2} {3}μs {4}",
+                            event.type(), event.flowName(), event.flowId(), event.durationMicros(), event.message());
+                }
+            };
+            new org.unlaxer.tramli.plugins.observability.ObservabilityPlugin(telemetrySink).install(flowEngine, true);
 
             // Install engine plugins
             pluginRegistry.installEnginePlugins(flowEngine);
@@ -137,8 +147,7 @@ public final class Main {
             var oidcFlowDef = org.unlaxer.infra.volta.flow.oidc.OidcFlowDef.create(
                     oidcService, stateCodec, authService, appRegistry, store, config, fraudAlertClient);
             oidcFlowDef.warnings().forEach(w -> defLog.log(System.Logger.Level.WARNING, "[oidc] {0}", w));
-            @SuppressWarnings({"unchecked", "rawtypes"})
-            var oidcLintReport = ((org.unlaxer.tramli.plugins.api.PluginRegistry) pluginRegistry).analyzeAll(oidcFlowDef);
+            var oidcLintReport = pluginRegistry.analyzeAll(oidcFlowDef);
             oidcLintReport.findings().forEach(f -> defLog.log(
                     f.severity() == org.unlaxer.tramli.plugins.api.PluginReport.Severity.ERROR ? System.Logger.Level.ERROR : System.Logger.Level.WARNING,
                     "[lint:oidc] {0} ({1}): {2}", f.severity(), f.pluginId(), f.message()));

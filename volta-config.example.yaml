@@ -42,6 +42,30 @@ apps:
       origins: ["https://wiki.example.com", "https://chat.example.com"]
       methods: [GET, POST, PUT, DELETE]
 
+# ── Tenancy (Layer 2) ──
+# See docs/TENANT-SPEC.md for details
+tenancy:
+  mode: single                          # single | multi
+  creation_policy: disabled             # disabled | auto | admin_only | invite_only
+  shadow_org: true                      # auto-create invisible default tenant
+  max_orgs_per_user: 1
+  org_display_name: "Workspace"         # shown in UI instead of "Organization"
+  member_lifecycle: unmanaged
+  routing:
+    mode: none                          # none | slug | subdomain | domain
+
+# ── Access (Layer 3) ──
+access:
+  default_visibility: all               # public | all | bound-users | explicit
+  custom_roles: false
+
+# ── Binding (Layer 4) ──
+binding:
+  enabled: false                        # enable per-user data source mapping
+  lifecycle:
+    on_user_delete: archive
+    retention_days: 90
+
 tenant_resolution:
   priority: [session, email_domain, invitation, manual]
   free_email_domains:

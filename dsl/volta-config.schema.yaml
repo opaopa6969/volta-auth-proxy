@@ -5,7 +5,7 @@
 $schema: "https://json-schema.org/draft/2020-12/schema"
 title: "volta-config"
 description: "volta-auth-proxy configuration — single source of truth for apps, tenants, and defaults"
-version: 2
+version: 3
 type: object
 required: [domain, apps]
 
@@ -132,14 +132,135 @@ properties:
           description: "Additional headers to send to upstream"
           additionalProperties:
             type: string
+        visibility:
+          type: string
+          enum: [public, all, "role:OWNER", "role:ADMIN", "role:MEMBER", "role:VIEWER", bound-users, explicit]
+          default: all
+          description: "Who can see this app in the dashboard"
+        actions:
+          type: object
+          description: "Per-action role requirements"
+          additionalProperties:
+            type: string
+            enum: [OWNER, ADMIN, MEMBER, VIEWER]
+          examples:
+            - view: VIEWER
+              open: VIEWER
+              deploy: ADMIN
+              terminal: ADMIN
+              config: OWNER
+        binding:
+          type: object
+          description: "Per-user data source binding for this app (Layer 4)"
+          additionalProperties:
+            type: object
+            required: [type]
+            properties:
+              type:
+                type: string
+                enum: [filesystem, database, volume, credentials, config, object-storage]
+              host_path:
+                type: string
+                description: "Path template on host. {user} and {tenant} are replaced."
+                examples: ["/srv/user-data/{user}/notebooks"]
+              container_path:
+                type: string
+                description: "Mount path inside container"
+                examples: ["/data"]
+              auto_create:
+                type: boolean
+                default: true
+              template:
+                type: string
+                description: "Template path to copy on first access"
         metadata:
           type: object
           description: "Arbitrary key-value pairs for app-specific config"
           additionalProperties: true
 
-  # ── Tenant Resolution ──
+  # ── Tenancy ──
+  # See docs/TENANT-SPEC.md for full architecture (5 layers)
+  tenancy:
+    type: object
+    description: "Multi-tenancy configuration (Layer 2)"
+    properties:
+      mode:
+        type: string
+        enum: [single, multi]
+        default: single
+        description: |
+          single: 1 tenant, invisible to users. For home servers, small teams.
+          multi: users can belong to multiple orgs. For SaaS, platforms.
+      creation_policy:
+        type: string
+        enum: [disabled, auto, admin_only, invite_only]
+        default: disabled
+        description: |
+          disabled: no new tenants can be created (use existing only)
+          auto: signup creates a personal tenant automatically
+          admin_only: only platform admins can create tenants
+          invite_only: existing tenant admins can create new tenants
+      shadow_org:
+        type: boolean
+        default: true
+        description: "In single mode, auto-create an invisible default tenant"
+      max_orgs_per_user:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 1
+        description: "Max tenants a user can belong to. 1 = no switching."
+      org_display_name:
+        type: string
+        default: "Organization"
+        description: "User-facing name for tenants. e.g. Workspace, Team, Account, Project"
+        examples: ["Workspace", "Team", "Account", "Project"]
+      member_lifecycle:
+        type: string
+        enum: [managed, unmanaged]
+        default: unmanaged
+        description: |
+          managed: user lifecycle tied to org (delete org = delete user)
+          unmanaged: user exists independently (delete org = remove membership only)
+      slug_format:
+        type: string
+        default: "{name}-{random6}"
+        description: "Pattern for auto-generated tenant slugs"
+
+    # ── Tenant Routing ──
+      routing:
+        type: object
+        description: "How to resolve tenant from incoming requests"
+        properties:
+          mode:
+            type: string
+            enum: [none, slug, subdomain, domain]
+            default: none
+            description: |
+              none: all requests go to default tenant (single mode)
+              slug: tenant identified by URL param or header
+              subdomain: tenant identified by Host header ({slug}.{base})
+              domain: tenant identified by custom domain mapping
+          base_domain:
+            type: string
+            description: "Base domain for subdomain routing"
+            examples: ["app.example.com"]
+          slug_header:
+            type: string
+            default: "X-Volta-Tenant-Slug"
+            description: "Header used to pass tenant slug from gateway"
+          cookie_scope:
+            type: string
+            enum: [shared, isolated]
+            default: shared
+            description: |
+              shared: cookie on .{base_domain} — SSO across tenants
+              isolated: cookie on {slug}.{base_domain} — security boundary per tenant
+
+  # ── Tenant Resolution (legacy, merged into tenancy.routing) ──
   tenant_resolution:
     type: object
+    description: "Tenant resolution strategies (Phase 1 compatible)"
     properties:
       priority:
         type: array
@@ -162,18 +283,68 @@ properties:
           - icloud.com
           - protonmail.com
         description: "Domains excluded from email-based tenant resolution"
-      tenant_subdomains:
+
+  # ── Access ──
+  # Per-app access control (Layer 3)
+  # Can also be defined per-app in the apps[] array
+  access:
+    type: object
+    description: "Global access defaults (Layer 3)"
+    properties:
+      default_visibility:
+        type: string
+        enum: [public, all, bound-users, explicit]
+        default: all
+        description: |
+          public: visible to unauthenticated users
+          all: visible to all authenticated members
+          bound-users: visible only to users with a Binding
+          explicit: visible only to users with explicit ACL entry
+      custom_roles:
+        type: boolean
+        default: false
+        description: "Allow tenant admins to define custom roles"
+      available_actions:
+        type: array
+        items:
+          type: string
+        default: [view, open, deploy, terminal, config, admin, delete]
+        description: "Actions that can be assigned to roles"
+
+  # ── Binding ──
+  # Per-user data source mapping (Layer 4)
+  binding:
+    type: object
+    description: "Binding Layer configuration (Layer 4). Per-user data source mapping."
+    properties:
+      enabled:
+        type: boolean
+        default: false
+        description: "Enable Binding Layer features"
+      lifecycle:
         type: object
-        description: "Phase 2: tenant subdomain configuration"
         properties:
-          enabled:
-            type: boolean
-            default: false
-          pattern:
+          on_user_delete:
             type: string
-            enum: ["{tenant}.{base}", "{tenant}.{app}.{base}"]
-            default: "{tenant}.{base}"
-            description: "How tenant subdomains are structured"
+            enum: [archive, delete]
+            default: archive
+          on_tenant_delete:
+            type: string
+            enum: [archive, delete]
+            default: archive
+          archive_path:
+            type: string
+            default: "/srv/archives/{tenant}/{user}/"
+          retention_days:
+            type: integer
+            default: 90
+      datasource_types:
+        type: array
+        items:
+          type: string
+          enum: [filesystem, database, volume, credentials, config, object-storage]
+        default: [filesystem, volume]
+        description: "Enabled DataSource types"
 
   # ── Defaults ──
   defaults:
@@ -274,5 +445,8 @@ properties:
 # - Each app.id must be unique
 # - Each app.subdomain must be unique
 # - defaults.app must reference an existing app.id
-# - If tenant_resolution.priority includes "subdomain",
-#   tenant_subdomains.enabled must be true
+# - If tenancy.routing.mode is "subdomain", tenancy.routing.base_domain is required
+# - If tenancy.mode is "single", tenancy.routing.mode should be "none"
+# - If tenancy.mode is "multi", tenancy.max_orgs_per_user should be > 1
+# - app.visibility "bound-users" requires binding.enabled: true
+# - app.binding requires binding.enabled: true and the datasource type in binding.datasource_types

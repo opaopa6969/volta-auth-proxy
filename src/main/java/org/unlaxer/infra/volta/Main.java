@@ -64,6 +64,9 @@ public final class Main {
         });
 
         // ─── State Machine Flow Routers (Strangler Fig — parallel to existing routes) ───
+        // tramli-viz: Redis connection for telemetry sink (shared with shutdown hook)
+        String vizChannel = System.getenv().getOrDefault("VIZ_REDIS_CHANNEL", "volta:viz:events");
+        var vizJedis = new redis.clients.jedis.JedisPooled(java.net.URI.create(config.redisUrl()));
         {
             var flowRegistry = new org.unlaxer.infra.volta.flow.FlowDataRegistry(objectMapper);
             // Register all @FlowData types
@@ -104,6 +107,12 @@ public final class Main {
             new org.unlaxer.tramli.plugins.observability.ObservabilityPlugin(
                     new org.unlaxer.tramli.plugins.observability.SystemLoggerTelemetrySink("volta.flow")
             ).install(flowEngine, true);
+
+            // tramli-viz: Redis telemetry sink for real-time flow visualization (#22)
+            var redisSink = new org.unlaxer.infra.volta.viz.RedisTelemetrySink(vizJedis, objectMapper, vizChannel);
+            new org.unlaxer.tramli.plugins.observability.ObservabilityPlugin(redisSink)
+                    .install(flowEngine, true);
+
             pluginRegistry.installEnginePlugins(flowEngine);
 
             // OIDC Flow
@@ -143,6 +152,12 @@ public final class Main {
             app.get("/auth/verify", authFlowHandler::verify);
             app.get("/mfa/challenge", authFlowHandler::mfaChallengePage);
             app.post("/auth/mfa/verify", authFlowHandler::mfaVerify);
+
+            // tramli-viz: replay API + static graph endpoint (#22)
+            new org.unlaxer.infra.volta.viz.VizRouter(
+                    dataSource, authService, policy, objectMapper,
+                    java.util.List.of(oidcFlowDef, passkeyFlowDef, mfaFlowDef, inviteFlowDef)
+            ).register(app);
         }
 
         // CORS for auth-console and other subdomains
@@ -228,7 +243,8 @@ public final class Main {
                     || path.equals("/auth/verify")
                     || path.equals("/auth/logout")
                     || path.startsWith("/css/")
-                    || path.startsWith("/js/");
+                    || path.startsWith("/js/")
+                    || path.startsWith("/viz/");
             if (exempt) {
                 return;
             }
@@ -247,7 +263,8 @@ public final class Main {
                     || path.startsWith("/js/") || path.startsWith("/console/") || path.equals("/auth/logout")
                     || path.equals("/login") || path.equals("/callback") || path.equals("/healthz")
                     || path.startsWith("/.well-known") || path.equals("/select-tenant")
-                    || path.startsWith("/auth/") || path.startsWith("/mfa/")) {
+                    || path.startsWith("/auth/") || path.startsWith("/mfa/")
+                    || path.startsWith("/viz/")) {
                 return;
             }
             Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
@@ -420,6 +437,7 @@ public final class Main {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             outboxWorker.close();
             auditSink.close();
+            vizJedis.close();
             sessionStore.close();
             dataSource.close();
         }));

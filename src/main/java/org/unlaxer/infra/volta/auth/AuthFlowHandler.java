@@ -1,63 +1,95 @@
 package org.unlaxer.infra.volta.auth;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.unlaxer.tramli.*;
 import io.javalin.http.Context;
 import org.unlaxer.infra.volta.*;
-import org.unlaxer.infra.volta.auth.AuthData.*;
+import org.unlaxer.infra.volta.flow.OidcFlowState;
+import org.unlaxer.infra.volta.flow.MfaFlowState;
 import org.unlaxer.infra.volta.flow.OidcStateCodec;
+import org.unlaxer.infra.volta.flow.oidc.OidcFlowData.*;
+import org.unlaxer.infra.volta.flow.mfa.MfaFlowData.*;
 
-import java.net.URI;
 import java.util.*;
 
 /**
- * Javalin ハンドラと tramli FlowEngine の統合。
+ * AUTH-010: 統一認証ハンドラ。
  *
- * 既存の Main.java の /auth/verify, /auth/callback, /mfa/challenge 等の
- * 各ハンドラが、FlowEngine の startFlow / resumeAndExecute に集約される。
+ * OidcFlowRouter + MfaFlowRouter + Main.java の /auth/verify を
+ * 1つのクラスに集約。全認証エンドポイントを一箇所で管理する。
  *
- * 3つのエンドポイント:
- * - GET /auth/verify    — ForwardAuth (Traefik)
- * - GET /auth/callback  — IdP コールバック
- * - POST /mfa/challenge — MFA チャレンジ応答
+ * フローエンジン:
+ * - OIDC: OidcFlowDef (既存の検証済みフロー)
+ * - MFA:  MfaFlowDef  (既存の検証済みフロー)
+ * - /auth/verify: 手続き型 (フローエンジン不使用 — セッション確認のみ)
+ *
+ * エンドポイント:
+ * - GET  /auth/verify           — ForwardAuth (Traefik)
+ * - GET  /login                 — ログインページ or IdP リダイレクト
+ * - GET  /callback              — IdP コールバック (GET)
+ * - POST /auth/callback/complete — IdP コールバック (POST/JSON)
+ * - GET  /mfa/challenge         — MFA チャレンジページ
+ * - POST /auth/mfa/verify       — MFA コード検証
  */
 public class AuthFlowHandler {
     private static final System.Logger LOG = System.getLogger("volta.auth");
+    private static final String MFA_FLOW_COOKIE = "__volta_mfa_flow";
 
-    private final FlowEngine engine;
-    private final FlowDefinition<AuthState> flowDef;
-    private final AuthConfig authConfig;
+    // ── 共通サービス ──
     private final AuthService authService;
     private final AppConfig appConfig;
-    private final OidcStateCodec stateCodec;
     private final JwtService jwtService;
     private final AppRegistry appRegistry;
     private final SqlStore store;
+    private final OidcService oidcService;
+    private final OidcStateCodec stateCodec;
+    private final AuditService auditService;
+    private final ObjectMapper objectMapper;
+    private final FraudAlertClient fraudAlert;
+
+    // ── フローエンジン ──
+    private final FlowEngine engine;
+    private final FlowDefinition<OidcFlowState> oidcFlowDef;
+    private final FlowDefinition<MfaFlowState> mfaFlowDef;
 
     public AuthFlowHandler(FlowEngine engine,
-                           FlowDefinition<AuthState> flowDef,
-                           AuthConfig authConfig,
+                           FlowDefinition<OidcFlowState> oidcFlowDef,
+                           FlowDefinition<MfaFlowState> mfaFlowDef,
                            AuthService authService,
                            AppConfig appConfig,
                            OidcStateCodec stateCodec,
                            JwtService jwtService,
                            AppRegistry appRegistry,
-                           SqlStore store) {
+                           SqlStore store,
+                           OidcService oidcService,
+                           AuditService auditService,
+                           ObjectMapper objectMapper,
+                           FraudAlertClient fraudAlert) {
         this.engine = engine;
-        this.flowDef = flowDef;
-        this.authConfig = authConfig;
+        this.oidcFlowDef = oidcFlowDef;
+        this.mfaFlowDef = mfaFlowDef;
         this.authService = authService;
         this.appConfig = appConfig;
         this.stateCodec = stateCodec;
         this.jwtService = jwtService;
         this.appRegistry = appRegistry;
         this.store = store;
+        this.oidcService = oidcService;
+        this.auditService = auditService;
+        this.objectMapper = objectMapper;
+        this.fraudAlert = fraudAlert;
     }
+
+    // ================================================================
+    //  GET /auth/verify — ForwardAuth (Traefik)
+    // ================================================================
 
     /**
      * Traefik ForwardAuth エンドポイント。
+     * 手続き型 — フローエンジン不使用。セッション Cookie の確認のみ。
      *
      * セッション Cookie があれば 200 + X-Volta-* ヘッダー。
-     * なければ新規フローを開始 -> LoginRedirect の loginUrl に 302。
+     * なければ /login にリダイレクト。
      */
     public void verify(Context ctx) {
         setNoStore(ctx);
@@ -71,15 +103,21 @@ public class AuthFlowHandler {
 
         // MFA check: if session exists but MFA not verified, redirect to challenge
         if (authService.isMfaPending(ctx)) {
-            var origin = buildRequestOrigin(ctx);
-            String returnTo = origin.returnToUrl();
+            String fwdHost  = ctx.header("X-Forwarded-Host");
+            String fwdUri   = ctx.header("X-Forwarded-Uri");
+            String fwdProto = ctx.header("X-Forwarded-Proto");
+            String baseScheme = appConfig.baseUrl().startsWith("https") ? "https" : "http";
+            String proto = fwdProto != null && !"http".equals(fwdProto) ? fwdProto : baseScheme;
+            String returnTo = (fwdHost != null && fwdUri != null)
+                    ? proto + "://" + fwdHost + fwdUri
+                    : "/";
             LOG.log(System.Logger.Level.INFO, "[verify] MFA pending, redirecting to challenge. returnTo={0}", returnTo);
             ctx.redirect(appConfig.baseUrl() + "/mfa/challenge?return_to="
                     + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8));
             return;
         }
 
-        // 1. セッション Cookie チェック (フロー外)
+        // 1. セッション Cookie チェック
         Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
         if (principalOpt.isPresent()) {
             AuthPrincipal principal = principalOpt.get();
@@ -114,209 +152,342 @@ public class AuthFlowHandler {
             return;
         }
 
-        // Suspended tenant check (session exists but authenticate returned empty)
+        // Suspended tenant check
         if (isSuspendedTenantSession(ctx)) {
             ctx.status(403);
             return;
         }
 
-        // 2. セッションなし -> フロー開始
-        String fwdHost = ctx.header("X-Forwarded-Host");
-        String fwdUri = ctx.header("X-Forwarded-Uri");
-        if (fwdHost == null || fwdUri == null) {
-            LOG.log(System.Logger.Level.INFO, "[verify] no session, no X-Forwarded-Host/Uri → 401");
-            ctx.status(401);
+        // 2. セッションなし -> /login にリダイレクト
+        String fwdHost  = ctx.header("X-Forwarded-Host");
+        String fwdUri   = ctx.header("X-Forwarded-Uri");
+        String fwdProto = ctx.header("X-Forwarded-Proto");
+        if (fwdHost != null && fwdUri != null) {
+            String baseScheme = appConfig.baseUrl().startsWith("https") ? "https" : "http";
+            String proto = fwdProto != null && !"http".equals(fwdProto) ? fwdProto : baseScheme;
+            String returnTo = proto + "://" + fwdHost + fwdUri;
+            LOG.log(System.Logger.Level.INFO, "[verify] no session → redirecting to login. returnTo={0}", returnTo);
+            ctx.redirect(appConfig.baseUrl() + "/login?return_to="
+                    + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8));
             return;
         }
-
-        var origin = buildRequestOrigin(ctx);
-        LOG.log(System.Logger.Level.INFO, "[verify] no session → starting flow. origin={0}://{1}{2}",
-                origin.scheme(), origin.host(), origin.uri());
-
-        // 3. FlowEngine.startFlow() -- UNAUTHENTICATED -> auto-chain -> LOGIN_PENDING で停止
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        Map<Class<?>, Object> initialData = Map.of(
-                (Class) RequestOrigin.class, origin,
-                (Class) AuthConfig.class, authConfig);
-
-        FlowInstance<AuthState> flow = engine.startFlow(flowDef, null, initialData);
-        LOG.log(System.Logger.Level.INFO, "[verify] flow started: id={0} state={1}",
-                flow.id(), flow.currentState());
-
-        // 4. auto-chain 後の FlowContext から LoginRedirect を取得してリダイレクト
-        LoginRedirect loginRedirect = flow.context().get(LoginRedirect.class);
-        LOG.log(System.Logger.Level.INFO, "[verify] redirecting to login: {0}", loginRedirect.loginUrl());
-        ctx.redirect(loginRedirect.loginUrl());
+        LOG.log(System.Logger.Level.INFO, "[verify] no session, no X-Forwarded-Host/Uri → 401");
+        ctx.status(401);
     }
 
+    // ================================================================
+    //  GET /login — ログインページ
+    // ================================================================
+
     /**
-     * IdP コールバックエンドポイント。
-     *
-     * IdP からリダイレクトされてくる。code + state パラメータを検証し、
-     * トークン交換 -> ユーザー解決 -> MFA 判定 -> セッション作成。
+     * ログインページ表示。
+     * ?start=1 → startOidc() にデリゲート (IdP リダイレクト)。
+     * それ以外 → login.jte をレンダリング。
+     */
+    public void loginPage(Context ctx) {
+        if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
+            HttpSupport.jsonError(ctx, 401, "AUTHENTICATION_REQUIRED", "Login required");
+            return;
+        }
+        if ("1".equals(ctx.queryParam("start"))) {
+            startOidc(ctx);
+            return;
+        }
+        // Show login page with provider list
+        String returnTo = ctx.queryParam("return_to");
+        String inviteCode = ctx.queryParam("invite");
+        java.util.Map<String, String> inviteContext = null;
+        if (inviteCode != null && !inviteCode.isBlank()) {
+            var invitation = store.findInvitationByCode(inviteCode).orElse(null);
+            if (invitation != null) {
+                String tenantName = store.findTenantById(invitation.tenantId())
+                        .map(TenantRecord::name).orElse("ワークスペース");
+                String inviterName = store.findUserById(invitation.createdBy())
+                        .map(UserRecord::displayName).orElse("メンバー");
+                inviteContext = java.util.Map.of(
+                        "tenantName", tenantName, "inviterName", inviterName, "role", invitation.role());
+            }
+        }
+        String baseParams = (returnTo != null ? "&return_to=" + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8) : "")
+                + (inviteCode != null ? "&invite=" + java.net.URLEncoder.encode(inviteCode, java.nio.charset.StandardCharsets.UTF_8) : "");
+        boolean isSwitchAccount = returnTo != null && returnTo.startsWith("/invite/");
+        ctx.render("auth/login.jte", io.javalin.rendering.template.TemplateUtil.model(
+                "title", "ログイン",
+                "inviteContext", inviteContext,
+                "providers", oidcService.enabledProviders(),
+                "baseParams", baseParams,
+                "isSwitchAccount", isSwitchAccount
+        ));
+    }
+
+    // ================================================================
+    //  GET /login?start=1 — OIDC フロー開始 → IdP リダイレクト
+    // ================================================================
+
+    /**
+     * OidcFlowDef フローを開始し、IdP の認可 URL にリダイレクト。
+     * OidcFlowRouter.handleStart() と同一ロジック。
+     */
+    private void startOidc(Context ctx) {
+        String returnTo = ctx.queryParam("return_to");
+        String inviteCode = ctx.queryParam("invite");
+        String provider = ctx.queryParam("provider");
+
+        OidcRequest request = new OidcRequest(
+                provider, returnTo, inviteCode,
+                HttpSupport.clientIp(ctx), ctx.userAgent()
+        );
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Map<Class<?>, Object> initialData = Map.of((Class) OidcRequest.class, request);
+
+        FlowInstance<OidcFlowState> flow = engine.startFlow(oidcFlowDef, null, initialData);
+
+        // Flow should be in REDIRECTED state with OidcRedirect in context
+        OidcRedirect redirect = flow.context().get(OidcRedirect.class);
+        LOG.log(System.Logger.Level.INFO, "[startOidc] flow={0} state={1} redirecting to IdP",
+                flow.id(), flow.currentState());
+        ctx.redirect(redirect.authorizationUrl());
+    }
+
+    // ================================================================
+    //  GET /callback — IdP コールバック (GET)
+    // ================================================================
+
+    /**
+     * IdP からのコールバック (GET)。
+     * callback.jte をレンダリング (JS が POST /auth/callback/complete を呼ぶ)。
+     * JSON リクエストの場合は直接処理。
      */
     public void callback(Context ctx) {
         setNoStore(ctx);
-        LOG.log(System.Logger.Level.INFO, "[callback] code={0} state={1} error={2}",
-                ctx.queryParam("code") != null ? "present" : "absent",
-                ctx.queryParam("state") != null ? "present" : "absent",
-                ctx.queryParam("error"));
 
         String error = ctx.queryParam("error");
         if (error != null) {
-            ctx.status(400).result("OIDC failed: " + error);
-            return;
+            throw new ApiException(400, "OIDC_FAILED", "OIDC failed: " + error);
         }
 
         String code = ctx.queryParam("code");
         String state = ctx.queryParam("state");
         if (code == null || code.isBlank() || state == null || state.isBlank()) {
-            ctx.status(400).result("code/state is required");
-            return;
+            throw new ApiException(400, "BAD_REQUEST", "code/state is required");
         }
 
-        // 1. フローを復元 (state パラメータからフロー ID を取得)
-        String flowId = stateCodec.decode(state)
-                .orElseThrow(() -> new ApiException(400, "INVALID_STATE",
-                        "Invalid or tampered state parameter"));
-
-        // 2. コールバックデータを externalData に設定
-        IdpCallback callback = new IdpCallback(code, state, null);
-
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        Map<Class<?>, Object> externalData = Map.of(
-                (Class) IdpCallback.class, callback);
-
-        // 3. resumeAndExecute() -- LOGIN_PENDING -> auto-chain
-        LOG.log(System.Logger.Level.INFO, "[callback] resuming flow {0}", flowId);
-        FlowInstance<AuthState> flow = engine.resumeAndExecute(flowId, flowDef, externalData);
-
-        // 4. 結果に応じてレスポンス
-        AuthState currentState = flow.currentState();
-        LOG.log(System.Logger.Level.INFO, "[callback] flow state after resume: {0} (completed={1} exit={2})",
-                currentState, flow.isCompleted(), flow.exitState());
-
-        if (currentState == AuthState.SESSION_CREATED || currentState == AuthState.COMPLETE) {
-            SessionCookie cookie = flow.context().get(SessionCookie.class);
-            LOG.log(System.Logger.Level.INFO, "[callback] setting cookie: secure={0} domain={1} sameSite={2}",
-                    cookie.secure(), cookie.domain(), cookie.sameSite());
-            setSessionCookieFromFlowData(ctx, cookie);
-
-            FinalRedirect redirect = flow.context().get(FinalRedirect.class);
-            LOG.log(System.Logger.Level.INFO, "[callback] redirecting to: {0}", redirect.url());
-            ctx.redirect(redirect.url());
-
-        } else if (currentState == AuthState.MFA_PENDING) {
-            LOG.log(System.Logger.Level.INFO, "[callback] MFA required, redirecting to challenge");
-            ctx.redirect(appConfig.baseUrl() + "/mfa/challenge?flow_id=" + flowId);
-
+        if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
+            String redirectTo = completeCallback(ctx, code, state);
+            ctx.json(Map.of("redirect_to", redirectTo));
         } else {
-            LOG.log(System.Logger.Level.WARNING, "[callback] auth failed, state={0} lastError={1}",
-                    currentState, flow.lastError());
-            ctx.status(401).result("Authentication failed");
+            // Render callback page that POSTs to /auth/callback/complete
+            ctx.render("auth/callback.jte", io.javalin.rendering.template.TemplateUtil.model(
+                    "title", "ログイン処理中",
+                    "code", code,
+                    "state", state
+            ));
         }
     }
 
+    // ================================================================
+    //  POST /auth/callback/complete — IdP コールバック (POST/JSON)
+    // ================================================================
+
     /**
-     * MFA チャレンジ応答エンドポイント。
-     *
-     * TOTP コードを検証し、結果を MfaResult として FlowEngine に渡す。
-     * MfaVerifyGuard が MfaResult.verified を確認する。
+     * IdP コールバック (POST)。callback.jte の JS が呼ぶ。
+     * JSON body: {code, state}
      */
-    public void mfaChallenge(Context ctx) {
+    public void callbackPost(Context ctx) {
         setNoStore(ctx);
 
-        String flowId = ctx.formParam("flow_id");
-        if (flowId == null || flowId.isBlank()) {
-            flowId = ctx.queryParam("flow_id");
+        try {
+            var body = objectMapper.readTree(ctx.body());
+            String code = body.path("code").asText();
+            String state = body.path("state").asText();
+            if (code.isBlank() || state.isBlank()) {
+                throw new ApiException(400, "BAD_REQUEST", "code/state is required");
+            }
+            LOG.log(System.Logger.Level.INFO, "[callbackPost] code=present state={0}",
+                    state.substring(0, Math.min(20, state.length())) + "...");
+            String redirectTo = completeCallback(ctx, code, state);
+            LOG.log(System.Logger.Level.INFO, "[callbackPost] success, redirectTo={0}", redirectTo);
+            ctx.json(Map.of("redirect_to", redirectTo));
+        } catch (ApiException e) {
+            LOG.log(System.Logger.Level.ERROR, "[callbackPost] ApiException: {0} {1}", e.code(), e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            LOG.log(System.Logger.Level.ERROR, "[callbackPost] Exception: {0}", e.toString(), e);
+            throw new ApiException(400, "CALLBACK_ERROR", "Callback processing failed: " + e.getMessage());
         }
-        if (flowId == null || flowId.isBlank()) {
-            ctx.status(400).result("flow_id is required");
+    }
+
+    // ================================================================
+    //  GET /mfa/challenge — MFA チャレンジページ
+    // ================================================================
+
+    /**
+     * MFA チャレンジページ表示。
+     * MfaFlowDef フローを開始し、challenge ページをレンダリング。
+     */
+    public void mfaChallengePage(Context ctx) {
+        // Must have a session with pending MFA
+        if (!authService.isMfaPending(ctx)) {
+            ctx.redirect("/select-tenant");
             return;
         }
 
-        String totpCode = ctx.formParam("code");
-        if (totpCode == null || totpCode.isBlank()) {
-            ctx.status(400).result("MFA code is required");
-            return;
-        }
+        // Always create a fresh MFA flow (clears any stale/expired flow cookie)
+        clearMfaFlowCookie(ctx);
 
-        // TOTP verification happens here, before passing to FlowEngine.
-        // We pass the result as MfaResult in externalData; MfaVerifyGuard checks .verified().
-        boolean verified = verifyTotpCode(totpCode, ctx);
-        MfaResult mfaResult = new MfaResult(verified, "TOTP");
+        // Start new MFA flow
+        SessionRecord session = authService.currentSession(ctx)
+                .orElseThrow(() -> new ApiException(401, "INVALID_SESSION", "No valid session"));
+        String returnTo = session.returnTo();
+
+        MfaSessionContext mfaCtx = new MfaSessionContext(
+                session.id(), session.userId(), returnTo);
 
         @SuppressWarnings({"unchecked", "rawtypes"})
-        Map<Class<?>, Object> externalData = Map.of(
-                (Class) MfaResult.class, mfaResult);
+        Map<Class<?>, Object> initialData = Map.of((Class) MfaSessionContext.class, mfaCtx);
 
-        // resumeAndExecute() -- MFA_PENDING -> MfaVerifyGuard -> SESSION_CREATED -> COMPLETE
-        FlowInstance<AuthState> flow = engine.resumeAndExecute(flowId, flowDef, externalData);
+        FlowInstance<MfaFlowState> flow = engine.startFlow(mfaFlowDef, session.id().toString(), initialData);
 
-        AuthState currentState = flow.currentState();
-
-        if (currentState == AuthState.SESSION_CREATED || currentState == AuthState.COMPLETE) {
-            SessionCookie cookie = flow.context().get(SessionCookie.class);
-            setSessionCookieFromFlowData(ctx, cookie);
-
-            FinalRedirect redirect = flow.context().get(FinalRedirect.class);
-            ctx.redirect(redirect.url());
-        } else {
-            ctx.status(401).result("MFA verification failed");
-        }
+        // Set MFA flow cookie (HttpOnly, short TTL)
+        setMfaFlowCookie(ctx, flow.id());
+        ctx.render("auth/mfa-challenge.jte", io.javalin.rendering.template.TemplateUtil.model(
+                "title", "MFA 認証",
+                "return_to", ctx.queryParam("return_to")
+        ));
     }
 
-    // ── private helpers ──
-
-    private RequestOrigin buildRequestOrigin(Context ctx) {
-        return RequestOrigin.fromForwardAuth(
-                ctx.header("X-Forwarded-Proto"),
-                ctx.header("X-Forwarded-Host"),
-                ctx.header("X-Forwarded-Uri"),
-                URI.create(appConfig.baseUrl()));
-    }
+    // ================================================================
+    //  POST /auth/mfa/verify — MFA コード検証
+    // ================================================================
 
     /**
-     * FlowContext の SessionCookie データから HTTP Set-Cookie ヘッダーを構築。
-     * HttpSupport.setSessionCookie の代替 -- scheme ベースの Secure フラグ。
+     * MFA コード検証。MfaFlowDef フローを resume して検証。
+     * JSON body: {code: 123456} or {recovery_code: "XXXX-XXXX"}
      */
-    private static void setSessionCookieFromFlowData(Context ctx, SessionCookie cookie) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(AuthService.SESSION_COOKIE).append("=").append(cookie.sessionId())
-                .append("; Path=/; Max-Age=").append(cookie.maxAge())
-                .append("; HttpOnly; SameSite=").append(cookie.sameSite());
-        if (cookie.domain() != null && !cookie.domain().isEmpty()) {
-            sb.append("; Domain=").append(cookie.domain());
+    public void mfaVerify(Context ctx) {
+        String flowId = ctx.cookie(MFA_FLOW_COOKIE);
+        if (flowId == null || flowId.isBlank()) {
+            // No flow cookie — redirect to challenge to start a new flow
+            ctx.json(Map.of("ok", false, "redirect_to", "/mfa/challenge"));
+            return;
         }
-        if (cookie.secure()) {
-            sb.append("; Secure");
-        }
-        ctx.res().addHeader("Set-Cookie", sb.toString());
-    }
 
-    /**
-     * TOTP コードを検証。
-     * セッション Cookie から userId を取得し、DB の MFA secret で検証。
-     */
-    private boolean verifyTotpCode(String code, Context ctx) {
         try {
-            // The MFA challenge is shown after initial login, so a session exists
-            // but mfaVerifiedAt is null. Use the session to find the user.
-            Optional<SessionRecord> sessionOpt = authService.currentSession(ctx);
-            if (sessionOpt.isEmpty()) {
-                return false;
+            var body = objectMapper.readTree(ctx.body());
+            int code = body.path("code").asInt(0);
+            String recoveryCode = body.has("recovery_code") ? body.path("recovery_code").asText() : null;
+
+            MfaCodeSubmission submission = new MfaCodeSubmission(code, recoveryCode);
+
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Map<Class<?>, Object> externalData = Map.of((Class) MfaCodeSubmission.class, submission);
+
+            FlowInstance<MfaFlowState> flow = engine.resumeAndExecute(flowId, mfaFlowDef, externalData);
+
+            if (flow.isCompleted() && "VERIFIED".equals(flow.exitState())) {
+                MfaVerified verified = flow.context().get(MfaVerified.class);
+                clearMfaFlowCookie(ctx);
+                ctx.json(Map.of("ok", true, "redirect_to", verified.redirectTo()));
+            } else if (flow.isCompleted()) {
+                clearMfaFlowCookie(ctx);
+                ctx.json(Map.of("ok", false,
+                        "error", Map.of("code", "MFA_FAILED", "message", "MFA verification failed. Please try again."),
+                        "redirect_to", "/mfa/challenge"));
+            } else {
+                // Guard rejected but retries remain
+                ctx.json(Map.of("ok", false,
+                        "error", Map.of("code", "MFA_INVALID_CODE", "message", "Invalid code, please try again")));
             }
-            UUID userId = sessionOpt.get().userId();
-            var mfa = store.findUserMfa(userId, "TOTP");
-            if (mfa.isEmpty()) {
-                return false;
-            }
-            var gAuth = new com.warrenstrange.googleauth.GoogleAuthenticator();
-            return gAuth.authorize(mfa.get().secret(), Integer.parseInt(code));
+        } catch (FlowException fe) {
+            clearMfaFlowCookie(ctx);
+            String code = fe.code();
+            String msg = switch (code) {
+                case "FLOW_ALREADY_COMPLETED" -> "MFA session already used. Starting new challenge.";
+                case "FLOW_EXPIRED" -> "MFA session expired. Please try again.";
+                default -> "MFA session not found. Please try again.";
+            };
+            ctx.json(Map.of("ok", false, "redirect_to", "/mfa/challenge",
+                    "error", Map.of("code", code, "message", msg)));
         } catch (Exception e) {
-            return false;
+            ctx.json(Map.of("ok", false,
+                    "error", Map.of("code", "BAD_REQUEST", "message", "Invalid request: " + e.getMessage())));
         }
     }
+
+    // ================================================================
+    //  共通コールバック処理 (OIDC)
+    // ================================================================
+
+    /**
+     * OIDC コールバック完了処理。
+     * state → flow_id デコード → OidcFlowDef フロー resume → セッション Cookie 設定。
+     * OidcFlowRouter.completeCallback() と同一ロジック。
+     */
+    private String completeCallback(Context ctx, String code, String state) {
+        // Decode HMAC-signed state → flow_id
+        String flowId = stateCodec.decode(state)
+                .orElseThrow(() -> {
+                    LOG.log(System.Logger.Level.ERROR,
+                            "[completeCallback] INVALID_STATE: decode failed for state={0}",
+                            state.substring(0, Math.min(20, state.length())) + "...");
+                    return new ApiException(400, "INVALID_STATE", "Invalid or tampered state parameter");
+                });
+        LOG.log(System.Logger.Level.INFO, "[completeCallback] flowId={0}", flowId);
+
+        // Resume flow with callback data
+        OidcCallback callback = new OidcCallback(code, state);
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Map<Class<?>, Object> externalData = Map.of((Class) OidcCallback.class, callback);
+
+        LOG.log(System.Logger.Level.INFO, "[completeCallback] resuming flow {0}", flowId);
+        FlowInstance<OidcFlowState> flow = engine.resumeAndExecute(flowId, oidcFlowDef, externalData);
+        LOG.log(System.Logger.Level.INFO, "[completeCallback] flow state={0} completed={1} exit={2}",
+                flow.currentState(), flow.isCompleted(), flow.exitState());
+
+        if (!flow.isCompleted()) {
+            throw new ApiException(500, "FLOW_INCOMPLETE", "OIDC flow did not complete");
+        }
+
+        if ("TERMINAL_ERROR".equals(flow.exitState()) || "EXPIRED".equals(flow.exitState())) {
+            throw new ApiException(400, "OIDC_FAILED", "Authentication failed: " + flow.exitState());
+        }
+
+        // Extract result and set session cookie
+        IssuedSession session = flow.context().get(IssuedSession.class);
+        HttpSupport.setSessionCookie(ctx, AuthService.SESSION_COOKIE,
+                session.sessionId().toString(), appConfig.sessionTtlSeconds());
+
+        // Audit log
+        ResolvedUser user = flow.context().get(ResolvedUser.class);
+        OidcTokens tokens = flow.context().get(OidcTokens.class);
+        AuthPrincipal principal = new AuthPrincipal(
+                user.userId(), user.email(), user.displayName(),
+                user.tenantId(), user.tenantName(), user.tenantSlug(),
+                user.roles(), false
+        );
+        auditService.log(ctx, "LOGIN_SUCCESS", principal, "SESSION",
+                session.sessionId().toString(), Map.of(
+                        "via", tokens.provider().toLowerCase() + "_oidc",
+                        "invite", tokens.inviteCode() != null,
+                        "flow_id", flow.id()
+                ));
+
+        // fraud-alert feedback (fire-and-forget)
+        fraudAlert.reportLoginSucceed(user.userId(), user.tenantId(),
+                flow.id(), tokens.email(), ctx.userAgent());
+
+        // MFA redirect override
+        if (session.mfaPending()) {
+            return "/mfa/challenge";
+        }
+        return session.redirectTo();
+    }
+
+    // ================================================================
+    //  ヘルパー
+    // ================================================================
 
     private boolean isSuspendedTenantSession(Context ctx) {
         try {
@@ -330,6 +501,14 @@ public class AuthFlowHandler {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private static void setMfaFlowCookie(Context ctx, String flowId) {
+        HttpSupport.setSessionCookie(ctx, MFA_FLOW_COOKIE, flowId, 300);
+    }
+
+    private static void clearMfaFlowCookie(Context ctx) {
+        ctx.res().addHeader("Set-Cookie", MFA_FLOW_COOKIE + "=; Path=/; Max-Age=0; HttpOnly");
     }
 
     private static void setNoStore(Context ctx) {

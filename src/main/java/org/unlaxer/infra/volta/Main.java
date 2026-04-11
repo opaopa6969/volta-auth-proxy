@@ -85,17 +85,7 @@ public final class Main {
                     org.unlaxer.infra.volta.flow.invite.InviteFlowData.InviteContext.class,
                     org.unlaxer.infra.volta.flow.invite.InviteFlowData.InviteAcceptSubmission.class,
                     org.unlaxer.infra.volta.flow.invite.InviteFlowData.InviteAccepted.class,
-                    org.unlaxer.infra.volta.flow.invite.InviteFlowData.InviteCompleted.class,
-                    // AUTH-010: Unified auth flow data types
-                    org.unlaxer.infra.volta.auth.AuthData.RequestOrigin.class,
-                    org.unlaxer.infra.volta.auth.AuthData.AuthConfig.class,
-                    org.unlaxer.infra.volta.auth.AuthData.LoginRedirect.class,
-                    org.unlaxer.infra.volta.auth.AuthData.IdpCallback.class,
-                    org.unlaxer.infra.volta.auth.AuthData.TokenSet.class,
-                    org.unlaxer.infra.volta.auth.AuthData.ResolvedUser.class,
-                    org.unlaxer.infra.volta.auth.AuthData.MfaResult.class,
-                    org.unlaxer.infra.volta.auth.AuthData.SessionCookie.class,
-                    org.unlaxer.infra.volta.auth.AuthData.FinalRedirect.class
+                    org.unlaxer.infra.volta.flow.invite.InviteFlowData.InviteCompleted.class
             }) { flowRegistry.register(c); }
 
             var baseFlowStore = new org.unlaxer.infra.volta.flow.SqlFlowStore(dataSource, objectMapper, flowRegistry);
@@ -121,11 +111,8 @@ public final class Main {
             var oidcFlowDef = org.unlaxer.infra.volta.flow.oidc.OidcFlowDef.create(
                     oidcService, stateCodec, authService, appRegistry, store, config, fraudAlertClient);
             pluginRegistry.analyzeAndValidate(oidcFlowDef);
-            new org.unlaxer.infra.volta.flow.oidc.OidcFlowRouter(
-                    flowEngine, oidcFlowDef, stateCodec, config, auditService, objectMapper, store, oidcService, fraudAlertClient
-            ).register(app);
 
-            // Passkey Flow
+            // Passkey Flow (independent — NOT migrated to AuthFlowHandler)
             var passkeyFlowDef = org.unlaxer.infra.volta.flow.passkey.PasskeyFlowDef.create(
                     config, authService, appRegistry, store);
             pluginRegistry.analyzeAndValidate(passkeyFlowDef);
@@ -136,34 +123,26 @@ public final class Main {
             // MFA Flow
             var mfaFlowDef = org.unlaxer.infra.volta.flow.mfa.MfaFlowDef.create(store, authService, secretCipher, appRegistry);
             pluginRegistry.analyzeAndValidate(mfaFlowDef);
-            new org.unlaxer.infra.volta.flow.mfa.MfaFlowRouter(
-                    flowEngine, mfaFlowDef, config, authService, objectMapper
-            ).register(app);
 
-            // Invite Flow
+            // Invite Flow (independent — NOT migrated to AuthFlowHandler)
             var inviteFlowDef = org.unlaxer.infra.volta.flow.invite.InviteFlowDef.create(authService, store, config);
             pluginRegistry.analyzeAndValidate(inviteFlowDef);
             new org.unlaxer.infra.volta.flow.invite.InviteFlowRouter(
                     flowEngine, inviteFlowDef, config, authService, auditService, store, objectMapper
             ).register(app);
 
-            // AUTH-010: Unified auth flow (ForwardAuth entry point)
-            var authFlowAuthConfig = new org.unlaxer.infra.volta.auth.AuthData.AuthConfig(
-                    java.net.URI.create(config.baseUrl()),
-                    System.getenv("COOKIE_DOMAIN"),
-                    config.sessionTtlSeconds(),
-                    java.util.Arrays.stream(config.allowedRedirectDomains().split(","))
-                            .map(String::trim).filter(s -> !s.isEmpty())
-                            .collect(java.util.stream.Collectors.toSet()));
-            var authFlowDef = org.unlaxer.infra.volta.auth.AuthFlowDefinition.oidcFlow(
-                    oidcService, stateCodec, store, authService, config, appRegistry);
+            // AUTH-010: Unified AuthFlowHandler handles ALL auth endpoints
+            // Replaces: OidcFlowRouter, MfaFlowRouter, inline /auth/verify handler
             var authFlowHandler = new org.unlaxer.infra.volta.auth.AuthFlowHandler(
-                    flowEngine, authFlowDef, authFlowAuthConfig, authService, config,
-                    stateCodec, jwtService, appRegistry, store);
-            // AUTH-010: AuthFlowHandler is ready but not wired to /auth/verify yet.
-            // Full migration requires /callback + /mfa/challenge to also use AuthFlowHandler.
-            // Until then, the procedural /auth/verify handler below remains active.
-            // app.get("/auth/verify", authFlowHandler::verify);
+                    flowEngine, oidcFlowDef, mfaFlowDef,
+                    authService, config, stateCodec, jwtService, appRegistry, store,
+                    oidcService, auditService, objectMapper, fraudAlertClient);
+            app.get("/login", authFlowHandler::loginPage);
+            app.get("/callback", authFlowHandler::callback);
+            app.post("/auth/callback/complete", authFlowHandler::callbackPost);
+            app.get("/auth/verify", authFlowHandler::verify);
+            app.get("/mfa/challenge", authFlowHandler::mfaChallengePage);
+            app.post("/auth/mfa/verify", authFlowHandler::mfaVerify);
         }
 
         // CORS for auth-console and other subdomains
@@ -422,65 +401,7 @@ public final class Main {
             ));
         });
 
-        app.get("/auth/verify", ctx -> {
-            AuthRouter.setNoStore(ctx);
-            // MFA check: if session exists but MFA not verified, redirect to challenge
-            if (authService.isMfaPending(ctx)) {
-                String fwdHost  = ctx.header("X-Forwarded-Host");
-                String fwdUri   = ctx.header("X-Forwarded-Uri");
-                String fwdProto = ctx.header("X-Forwarded-Proto");
-                String baseScheme = config.baseUrl().startsWith("https") ? "https" : "http";
-                String proto = fwdProto != null && !fwdProto.equals("http") ? fwdProto : baseScheme;
-                String returnTo = (fwdHost != null && fwdUri != null)
-                        ? proto + "://" + fwdHost + fwdUri
-                        : "/";
-                ctx.redirect(config.baseUrl() + "/mfa/challenge?return_to=" + java.net.URLEncoder.encode(
-                        returnTo, java.nio.charset.StandardCharsets.UTF_8));
-                return;
-            }
-            Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
-            if (principalOpt.isEmpty()) {
-                if (isSuspendedTenantSession(ctx, sessionStore, store)) {
-                    ctx.status(403);
-                    return;
-                }
-                String fwdHost  = ctx.header("X-Forwarded-Host");
-                String fwdUri   = ctx.header("X-Forwarded-Uri");
-                String fwdProto = ctx.header("X-Forwarded-Proto");
-                if (fwdHost != null && fwdUri != null) {
-                    String baseScheme2 = config.baseUrl().startsWith("https") ? "https" : "http";
-                    String proto    = fwdProto != null && !fwdProto.equals("http") ? fwdProto : baseScheme2;
-                    String returnTo = proto + "://" + fwdHost + fwdUri;
-                    ctx.redirect(config.baseUrl() + "/login?return_to=" + java.net.URLEncoder.encode(
-                            returnTo, java.nio.charset.StandardCharsets.UTF_8));
-                    return;
-                }
-                ctx.status(401);
-                return;
-            }
-            AuthPrincipal principal = principalOpt.get();
-            String appId = ctx.header("X-Volta-App-Id");
-            String forwardedHost = ctx.header("X-Forwarded-Host");
-            Optional<AppRegistry.AppPolicy> appPolicy = appRegistry.resolve(appId, forwardedHost);
-            if (appId != null && !appId.isBlank() && appPolicy.isEmpty()) {
-                ctx.status(401);
-                return;
-            }
-            if (appPolicy.isPresent() && Collections.disjoint(principal.roles(), appPolicy.get().allowedRoles())) {
-                ctx.status(401);
-                return;
-            }
-            String jwt = jwtService.issueToken(principal);
-            ctx.header("X-Volta-User-Id", principal.userId().toString());
-            ctx.header("X-Volta-Email", principal.email());
-            ctx.header("X-Volta-Tenant-Id", principal.tenantId().toString());
-            ctx.header("X-Volta-Tenant-Slug", principal.tenantSlug());
-            ctx.header("X-Volta-Roles", String.join(",", principal.roles()));
-            ctx.header("X-Volta-Display-Name", principal.displayName() == null ? "" : principal.displayName());
-            ctx.header("X-Volta-JWT", jwt);
-            appPolicy.ifPresent(ap -> ctx.header("X-Volta-App-Id", ap.id()));
-            ctx.status(200);
-        });
+        // AUTH-010: /auth/verify is now handled by AuthFlowHandler (registered above)
 
         // SIGHUP: reload IdP list without restart
         try {
@@ -570,23 +491,7 @@ public final class Main {
         };
     }
 
-    private static boolean isSuspendedTenantSession(Context ctx, SessionStore sessionStore, SqlStore store) {
-        String sessionRaw = ctx.cookie(AuthService.SESSION_COOKIE);
-        if (sessionRaw == null || sessionRaw.isBlank()) {
-            return false;
-        }
-        try {
-            SessionRecord session = sessionStore.findSession(UUID.fromString(sessionRaw)).orElse(null);
-            if (session == null) {
-                return false;
-            }
-            return store.findTenantDetailById(session.tenantId())
-                    .map(t -> !t.active())
-                    .orElse(false);
-        } catch (Exception e) {
-            return false;
-        }
-    }
+    // AUTH-010: isSuspendedTenantSession moved to AuthFlowHandler
 
     private static List<String> toStringList(JsonNode node) {
         if (node == null || !node.isArray()) {

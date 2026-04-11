@@ -79,6 +79,20 @@ public final class ApiRouter {
             }
             ctx.header("X-RateLimit-Limit", String.valueOf(limit));
             ctx.attribute("principal", principal.get());
+
+            // Block M2M/service tokens from admin-only endpoints unless they have admin scope
+            AuthPrincipal p = principal.get();
+            if (p.serviceToken() && ctx.path().startsWith("/api/v1/admin/")) {
+                boolean hasAdminScope = p.roles().stream()
+                        .anyMatch(r -> r.equalsIgnoreCase("ADMIN") || r.equalsIgnoreCase("OWNER")
+                                || r.startsWith("admin:"));
+                if (!hasAdminScope) {
+                    HttpSupport.jsonError(ctx, 403, "SCOPE_INSUFFICIENT",
+                            "M2M client does not have admin scope for this endpoint");
+                    ctx.skipRemainingHandlers();
+                    return;
+                }
+            }
         });
 
         // --- Settings pages ---
@@ -663,6 +677,7 @@ public final class ApiRouter {
             if (endpoint.isBlank()) {
                 throw new ApiException(400, "BAD_REQUEST", "endpoint_url が必要です。");
             }
+            validateWebhookUrl(endpoint);
             String secret = body.path("secret").asText();
             if (secret.isBlank()) {
                 secret = SecurityUtils.randomUrlSafe(24);
@@ -706,6 +721,9 @@ public final class ApiRouter {
                     .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "Webhook が見つかりません。"));
             JsonNode body = objectMapper.readTree(ctx.body());
             String endpoint = body.has("endpoint_url") ? body.path("endpoint_url").asText() : existing.endpointUrl();
+            if (body.has("endpoint_url")) {
+                validateWebhookUrl(endpoint);
+            }
             String events = body.has("events")
                     ? (body.path("events").isArray()
                         ? String.join(",", toStringList(body.path("events")))
@@ -990,6 +1008,58 @@ public final class ApiRouter {
     }
 
     // --- Private helpers ---
+
+    /**
+     * Validate webhook endpoint URL to prevent SSRF attacks.
+     * Only HTTPS URLs to public (non-private) hosts are allowed.
+     */
+    private static void validateWebhookUrl(String url) {
+        java.net.URI uri;
+        try {
+            uri = java.net.URI.create(url);
+        } catch (Exception e) {
+            throw new ApiException(400, "INVALID_WEBHOOK_URL", "endpoint_url の形式が不正です。");
+        }
+        // Enforce HTTPS
+        if (!"https".equalsIgnoreCase(uri.getScheme())) {
+            throw new ApiException(400, "INVALID_WEBHOOK_URL", "endpoint_url は https:// のみ許可されています。");
+        }
+        String host = uri.getHost();
+        if (host == null || host.isBlank()) {
+            throw new ApiException(400, "INVALID_WEBHOOK_URL", "endpoint_url にホスト名が必要です。");
+        }
+        // Block private/reserved IPs and hostnames
+        try {
+            java.net.InetAddress[] addresses = java.net.InetAddress.getAllByName(host);
+            for (java.net.InetAddress addr : addresses) {
+                if (addr.isLoopbackAddress() || addr.isSiteLocalAddress()
+                        || addr.isLinkLocalAddress() || addr.isAnyLocalAddress()
+                        || isCarrierGradeNat(addr)) {
+                    throw new ApiException(400, "INVALID_WEBHOOK_URL",
+                            "endpoint_url にプライベート IP アドレスは使用できません。");
+                }
+            }
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ApiException(400, "INVALID_WEBHOOK_URL", "endpoint_url のホスト名を解決できません。");
+        }
+        // Block common internal hostnames
+        String lower = host.toLowerCase(java.util.Locale.ROOT);
+        if (lower.equals("localhost") || lower.endsWith(".local")
+                || lower.endsWith(".internal") || lower.equals("metadata.google.internal")
+                || lower.startsWith("169.254.")) {
+            throw new ApiException(400, "INVALID_WEBHOOK_URL",
+                    "endpoint_url に内部ホスト名は使用できません。");
+        }
+    }
+
+    private static boolean isCarrierGradeNat(java.net.InetAddress addr) {
+        byte[] bytes = addr.getAddress();
+        if (bytes.length != 4) return false;
+        // 100.64.0.0/10 (RFC 6598)
+        return (bytes[0] & 0xFF) == 100 && (bytes[1] & 0xC0) == 64;
+    }
 
     private void requireOwner(AuthPrincipal principal) {
         if (principal.serviceToken()) {

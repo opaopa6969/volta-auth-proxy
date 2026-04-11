@@ -18,12 +18,14 @@ import static org.unlaxer.infra.volta.flow.oidc.OidcFlowData.*;
 public final class OidcTokenExchangeProcessor implements StateProcessor {
     private final AppConfig config;
     private final OidcService oidcService;
+    private final KeyCipher keyCipher;
     private final HttpClient http;
     private final ObjectMapper mapper;
 
-    public OidcTokenExchangeProcessor(AppConfig config, OidcService oidcService) {
+    public OidcTokenExchangeProcessor(AppConfig config, OidcService oidcService, KeyCipher keyCipher) {
         this.config = config;
         this.oidcService = oidcService;
+        this.keyCipher = keyCipher;
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
         this.mapper = new ObjectMapper();
     }
@@ -37,11 +39,17 @@ public final class OidcTokenExchangeProcessor implements StateProcessor {
         OidcCallback callback = ctx.get(OidcCallback.class);
         OidcRedirect redirect = ctx.get(OidcRedirect.class);
 
+        // Decrypt PKCE verifier if it was encrypted
+        String codeVerifier = redirect.codeVerifier();
+        if (codeVerifier != null && keyCipher != null) {
+            codeVerifier = keyCipher.decrypt(codeVerifier);
+        }
+
         // Reconstruct OidcFlowRecord for the IdP exchange
         OidcFlowRecord flowRecord = new OidcFlowRecord(
                 callback.state(),
                 redirect.nonce(),
-                redirect.codeVerifier(),
+                codeVerifier,
                 null,  // returnTo — tracked in OidcRequest
                 null,  // inviteCode — tracked in OidcRequest
                 redirect.expiresAt(),

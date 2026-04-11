@@ -16,13 +16,21 @@ public final class RateLimiter {
     public RateLimiter(int defaultMaxPerMinute) {
         this.defaultMaxPerMinute = defaultMaxPerMinute;
         // Sensitive endpoints get stricter limits
-        this.endpointLimits = Map.of(
-                "/login", 20,
-                "/auth/passkey/start", 10,
-                "/auth/passkey/finish", 10,
-                "/auth/mfa/verify", 10,
-                "/auth/switch-account", 10,
-                "/api/v1/users/", 30  // prefix match handled in allow()
+        this.endpointLimits = Map.ofEntries(
+                Map.entry("/login", 20),
+                Map.entry("/callback", 20),
+                Map.entry("/mfa/challenge", 20),
+                Map.entry("/auth/callback/complete", 20),
+                Map.entry("/auth/passkey/start", 10),
+                Map.entry("/auth/passkey/finish", 10),
+                Map.entry("/auth/mfa/verify", 10),
+                Map.entry("/auth/switch-account", 10),
+                Map.entry("/auth/magic-link/send", 10),
+                Map.entry("/auth/magic-link/verify", 20),
+                Map.entry("/auth/saml/callback", 20),
+                Map.entry("/auth/logout", 20),
+                Map.entry("/invite/", 20),
+                Map.entry("/api/v1/users/", 30)  // prefix match handled in allow()
         );
     }
 
@@ -39,7 +47,7 @@ public final class RateLimiter {
             v.count++;
             return v;
         });
-        return counter.count <= limit;
+        return counter.count < limit;
     }
 
     /**

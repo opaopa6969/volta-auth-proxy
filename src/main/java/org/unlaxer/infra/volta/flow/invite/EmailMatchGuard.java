@@ -3,6 +3,7 @@ package org.unlaxer.infra.volta.flow.invite;
 import org.unlaxer.tramli.*;
 import org.unlaxer.infra.volta.flow.*;
 
+import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -29,13 +30,17 @@ public final class EmailMatchGuard implements BranchProcessor {
             return EMAIL_MATCH;
         }
 
-        // Compare emails case-insensitively
+        // Compare emails case-insensitively with Unicode NFC normalization
         if (invite.userEmail() != null &&
-                invite.inviteEmail().toLowerCase(Locale.ROOT)
-                        .equals(invite.userEmail().toLowerCase(Locale.ROOT))) {
+                normalizeEmail(invite.inviteEmail())
+                        .equals(normalizeEmail(invite.userEmail()))) {
             return EMAIL_MATCH;
         }
 
         return EMAIL_MISMATCH;
+    }
+
+    private static String normalizeEmail(String email) {
+        return Normalizer.normalize(email, Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
     }
 }

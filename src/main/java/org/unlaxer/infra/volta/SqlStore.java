@@ -2192,10 +2192,14 @@ public final class SqlStore {
     public void updatePasskeyCounter(UUID passkeyId, long signCount) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "UPDATE user_passkeys SET sign_count = ?, last_used_at = now() WHERE id = ?")) {
+                     "UPDATE user_passkeys SET sign_count = ?, last_used_at = now() WHERE id = ? AND sign_count < ?")) {
             ps.setLong(1, signCount);
             ps.setObject(2, passkeyId);
-            ps.executeUpdate();
+            ps.setLong(3, signCount);
+            int updated = ps.executeUpdate();
+            if (updated == 0) {
+                throw new IllegalStateException("Passkey counter replay detected: id=" + passkeyId + " newCount=" + signCount);
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -2758,13 +2762,28 @@ public final class SqlStore {
                     ps.setObject(1, userId);
                     ps.executeUpdate();
                 }
-                // 2. Nullify memberships
+                // 2. Delete outbox_events referencing user's tenant data
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM outbox_events WHERE payload::text LIKE '%' || ? || '%'")) {
+                    ps.setString(1, userId.toString());
+                    ps.executeUpdate();
+                }
+                // 3. Nullify memberships
                 try (PreparedStatement ps = conn.prepareStatement(
                         "DELETE FROM memberships WHERE user_id = ?")) {
                     ps.setObject(1, userId);
                     ps.executeUpdate();
                 }
-                // 3. Delete user (CASCADE: sessions, trusted_devices, auth_flows, user_mfa, passkeys)
+                // 4. Delete auth_flows and transitions for user's sessions
+                //    (auth_flow_transitions CASCADE from auth_flows)
+                try (PreparedStatement ps = conn.prepareStatement("""
+                        DELETE FROM auth_flows WHERE session_id IN (
+                            SELECT id FROM sessions WHERE user_id = ?
+                        )""")) {
+                    ps.setObject(1, userId);
+                    ps.executeUpdate();
+                }
+                // 5. Delete user (CASCADE: sessions, trusted_devices, user_mfa, passkeys)
                 try (PreparedStatement ps = conn.prepareStatement("DELETE FROM users WHERE id = ?")) {
                     ps.setObject(1, userId);
                     ps.executeUpdate();

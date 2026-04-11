@@ -170,7 +170,16 @@ public final class AuthService {
     }
 
     public void clearSessionCookie(Context ctx) {
-        ctx.removeCookie(SESSION_COOKIE);
+        StringBuilder sb = new StringBuilder();
+        sb.append(SESSION_COOKIE).append("=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
+        String cookieDomain = System.getenv("COOKIE_DOMAIN");
+        if (cookieDomain != null && !cookieDomain.isEmpty()) {
+            sb.append("; Domain=").append(cookieDomain);
+        }
+        if ("true".equalsIgnoreCase(System.getenv("FORCE_SECURE_COOKIE")) || ctx.req().isSecure()) {
+            sb.append("; Secure");
+        }
+        ctx.res().addHeader("Set-Cookie", sb.toString());
     }
 
     public boolean isMfaPending(Context ctx) {

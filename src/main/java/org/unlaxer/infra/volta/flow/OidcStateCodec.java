@@ -64,11 +64,8 @@ public final class OidcStateCodec {
     }
 
     private static boolean constantTimeEquals(String a, String b) {
-        if (a.length() != b.length()) return false;
-        int result = 0;
-        for (int i = 0; i < a.length(); i++) {
-            result |= a.charAt(i) ^ b.charAt(i);
-        }
-        return result == 0;
+        return java.security.MessageDigest.isEqual(
+                a.getBytes(StandardCharsets.UTF_8),
+                b.getBytes(StandardCharsets.UTF_8));
     }
 }

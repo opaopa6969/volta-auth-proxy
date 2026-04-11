@@ -29,6 +29,7 @@ public final class OidcService {
 
     private final AppConfig config;
     private final SqlStore store;
+    private final KeyCipher keyCipher;
     private final HttpClient http;
     private final ObjectMapper mapper;
 
@@ -46,8 +47,13 @@ public final class OidcService {
     private final AtomicReference<List<IdpProvider>> enabledRef;
 
     public OidcService(AppConfig config, SqlStore store, VoltaConfig voltaConfig) {
+        this(config, store, voltaConfig, null);
+    }
+
+    public OidcService(AppConfig config, SqlStore store, VoltaConfig voltaConfig, KeyCipher keyCipher) {
         this.config     = config;
         this.store      = store;
+        this.keyCipher  = keyCipher;
         this.http       = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
         this.mapper     = new ObjectMapper();
         this.enabledRef = new AtomicReference<>(computeEnabled(voltaConfig));
@@ -115,8 +121,10 @@ public final class OidcService {
         String nonce    = idp.requiresNonce() ? SecurityUtils.randomUrlSafe(32) : null;
         String verifier = idp.requiresPkce()  ? SecurityUtils.randomUrlSafe(32) : null;
 
+        String encryptedVerifier = (verifier != null && keyCipher != null)
+                ? keyCipher.encrypt(verifier) : verifier;
         store.saveOidcFlow(new OidcFlowRecord(
-                state, nonce, verifier, returnTo, inviteCode,
+                state, nonce, encryptedVerifier, returnTo, inviteCode,
                 Instant.now().plus(Duration.ofMinutes(10)),
                 idp.id()
         ));
@@ -139,13 +147,21 @@ public final class OidcService {
         if (flow.expiresAt().isBefore(Instant.now())) {
             throw new IllegalArgumentException("Login session expired");
         }
+        // Decrypt code_verifier if it was encrypted
+        String codeVerifier = flow.codeVerifier();
+        if (codeVerifier != null && keyCipher != null) {
+            codeVerifier = keyCipher.decrypt(codeVerifier);
+        }
+        OidcFlowRecord decryptedFlow = new OidcFlowRecord(
+                flow.state(), flow.nonce(), codeVerifier, flow.returnTo(),
+                flow.inviteCode(), flow.expiresAt(), flow.provider());
         // Look up from ALL_PROVIDERS (not just enabled) to complete in-flight flows
         // that were started before a reload removed that provider.
         IdpProvider idp = ALL_PROVIDERS.get(flow.provider());
         if (idp == null) {
             throw new IllegalArgumentException("Unknown provider in flow: " + flow.provider());
         }
-        return idp.exchange(code, flow, config, http, mapper);
+        return idp.exchange(code, decryptedFlow, config, http, mapper);
     }
 
     // -------------------------------------------------------------------------

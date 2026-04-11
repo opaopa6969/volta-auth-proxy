@@ -34,6 +34,12 @@ final class SamlService {
         }
         String xml = new String(Base64.getDecoder().decode(samlResponseB64), StandardCharsets.UTF_8);
         if (devMode && xml.startsWith("MOCK:")) {
+            // Only allow MOCK SAML in development with explicit DEV_MODE=true AND non-production base URL
+            String baseUrl = System.getenv("BASE_URL");
+            boolean isLocalDev = baseUrl == null || baseUrl.contains("localhost") || baseUrl.contains("127.0.0.1");
+            if (!isLocalDev) {
+                throw new ApiException(400, "SAML_INVALID_RESPONSE", "MOCK SAML not allowed in production");
+            }
             String email = xml.substring("MOCK:".length()).trim();
             if (email.isBlank() || !email.contains("@")) {
                 throw new ApiException(400, "SAML_INVALID_RESPONSE", "mock email is invalid");
@@ -48,6 +54,10 @@ final class SamlService {
             dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
             dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            dbf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            dbf.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            dbf.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            dbf.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
             Document doc = dbf.newDocumentBuilder().parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
             if (!skipSignature) {
                 NodeList signatures = doc.getElementsByTagNameNS("*", "Signature");

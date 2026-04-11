@@ -26,6 +26,18 @@ public final class OidcFlowDef {
             SqlStore store,
             AppConfig config,
             FraudAlertClient fraudAlert) {
+        return create(oidcService, stateCodec, authService, appRegistry, store, config, fraudAlert, null);
+    }
+
+    public static FlowDefinition<OidcFlowState> create(
+            OidcService oidcService,
+            OidcStateCodec stateCodec,
+            AuthService authService,
+            AppRegistry appRegistry,
+            SqlStore store,
+            AppConfig config,
+            FraudAlertClient fraudAlert,
+            KeyCipher keyCipher) {
 
         return FlowDefinition.builder("oidc", OidcFlowState.class)
                 .ttl(Duration.ofMinutes(5))
@@ -34,13 +46,13 @@ public final class OidcFlowDef {
                 .externallyProvided(OidcCallback.class)
 
                 .from(INIT).auto(REDIRECTED,
-                        new OidcInitProcessor(oidcService, stateCodec, config))
+                        new OidcInitProcessor(oidcService, stateCodec, config, keyCipher))
 
                 .from(REDIRECTED).external(CALLBACK_RECEIVED,
                         new OidcCallbackGuard())
 
                 .from(CALLBACK_RECEIVED).auto(TOKEN_EXCHANGED,
-                        new OidcTokenExchangeProcessor(config, oidcService))
+                        new OidcTokenExchangeProcessor(config, oidcService, keyCipher))
 
                 .from(TOKEN_EXCHANGED).auto(USER_RESOLVED,
                         new UserResolveProcessor(store))

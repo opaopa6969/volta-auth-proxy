@@ -508,7 +508,12 @@ public class AuthFlowHandler {
     }
 
     private static void clearMfaFlowCookie(Context ctx) {
-        ctx.res().addHeader("Set-Cookie", MFA_FLOW_COOKIE + "=; Path=/; Max-Age=0; HttpOnly");
+        StringBuilder sb = new StringBuilder();
+        sb.append(MFA_FLOW_COOKIE).append("=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
+        if ("true".equalsIgnoreCase(System.getenv("FORCE_SECURE_COOKIE")) || ctx.req().isSecure()) {
+            sb.append("; Secure");
+        }
+        ctx.res().addHeader("Set-Cookie", sb.toString());
     }
 
     private static void setNoStore(Context ctx) {

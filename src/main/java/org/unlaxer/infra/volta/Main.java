@@ -31,7 +31,8 @@ public final class Main {
         JwtService jwtService = new JwtService(config, store);
         AuthService authService = new AuthService(config, store, jwtService, sessionStore);
         VoltaConfig voltaConfig = ConfigLoader.load(config.appConfigPath());
-        OidcService oidcService = new OidcService(config, store, voltaConfig);
+        KeyCipher secretCipher = new KeyCipher(config.jwtKeyEncryptionSecret());
+        OidcService oidcService = new OidcService(config, store, voltaConfig, secretCipher);
         SamlService samlService = new SamlService();
         AppRegistry appRegistry = new AppRegistry(config);
         AuditSink auditSink = AuditSink.create(config);
@@ -45,7 +46,6 @@ public final class Main {
                 .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         DeviceTrustService deviceTrustService = new DeviceTrustService(store);
         GdprService gdprService = new GdprService(store, sessionStore, deviceTrustService, objectMapper);
-        KeyCipher secretCipher = new KeyCipher(config.jwtKeyEncryptionSecret());
         TemplateEngine templateEngine = TemplateEngine.create(
                 new DirectoryCodeResolver(java.nio.file.Path.of("src/main/jte")),
                 java.nio.file.Path.of("target/jte-classes"),
@@ -109,7 +109,7 @@ public final class Main {
             // OIDC Flow
             var fraudAlertClient = new org.unlaxer.infra.volta.FraudAlertClient(config, objectMapper);
             var oidcFlowDef = org.unlaxer.infra.volta.flow.oidc.OidcFlowDef.create(
-                    oidcService, stateCodec, authService, appRegistry, store, config, fraudAlertClient);
+                    oidcService, stateCodec, authService, appRegistry, store, config, fraudAlertClient, secretCipher);
             pluginRegistry.analyzeAndValidate(oidcFlowDef);
 
             // Passkey Flow (independent — NOT migrated to AuthFlowHandler)
@@ -177,7 +177,7 @@ public final class Main {
         // IP-based rate limiting for sensitive endpoints
         app.before(ctx -> {
             String path = ctx.path();
-            if (path.equals("/healthz") || path.startsWith("/auth/") || path.startsWith("/css/") || path.startsWith("/js/") || path.equals("/login") || path.equals("/callback") || path.equals("/mfa/challenge")) return;
+            if (path.equals("/healthz") || path.startsWith("/css/") || path.startsWith("/js/")) return;
             String ip = HttpSupport.clientIp(ctx);
             if (!rateLimiter.allowRequest(ip, path)) {
                 ctx.header("Retry-After", "60");

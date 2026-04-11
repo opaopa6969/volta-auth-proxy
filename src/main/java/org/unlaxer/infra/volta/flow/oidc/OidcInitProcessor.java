@@ -2,6 +2,7 @@ package org.unlaxer.infra.volta.flow.oidc;
 
 import org.unlaxer.infra.volta.IdpProvider;
 import org.unlaxer.infra.volta.AppConfig;
+import org.unlaxer.infra.volta.KeyCipher;
 import org.unlaxer.infra.volta.OidcService;
 import org.unlaxer.infra.volta.SecurityUtils;
 import org.unlaxer.tramli.*;
@@ -21,11 +22,14 @@ public final class OidcInitProcessor implements StateProcessor {
     private final OidcService oidcService;
     private final OidcStateCodec stateCodec;
     private final AppConfig config;
+    private final KeyCipher keyCipher;
 
-    public OidcInitProcessor(OidcService oidcService, OidcStateCodec stateCodec, AppConfig config) {
+    public OidcInitProcessor(OidcService oidcService, OidcStateCodec stateCodec,
+                             AppConfig config, KeyCipher keyCipher) {
         this.oidcService = oidcService;
         this.stateCodec = stateCodec;
         this.config = config;
+        this.keyCipher = keyCipher;
     }
 
     @Override public String name() { return "OidcInitProcessor"; }
@@ -50,8 +54,12 @@ public final class OidcInitProcessor implements StateProcessor {
         // Build authorization URL
         String authUrl = idp.buildAuthorizationUrl(state, nonce, verifier, config);
 
+        // Encrypt PKCE verifier before storing in flow context
+        String encryptedVerifier = (verifier != null && keyCipher != null)
+                ? keyCipher.encrypt(verifier) : verifier;
+
         ctx.put(OidcRedirect.class, new OidcRedirect(
-                authUrl, nonce, verifier, idp.id(),
+                authUrl, nonce, encryptedVerifier, idp.id(),
                 Instant.now().plus(Duration.ofMinutes(10))
         ));
     }

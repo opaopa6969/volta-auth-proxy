@@ -492,10 +492,8 @@ public final class ApiRouter {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
             policy.enforceTenantMatch(p, tenantId);
-            int offset = HttpSupport.parseOffset(ctx.queryParam("offset"));
-            int limit = HttpSupport.parseLimit(ctx.queryParam("limit"));
-            List<MembershipRecord> members = store.listTenantMembers(tenantId, offset, limit);
-            ctx.json(Map.of("items", members, "offset", offset, "limit", limit));
+            Pagination.PageRequest pageReq = Pagination.PageRequest.from(ctx);
+            ctx.json(store.findMembersPaginated(tenantId, pageReq).toJson());
         });
 
         app.get("/api/v1/tenants/{tenantId}/members/{userId}", ctx -> {
@@ -591,10 +589,9 @@ public final class ApiRouter {
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
             policy.enforceTenantMatch(p, tenantId);
             policy.enforceMinRole(p, "ADMIN");
-            int offset = HttpSupport.parseOffset(ctx.queryParam("offset"));
-            int limit = HttpSupport.parseLimit(ctx.queryParam("limit"));
-            List<InvitationRecord> invitations = store.listInvitations(tenantId, offset, limit);
-            ctx.json(Map.of("items", invitations, "offset", offset, "limit", limit));
+            Pagination.PageRequest pageReq = Pagination.PageRequest.from(ctx);
+            String statusFilter = ctx.queryParam("status");
+            ctx.json(store.findInvitationsPaginated(tenantId, pageReq, statusFilter).toJson());
         });
 
         app.delete("/api/v1/tenants/{tenantId}/invitations/{invitationId}", ctx -> {
@@ -926,18 +923,28 @@ public final class ApiRouter {
         app.get("/api/v1/admin/users", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             requireOwner(p);
-            int offset = HttpSupport.parseOffset(ctx.queryParam("offset"));
-            int limit = HttpSupport.parseLimit(ctx.queryParam("limit"));
-            ctx.json(Map.of("items", store.listUsers(offset, limit), "offset", offset, "limit", limit));
+            Pagination.PageRequest pageReq = Pagination.PageRequest.from(ctx);
+            ctx.json(store.findUsersPaginated(pageReq).toJson());
         });
 
         app.get("/api/v1/admin/audit", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             policy.enforceMinRole(p, "ADMIN");
-            int offset = HttpSupport.parseOffset(ctx.queryParam("offset"));
-            int limit = HttpSupport.parseLimit(ctx.queryParam("limit"));
+            Pagination.PageRequest pageReq = Pagination.PageRequest.from(ctx);
             UUID tenantFilter = p.serviceToken() ? null : p.tenantId();
-            ctx.json(Map.of("items", store.listAuditLogs(tenantFilter, offset, limit), "offset", offset, "limit", limit));
+            String fromDate = ctx.queryParam("from");
+            String toDate = ctx.queryParam("to");
+            String eventType = ctx.queryParam("event");
+            ctx.json(store.findAuditLogsPaginated(pageReq, tenantFilter, fromDate, toDate, eventType).toJson());
+        });
+
+        app.get("/api/v1/admin/sessions", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            policy.enforceMinRole(p, "ADMIN");
+            Pagination.PageRequest pageReq = Pagination.PageRequest.from(ctx);
+            String userIdRaw = ctx.queryParam("user_id");
+            UUID userIdFilter = userIdRaw == null ? null : UUID.fromString(userIdRaw);
+            ctx.json(store.findSessionsPaginated(pageReq, userIdFilter).toJson());
         });
 
         app.post("/api/v1/admin/outbox/flush", ctx -> {

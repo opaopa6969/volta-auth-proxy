@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public final class SqlStore {
@@ -2787,5 +2788,212 @@ public final class SqlStore {
                 return ids;
             }
         } catch (SQLException e) { throw new RuntimeException(e); }
+    }
+
+    // ── Paginated admin queries ─────────────────────────────────────────
+
+    private static final Set<String> USERS_SORT_COLUMNS = Set.of("created_at", "email", "display_name");
+
+    public Pagination.PageResponse<BasicUserRecord> findUsersPaginated(Pagination.PageRequest req) {
+        String sortCol = USERS_SORT_COLUMNS.contains(req.sort()) ? req.sort() : "created_at";
+        String sql = """
+                SELECT id, email, display_name, created_at, is_active, locale,
+                       COUNT(*) OVER() AS total_count
+                FROM users
+                WHERE (? IS NULL OR email ILIKE '%' || ? || '%' OR display_name ILIKE '%' || ? || '%')
+                ORDER BY """ + sortCol + """
+                 DESC
+                LIMIT ? OFFSET ?
+                """;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, req.query());
+            ps.setString(2, req.query());
+            ps.setString(3, req.query());
+            ps.setInt(4, req.size());
+            ps.setInt(5, req.offset());
+            List<BasicUserRecord> out = new ArrayList<>();
+            long total = 0;
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    total = rs.getLong("total_count");
+                    out.add(new BasicUserRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getString("email"),
+                            rs.getString("display_name"),
+                            rs.getBoolean("is_active"),
+                            rs.getString("locale"),
+                            rs.getTimestamp("created_at").toInstant()
+                    ));
+                }
+            }
+            return new Pagination.PageResponse<>(out, total, req.page(), req.size());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Pagination.PageResponse<AdminSessionView> findSessionsPaginated(Pagination.PageRequest req, UUID userIdFilter) {
+        String sql = """
+                SELECT s.id, s.user_id, u.email, u.display_name, s.ip_address, s.user_agent,
+                       s.created_at, s.last_active_at, s.expires_at, s.invalidated_at, s.tenant_id,
+                       COUNT(*) OVER() AS total_count
+                FROM sessions s
+                JOIN users u ON u.id = s.user_id
+                WHERE s.invalidated_at IS NULL AND s.expires_at > now()
+                  AND (?::uuid IS NULL OR s.user_id = ?)
+                ORDER BY s.last_active_at DESC
+                LIMIT ? OFFSET ?
+                """;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, userIdFilter);
+            ps.setObject(2, userIdFilter);
+            ps.setInt(3, req.size());
+            ps.setInt(4, req.offset());
+            List<AdminSessionView> result = new ArrayList<>();
+            long total = 0;
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    total = rs.getLong("total_count");
+                    result.add(new AdminSessionView(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("user_id", UUID.class),
+                            rs.getString("email"),
+                            rs.getString("display_name"),
+                            rs.getString("ip_address"),
+                            rs.getString("user_agent"),
+                            rs.getTimestamp("created_at").toInstant(),
+                            rs.getTimestamp("last_active_at").toInstant(),
+                            rs.getTimestamp("expires_at").toInstant(),
+                            rs.getTimestamp("invalidated_at") == null ? null : rs.getTimestamp("invalidated_at").toInstant(),
+                            rs.getObject("tenant_id", UUID.class)
+                    ));
+                }
+            }
+            return new Pagination.PageResponse<>(result, total, req.page(), req.size());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Pagination.PageResponse<Map<String, Object>> findAuditLogsPaginated(
+            Pagination.PageRequest req, UUID tenantFilter, String fromDate, String toDate, String eventType) {
+        String sql = """
+                SELECT id, timestamp, event_type, actor_id, tenant_id, target_type, target_id, detail, request_id,
+                       COUNT(*) OVER() AS total_count
+                FROM audit_logs
+                WHERE (?::uuid IS NULL OR tenant_id = ?)
+                  AND (? IS NULL OR timestamp >= ?::timestamptz)
+                  AND (? IS NULL OR timestamp <= ?::timestamptz)
+                  AND (? IS NULL OR event_type = ?)
+                ORDER BY timestamp DESC
+                LIMIT ? OFFSET ?
+                """;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, tenantFilter);
+            ps.setObject(2, tenantFilter);
+            ps.setString(3, fromDate);
+            ps.setString(4, fromDate);
+            ps.setString(5, toDate);
+            ps.setString(6, toDate);
+            ps.setString(7, eventType);
+            ps.setString(8, eventType);
+            ps.setInt(9, req.size());
+            ps.setInt(10, req.offset());
+            List<Map<String, Object>> out = new ArrayList<>();
+            long total = 0;
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    total = rs.getLong("total_count");
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", rs.getLong("id"));
+                    row.put("timestamp", rs.getTimestamp("timestamp").toInstant().toString());
+                    row.put("eventType", rs.getString("event_type"));
+                    row.put("actorId", rs.getObject("actor_id"));
+                    row.put("tenantId", rs.getObject("tenant_id"));
+                    row.put("targetType", rs.getString("target_type"));
+                    row.put("targetId", rs.getString("target_id"));
+                    row.put("detail", rs.getString("detail"));
+                    row.put("requestId", rs.getObject("request_id"));
+                    out.add(row);
+                }
+            }
+            return new Pagination.PageResponse<>(out, total, req.page(), req.size());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Pagination.PageResponse<MembershipRecord> findMembersPaginated(UUID tenantId, Pagination.PageRequest req) {
+        String sql = """
+                SELECT id, user_id, tenant_id, role, is_active,
+                       COUNT(*) OVER() AS total_count
+                FROM memberships
+                WHERE tenant_id = ?
+                ORDER BY joined_at
+                LIMIT ? OFFSET ?
+                """;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, tenantId);
+            ps.setInt(2, req.size());
+            ps.setInt(3, req.offset());
+            List<MembershipRecord> result = new ArrayList<>();
+            long total = 0;
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    total = rs.getLong("total_count");
+                    result.add(new MembershipRecord(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("user_id", UUID.class),
+                            rs.getObject("tenant_id", UUID.class),
+                            rs.getString("role"),
+                            rs.getBoolean("is_active")
+                    ));
+                }
+            }
+            return new Pagination.PageResponse<>(result, total, req.page(), req.size());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Pagination.PageResponse<InvitationRecord> findInvitationsPaginated(
+            UUID tenantId, Pagination.PageRequest req, String statusFilter) {
+        // statusFilter: "pending" = not expired & not used, "used" = used_count > 0, "expired" = past expires_at
+        String statusCondition = switch (statusFilter == null ? "" : statusFilter.toLowerCase()) {
+            case "pending" -> " AND used_count = 0 AND expires_at > now()";
+            case "used" -> " AND used_count > 0";
+            case "expired" -> " AND expires_at <= now()";
+            default -> "";
+        };
+        String sql = """
+                SELECT id, tenant_id, code, email, role, max_uses, used_count, created_by, expires_at,
+                       COUNT(*) OVER() AS total_count
+                FROM invitations
+                WHERE tenant_id = ?""" + statusCondition + """
+
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+                """;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, tenantId);
+            ps.setInt(2, req.size());
+            ps.setInt(3, req.offset());
+            List<InvitationRecord> result = new ArrayList<>();
+            long total = 0;
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    total = rs.getLong("total_count");
+                    result.add(readInvitation(rs));
+                }
+            }
+            return new Pagination.PageResponse<>(result, total, req.page(), req.size());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

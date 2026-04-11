@@ -6,7 +6,7 @@
 
     <groupId>org.unlaxer.infra</groupId>
     <artifactId>volta-auth-proxy</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
     <name>volta-auth-proxy</name>
     <description>Phase 1 auth gateway scaffold</description>
 

@@ -36,7 +36,6 @@ public final class Main {
         SamlService samlService = new SamlService();
         AppRegistry appRegistry = new AppRegistry(config);
         AuditSink auditSink = AuditSink.create(config);
-        AuditService auditService = new AuditService(store, auditSink);
         NotificationService notificationService = NotificationService.create(config);
         OutboxWorker outboxWorker = new OutboxWorker(config, store, notificationService);
         PolicyEngine policy = PolicyEngine.defaultPolicy();
@@ -66,7 +65,14 @@ public final class Main {
         // ─── State Machine Flow Routers (Strangler Fig — parallel to existing routes) ───
         // tramli-viz: Redis connection for telemetry sink (shared with shutdown hook)
         String vizChannel = System.getenv().getOrDefault("VIZ_REDIS_CHANNEL", "volta:viz:events");
+        String authEventChannel = System.getenv().getOrDefault("AUTH_EVENT_REDIS_CHANNEL", "volta:auth:events");
         var vizJedis = new redis.clients.jedis.JedisPooled(java.net.URI.create(config.redisUrl()));
+        // SAAS-016: separate Jedis instance for auth event publish (vizJedis used for tramli telemetry)
+        var authEventJedis = new redis.clients.jedis.JedisPooled(java.net.URI.create(config.redisUrl()));
+        // SAAS-016: AuditService publishes LOGIN_SUCCESS/LOGOUT to Redis for Auth Monitor
+        AuditService auditService = new AuditService(store, auditSink, authEventJedis, authEventChannel);
+        // Hold VizRouter reference outside the tramli block for shutdown hook access
+        org.unlaxer.infra.volta.viz.VizRouter[] vizRouterHolder = new org.unlaxer.infra.volta.viz.VizRouter[1];
         {
             var flowRegistry = new org.unlaxer.infra.volta.flow.FlowDataRegistry(objectMapper);
             // Register all @FlowData types
@@ -153,11 +159,13 @@ public final class Main {
             app.get("/mfa/challenge", authFlowHandler::mfaChallengePage);
             app.post("/auth/mfa/verify", authFlowHandler::mfaVerify);
 
-            // tramli-viz: replay API + static graph endpoint (#22)
-            new org.unlaxer.infra.volta.viz.VizRouter(
+            // tramli-viz: replay API + static graph endpoint + auth event SSE (SAAS-016)
+            vizRouterHolder[0] = new org.unlaxer.infra.volta.viz.VizRouter(
                     dataSource, authService, policy, objectMapper,
-                    java.util.List.of(oidcFlowDef, passkeyFlowDef, mfaFlowDef, inviteFlowDef)
-            ).register(app);
+                    java.util.List.of(oidcFlowDef, passkeyFlowDef, mfaFlowDef, inviteFlowDef),
+                    vizJedis, authEventChannel
+            );
+            vizRouterHolder[0].register(app);
         }
 
         // CORS for auth-console and other subdomains
@@ -435,8 +443,10 @@ public final class Main {
 
         outboxWorker.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (vizRouterHolder[0] != null) vizRouterHolder[0].close();
             outboxWorker.close();
             auditSink.close();
+            authEventJedis.close();
             vizJedis.close();
             sessionStore.close();
             dataSource.close();

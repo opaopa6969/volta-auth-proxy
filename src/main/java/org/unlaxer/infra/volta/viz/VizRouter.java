@@ -2,26 +2,33 @@ package org.unlaxer.infra.volta.viz;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.javalin.Javalin;
+import io.javalin.http.sse.SseClient;
 import org.unlaxer.infra.volta.*;
 import org.unlaxer.tramli.FlowDefinition;
 import org.unlaxer.tramli.FlowState;
 import org.unlaxer.tramli.MermaidGenerator;
 import org.unlaxer.tramli.RenderableGraph;
+import redis.clients.jedis.JedisPooled;
+import redis.clients.jedis.JedisPubSub;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Visualization endpoints for tramli-viz integration.
  * <ul>
  *   <li>GET /api/v1/admin/flows/{flowId}/transitions — replay API (ADMIN role required)</li>
  *   <li>GET /viz/flows — static graph endpoint (public, for embedding)</li>
+ *   <li>GET /viz/auth/stream — SSE stream of login/logout events (SAAS-016)</li>
  * </ul>
  */
 public final class VizRouter {
+
+    private static final System.Logger LOG = System.getLogger("volta.viz");
 
     private final DataSource dataSource;
     private final AuthService authService;
@@ -29,13 +36,27 @@ public final class VizRouter {
     private final ObjectMapper objectMapper;
     private final List<FlowDefinition<?>> flowDefinitions;
 
+    // SAAS-016: auth event SSE broadcast
+    private final JedisPooled authEventJedis;  // nullable — SSE disabled if null
+    private final String authEventChannel;
+    private final Set<SseClient> sseClients = ConcurrentHashMap.newKeySet();
+    private volatile JedisPubSub pubSub;
+
     public VizRouter(DataSource dataSource, AuthService authService, PolicyEngine policy,
                      ObjectMapper objectMapper, List<FlowDefinition<?>> flowDefinitions) {
+        this(dataSource, authService, policy, objectMapper, flowDefinitions, null, null);
+    }
+
+    public VizRouter(DataSource dataSource, AuthService authService, PolicyEngine policy,
+                     ObjectMapper objectMapper, List<FlowDefinition<?>> flowDefinitions,
+                     JedisPooled authEventJedis, String authEventChannel) {
         this.dataSource = dataSource;
         this.authService = authService;
         this.policy = policy;
         this.objectMapper = objectMapper;
         this.flowDefinitions = flowDefinitions;
+        this.authEventJedis = authEventJedis;
+        this.authEventChannel = authEventChannel;
     }
 
     public void register(Javalin app) {
@@ -64,7 +85,54 @@ public final class VizRouter {
             }
             ctx.json(Map.of("flows", flows));
         });
+
+        // SAAS-016: SSE stream of login/logout auth events for Auth Monitor
+        if (authEventJedis != null) {
+            app.sse("/viz/auth/stream", client -> {
+                sseClients.add(client);
+                client.sendEvent("connected", "{\"status\":\"connected\"}");
+                client.onClose(() -> sseClients.remove(client));
+            });
+
+            // Start Redis subscriber in a virtual thread (blocks until shutdown)
+            Thread.ofVirtual()
+                    .name("auth-event-sse-sub")
+                    .start(this::subscribeToAuthEvents);
+
+            LOG.log(System.Logger.Level.INFO, "Auth event SSE stream enabled on /viz/auth/stream (channel: " + authEventChannel + ")");
+        }
     }
+
+    private void subscribeToAuthEvents() {
+        pubSub = new JedisPubSub() {
+            @Override
+            public void onMessage(String channel, String message) {
+                if (sseClients.isEmpty()) return;
+                for (SseClient client : sseClients) {
+                    try {
+                        client.sendEvent("auth-event", message);
+                    } catch (Exception e) {
+                        sseClients.remove(client);
+                    }
+                }
+            }
+        };
+        try {
+            // Blocks until pubSub.unsubscribe() is called (or connection drops)
+            authEventJedis.subscribe(pubSub, authEventChannel);
+        } catch (Exception e) {
+            LOG.log(System.Logger.Level.WARNING, "Auth event Redis subscriber disconnected: " + e.getMessage());
+        }
+    }
+
+    /** Call from shutdown hook to cleanly stop the Redis subscriber. */
+    public void close() {
+        if (pubSub != null) {
+            try { pubSub.unsubscribe(); } catch (Exception ignored) {}
+        }
+    }
+
+    // ── DB helpers ───────────────────────────────────────────────────────────
 
     private List<Map<String, Object>> listTransitions(String flowId) {
         String sql = """

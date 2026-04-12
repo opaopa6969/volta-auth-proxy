@@ -46,6 +46,7 @@ public class AuthFlowHandler {
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
     private final FraudAlertClient fraudAlert;
+    private final org.unlaxer.infra.volta.LocalNetworkBypass localNetworkBypass;
 
     // ── フローエンジン ──
     private final FlowEngine engine;
@@ -64,7 +65,8 @@ public class AuthFlowHandler {
                            OidcService oidcService,
                            AuditService auditService,
                            ObjectMapper objectMapper,
-                           FraudAlertClient fraudAlert) {
+                           FraudAlertClient fraudAlert,
+                           org.unlaxer.infra.volta.LocalNetworkBypass localNetworkBypass) {
         this.engine = engine;
         this.oidcFlowDef = oidcFlowDef;
         this.mfaFlowDef = mfaFlowDef;
@@ -78,6 +80,7 @@ public class AuthFlowHandler {
         this.auditService = auditService;
         this.objectMapper = objectMapper;
         this.fraudAlert = fraudAlert;
+        this.localNetworkBypass = localNetworkBypass;
     }
 
     // ================================================================
@@ -100,6 +103,15 @@ public class AuthFlowHandler {
                 ctx.header("X-Forwarded-Uri"),
                 ctx.header("X-Forwarded-Proto"),
                 ctx.cookie(AuthService.SESSION_COOKIE) != null ? "present" : "absent");
+
+        // Local network bypass: LAN / Tailscale IP → allow without session
+        if (localNetworkBypass.isLocalRequest(ctx)) {
+            String ip = org.unlaxer.infra.volta.HttpSupport.clientIp(ctx);
+            LOG.log(System.Logger.Level.INFO, "[verify] local-bypass: ip={0}", ip);
+            ctx.header("X-Volta-Auth-Source", "local-bypass");
+            ctx.status(200);
+            return;
+        }
 
         // MFA check: if session exists but MFA not verified, redirect to challenge
         if (authService.isMfaPending(ctx)) {

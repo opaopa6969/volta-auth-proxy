@@ -148,10 +148,11 @@ public final class Main {
 
             // AUTH-010: Unified AuthFlowHandler handles ALL auth endpoints
             // Replaces: OidcFlowRouter, MfaFlowRouter, inline /auth/verify handler
+            var localNetworkBypass = org.unlaxer.infra.volta.LocalNetworkBypass.fromEnv();
             var authFlowHandler = new org.unlaxer.infra.volta.auth.AuthFlowHandler(
                     flowEngine, oidcFlowDef, mfaFlowDef,
                     authService, config, stateCodec, jwtService, appRegistry, store,
-                    oidcService, auditService, objectMapper, fraudAlertClient);
+                    oidcService, auditService, objectMapper, fraudAlertClient, localNetworkBypass);
             app.get("/login", authFlowHandler::loginPage);
             app.get("/callback", authFlowHandler::callback);
             app.post("/auth/callback/complete", authFlowHandler::callbackPost);

@@ -1,0 +1,34 @@
+{
+  "pending": [
+    {
+      "timestamp": "2026-04-13T00:00:13Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/education/auth-textbook.md",
+      "line": 357,
+      "text": "| スケール | DB がボトルネック | DB 不要で高速 |"
+    },
+    {
+      "timestamp": "2026-04-13T00:00:13Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/education/auth-textbook.md",
+      "line": 484,
+      "text": "🐣 「Passkey は MFA が不要なんですか？」"
+    },
+    {
+      "timestamp": "2026-04-13T00:00:13Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/education/auth-textbook.md",
+      "line": 512,
+      "text": "新しい SaaS を使うとき、AD と連携してほしい。"
+    },
+    {
+      "timestamp": "2026-04-13T00:00:13Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/education/auth-textbook.md",
+      "line": 587,
+      "text": "# これだけ。認証ライブラリ不要。"
+    },
+    {
+      "timestamp": "2026-04-13T00:00:13Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/education/auth-textbook.md",
+      "line": 673,
+      "text": "## 第11章: ステートマシン — 認証フローを「地図」にする"
+    }
+  ]
+}

@@ -104,15 +104,6 @@ public class AuthFlowHandler {
                 ctx.header("X-Forwarded-Proto"),
                 ctx.cookie(AuthService.SESSION_COOKIE) != null ? "present" : "absent");
 
-        // Local network bypass: LAN / Tailscale IP → allow without session
-        if (localNetworkBypass.isLocalRequest(ctx)) {
-            String ip = org.unlaxer.infra.volta.HttpSupport.clientIp(ctx);
-            LOG.log(System.Logger.Level.INFO, "[verify] local-bypass: ip={0}", ip);
-            ctx.header("X-Volta-Auth-Source", "local-bypass");
-            ctx.status(200);
-            return;
-        }
-
         // MFA check: if session exists but MFA not verified, redirect to challenge
         if (authService.isMfaPending(ctx)) {
             String fwdHost  = ctx.header("X-Forwarded-Host");
@@ -167,6 +158,15 @@ public class AuthFlowHandler {
         // Suspended tenant check
         if (isSuspendedTenantSession(ctx)) {
             ctx.status(403);
+            return;
+        }
+
+        // Local network bypass: no session but LAN/Tailscale IP → allow anonymously
+        if (localNetworkBypass.isLocalRequest(ctx)) {
+            String ip = org.unlaxer.infra.volta.HttpSupport.clientIp(ctx);
+            LOG.log(System.Logger.Level.INFO, "[verify] local-bypass (no session): ip={0}", ip);
+            ctx.header("X-Volta-Auth-Source", "local-bypass");
+            ctx.status(200);
             return;
         }
 

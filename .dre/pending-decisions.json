@@ -29,6 +29,138 @@
       "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/education/auth-textbook.md",
       "line": 673,
       "text": "## 第11章: ステートマシン — 認証フローを「地図」にする"
+    },
+    {
+      "timestamp": "2026-04-13T06:46:45Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 10,
+      "text": "**[Keycloak](docs/glossary/keycloak.ja.md) 不要。[oauth2-proxy](docs/glossary/reverse-proxy.ja.md) 不要。Auth as Code。**"
+    },
+    {
+      "timestamp": "2026-04-13T06:46:45Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 255,
+      "text": "| Google [OIDC](docs/glossary/oidc.ja.md) | 直接連携。[PKCE](docs/glossary/pkce.ja.md) + [state](docs/glossary/state.ja.md) + [nonce](docs/glossary/nonce.ja.md)。中間 [IdP](docs/glossary/idp.j"
+    },
+    {
+      "timestamp": "2026-04-13T06:46:45Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 408,
+      "text": "| [Docker](docs/glossary/docker.ja.md) | 24+ | [Postgres](docs/glossary/database.ja.md) 用（ローカル Postgres があれば不要） |"
+    },
+    {
+      "timestamp": "2026-04-13T06:47:04Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 10,
+      "text": "**[Keycloak](docs/glossary/keycloak.ja.md) 不要。[oauth2-proxy](docs/glossary/reverse-proxy.ja.md) 不要。Auth as Code。**"
+    },
+    {
+      "timestamp": "2026-04-13T06:47:04Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 262,
+      "text": "| Google [OIDC](docs/glossary/oidc.ja.md) | 直接連携。[PKCE](docs/glossary/pkce.ja.md) + [state](docs/glossary/state.ja.md) + [nonce](docs/glossary/nonce.ja.md)。中間 [IdP](docs/glossary/idp.j"
+    },
+    {
+      "timestamp": "2026-04-13T06:47:04Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 415,
+      "text": "| [Docker](docs/glossary/docker.ja.md) | 24+ | [Postgres](docs/glossary/database.ja.md) 用（ローカル Postgres があれば不要） |"
+    },
+    {
+      "timestamp": "2026-04-13T06:47:18Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 10,
+      "text": "**[Keycloak](docs/glossary/keycloak.ja.md) 不要。[oauth2-proxy](docs/glossary/reverse-proxy.ja.md) 不要。Auth as Code。**"
+    },
+    {
+      "timestamp": "2026-04-13T06:47:18Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 266,
+      "text": "| Google [OIDC](docs/glossary/oidc.ja.md) | 直接連携。[PKCE](docs/glossary/pkce.ja.md) + [state](docs/glossary/state.ja.md) + [nonce](docs/glossary/nonce.ja.md)。中間 [IdP](docs/glossary/idp.j"
+    },
+    {
+      "timestamp": "2026-04-13T06:47:18Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 419,
+      "text": "| [Docker](docs/glossary/docker.ja.md) | 24+ | [Postgres](docs/glossary/database.ja.md) 用（ローカル Postgres があれば不要） |"
+    },
+    {
+      "timestamp": "2026-04-13T06:47:23Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 10,
+      "text": "**[Keycloak](docs/glossary/keycloak.ja.md) 不要。[oauth2-proxy](docs/glossary/reverse-proxy.ja.md) 不要。Auth as Code。**"
+    },
+    {
+      "timestamp": "2026-04-13T06:47:23Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 266,
+      "text": "| Google [OIDC](docs/glossary/oidc.ja.md) | 直接連携。[PKCE](docs/glossary/pkce.ja.md) + [state](docs/glossary/state.ja.md) + [nonce](docs/glossary/nonce.ja.md)。中間 [IdP](docs/glossary/idp.j"
+    },
+    {
+      "timestamp": "2026-04-13T06:47:23Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 419,
+      "text": "| [Docker](docs/glossary/docker.ja.md) | 24+ | [Postgres](docs/glossary/database.ja.md) 用（ローカル Postgres があれば不要） |"
+    },
+    {
+      "timestamp": "2026-04-13T06:48:51Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 10,
+      "text": "**[Keycloak](docs/glossary/keycloak.ja.md) 不要。[oauth2-proxy](docs/glossary/reverse-proxy.ja.md) 不要。Auth as Code。**"
+    },
+    {
+      "timestamp": "2026-04-13T06:48:51Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 266,
+      "text": "| Google [OIDC](docs/glossary/oidc.ja.md) | 直接連携。[PKCE](docs/glossary/pkce.ja.md) + [state](docs/glossary/state.ja.md) + [nonce](docs/glossary/nonce.ja.md)。中間 [IdP](docs/glossary/idp.j"
+    },
+    {
+      "timestamp": "2026-04-13T06:48:51Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 419,
+      "text": "| [Docker](docs/glossary/docker.ja.md) | 24+ | [Postgres](docs/glossary/database.ja.md) 用（ローカル Postgres があれば不要） |"
+    },
+    {
+      "timestamp": "2026-04-13T06:48:51Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 681,
+      "text": "volta-gateway は同じ [ForwardAuth](docs/glossary/forwardauth.ja.md) プロトコルを使い、同じ `X-Volta-*` [ヘッダ](docs/glossary/header.ja.md)を生成します。[下流](docs/glossary/"
+    },
+    {
+      "timestamp": "2026-04-13T06:48:51Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 695,
+      "text": "| [XXE](docs/glossary/xxe.md) | 不要な XML パースを無効化、外部エンティティ解決をブロック |"
+    },
+    {
+      "timestamp": "2026-04-13T06:49:13Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 10,
+      "text": "**[Keycloak](docs/glossary/keycloak.ja.md) 不要。[oauth2-proxy](docs/glossary/reverse-proxy.ja.md) 不要。Auth as Code。**"
+    },
+    {
+      "timestamp": "2026-04-13T06:49:13Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 266,
+      "text": "| Google [OIDC](docs/glossary/oidc.ja.md) | 直接連携。[PKCE](docs/glossary/pkce.ja.md) + [state](docs/glossary/state.ja.md) + [nonce](docs/glossary/nonce.ja.md)。中間 [IdP](docs/glossary/idp.j"
+    },
+    {
+      "timestamp": "2026-04-13T06:49:13Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 420,
+      "text": "| [Docker](docs/glossary/docker.ja.md) | 24+ | [Postgres](docs/glossary/database.ja.md) / [Redis](docs/glossary/redis.md) 用（ローカルインストールがあれば不要） |"
+    },
+    {
+      "timestamp": "2026-04-13T06:49:13Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 693,
+      "text": "volta-gateway は同じ [ForwardAuth](docs/glossary/forwardauth.ja.md) プロトコルを使い、同じ `X-Volta-*` [ヘッダ](docs/glossary/header.ja.md)を生成します。[下流](docs/glossary/"
+    },
+    {
+      "timestamp": "2026-04-13T06:49:13Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
+      "line": 707,
+      "text": "| [XXE](docs/glossary/xxe.md) | 不要な XML パースを無効化、外部エンティティ解決をブロック |"
     }
   ]
 }

@@ -33,6 +33,8 @@ Handles [authentication](docs/glossary/authentication-vs-authorization.md), [ten
 
 ## How it works
 
+### Option A: Traefik + volta-auth-proxy
+
 ```
 Browser ──→ Traefik ──────────────────────────────────→ App
                   │                                      ↑
@@ -44,6 +46,20 @@ Browser ──→ Traefik ──────────────────
                       X-Volta-Tenant-Id: t456
                       X-Volta-Role: MEMBER
 ```
+
+### Option B: volta-gateway (built-in auth)
+
+```
+Browser ──→ volta-gateway (auth built-in) ────────────→ App
+                         │
+                auth + tenant resolution
+                         │
+              X-Volta-User-Id: abc123
+              X-Volta-Tenant-Id: t456
+              X-Volta-Role: MEMBER
+```
+
+[volta-gateway](https://github.com/opaopa6969/volta-gateway) is a Rust-based [reverse proxy](docs/glossary/reverse-proxy.md) that includes a volta-auth-proxy compatible auth server. No separate auth-proxy needed.
 
 Every request is checked by volta before reaching your app.
 Volta validates the session, resolves the tenant, and writes the result as headers.
@@ -94,10 +110,17 @@ open http://localhost:7070/login
 
 | | [Keycloak](docs/glossary/keycloak.md) | [Authentik](docs/glossary/authentik.md) | [Auth0](docs/glossary/auth0.md) | **volta** |
 |---|---|---|---|---|
-| Flow definition | Admin UI | Visual editor | Rules/Actions | **Code** ([tramli](https://github.com/opaopa6969/tramli)) |
+| Flow definition | Admin UI | Visual editor | Rules/Actions | **Code** ([tramli](https://github.com/opaopa6969/tramli) 3.7.1) |
 | Change process | Click in UI | Drag & drop | Dashboard toggle | **PR → review → deploy** |
 | Validation | Runtime | Runtime | Runtime | **Definition-time** ([`build()`](docs/glossary/state-machine.md)) |
 | Rollback | Manual | Manual | Manual | **`git revert`** |
+| Plugins | Plugin SDK | Built-in | Extensions | **[tramli-plugins](https://github.com/opaopa6969/tramli-plugins) 3.6.1** (audit, lint, observability) |
+
+tramli plugins add cross-cutting concerns to every flow without touching flow code:
+
+- **Audit plugin** — every [state](docs/glossary/state.md) [transition](docs/glossary/transition.md) is logged with actor, timestamp, and `durationMicros` for performance monitoring
+- **Lint plugin** — validates flow definitions at build time (unreachable states, missing error handlers)
+- **Observability plugin** — `externallyProvided` annotations verify that external data sources are wired correctly at definition time, not runtime
 
 > volta is to [Keycloak](docs/glossary/keycloak.md) what [SQLite](docs/glossary/sqlite.md) is to [PostgreSQL](docs/glossary/postgresql.md) — embedded, lighter, focused. Not a replacement for the full-featured system. If you need [SAML](docs/glossary/sso.md), [SCIM](docs/glossary/scim.md), or a visual flow editor, use [Keycloak](docs/glossary/keycloak.md) or [Authentik](docs/glossary/authentik.md).
 
@@ -105,7 +128,11 @@ open http://localhost:7070/login
 
 ## State Machine Architecture
 
-All [authentication](docs/glossary/authentication-vs-authorization.md) flows are driven by **[tramli](https://github.com/opaopa6969/tramli)** — a constrained [state machine](docs/glossary/state-machine.md) engine where invalid transitions cannot exist. The diagrams below are **generated from code** via `MermaidGenerator.generate(definition)` — they never go stale.
+All [authentication](docs/glossary/authentication-vs-authorization.md) flows are driven by **[tramli](https://github.com/opaopa6969/tramli) 3.7.1** — a constrained [state machine](docs/glossary/state-machine.md) engine where invalid transitions cannot exist. The diagrams below are **generated from code** via `MermaidGenerator.generate(definition)` — they never go stale.
+
+All flows are handled by a unified **AUTH-010 `AuthFlowHandler`** — a single entry point that replaced the earlier `OidcFlowRouter` + `MfaFlowRouter` split. This simplifies routing and ensures consistent error handling across all auth flows.
+
+[tramli-plugins](https://github.com/opaopa6969/tramli-plugins) 3.6.1 adds audit, lint, and observability as cross-cutting plugins applied to every flow.
 
 > **[tramli](https://github.com/opaopa6969/tramli)** is a standalone library usable in any [Java](docs/glossary/java.md) 21+ project.
 > For the design pattern guide, see [STATE-MACHINE-PATTERN-GUIDE.md](docs/STATE-MACHINE-PATTERN-GUIDE.md).
@@ -375,7 +402,7 @@ curl http://localhost:7070/healthz
 mvn package -DskipTests
 
 # Run
-java -jar target/volta-auth-proxy-0.1.0-SNAPSHOT.jar
+java -jar target/volta-auth-proxy-0.3.0-SNAPSHOT.jar
 
 # Environment variables must be set (see .env.example)
 # Postgres must be accessible
@@ -442,7 +469,8 @@ java -jar target/volta-auth-proxy-0.1.0-SNAPSHOT.jar
 | [Java](docs/glossary/java.md) | 21+ | [LTS](docs/glossary/lts.md) recommended |
 | [Maven](docs/glossary/maven.md) | 3.9+ | [Build](docs/glossary/build.md) tool |
 | [Postgres](docs/glossary/database.md) | 16+ | Via [Docker](docs/glossary/docker.md) or local install |
-| [Docker](docs/glossary/docker.md) | 24+ | For [Postgres](docs/glossary/database.md) (optional if you have local Postgres) |
+| [Redis](docs/glossary/redis.md) | 7+ | [Session](docs/glossary/session.md) store + tramli-viz telemetry |
+| [Docker](docs/glossary/docker.md) | 24+ | For [Postgres](docs/glossary/database.md) / [Redis](docs/glossary/redis.md) (optional if installed locally) |
 
 ***
 
@@ -797,10 +825,14 @@ services:
       POSTGRES_USER: volta
       POSTGRES_PASSWORD: volta
 
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
   volta-auth-proxy:
     build: .
     ports: ["7070:7070"]
-    depends_on: [postgres]
+    depends_on: [postgres, redis]
     env_file: .env
 
   traefik:
@@ -855,13 +887,15 @@ services:
 |-----------|--------|-----|
 | Language | [Java](docs/glossary/java.md) 21 | [LTS](docs/glossary/lts.md), mature ecosystem |
 | [Build](docs/glossary/build.md) | **[Maven](docs/glossary/maven.md)** | Stable across [Java](docs/glossary/java.md) version upgrades (not Gradle) |
-| Web | [Javalin](docs/glossary/javalin.md) 6.x | Lightweight, ~200ms [startup](docs/glossary/startup.md) |
+| Web | [Javalin](docs/glossary/javalin.md) 6.7 | Lightweight, ~200ms [startup](docs/glossary/startup.md) |
+| [State Machine](docs/glossary/state-machine.md) | [tramli](https://github.com/opaopa6969/tramli) 3.7.1 + [tramli-plugins](https://github.com/opaopa6969/tramli-plugins) 3.6.1 | Constrained [state machine](docs/glossary/state-machine.md) engine + audit/lint/observability plugins |
 | [Template](docs/glossary/template.md) | [jte](docs/glossary/jte.md) 3.x | [Type-safe](docs/glossary/type-safe.md), [compile](docs/glossary/compile.md)-time checked |
 | [JWT](docs/glossary/jwt.md) | nimbus-jose-[jwt](docs/glossary/jwt.md) | [Java](docs/glossary/java.md) JOSE/[JWT](docs/glossary/jwt.md) de facto standard |
 | DB | [Postgres](docs/glossary/database.md) 16 | Reliable, JSONB for [audit log](docs/glossary/audit-log.md)s |
+| Cache / Telemetry | [Redis](docs/glossary/redis.md) 7 | [Session](docs/glossary/session.md) store, [Pub/Sub](docs/glossary/pubsub.md) telemetry for tramli-viz |
 | [Migration](docs/glossary/migration.md) | [Flyway](docs/glossary/flyway.md) | Auto-runs on [startup](docs/glossary/startup.md) |
 | Pool | [HikariCP](docs/glossary/hikaricp.md) | Fast [connection pool](docs/glossary/connection-pool.md) |
-| Cache | [Caffeine](docs/glossary/caffeine-cache.md) | [In-memory](docs/glossary/in-memory.md), for [rate limiting](docs/glossary/rate-limiting.md) + [session](docs/glossary/session.md) cache |
+| Cache | [Caffeine](docs/glossary/caffeine-cache.md) | [In-memory](docs/glossary/in-memory.md), for [rate limiting](docs/glossary/rate-limiting.md) |
 | [CSS](docs/glossary/css.md) | Single file `volta.css` | Mobile-first, [responsive](docs/glossary/responsive.md) |
 | [JS](docs/glossary/javascript.md) | `volta.js` (~150 lines) | Vanilla [JavaScript](docs/glossary/javascript.md). No [framework](docs/glossary/framework.md) |
 
@@ -871,7 +905,7 @@ services:
 
 - [Java](docs/glossary/java.md) 21+
 - [Maven](docs/glossary/maven.md) 3.9+
-- [Docker](docs/glossary/docker.md) (for [Postgres](docs/glossary/database.md))
+- [Docker](docs/glossary/docker.md) (for [Postgres](docs/glossary/database.md) and [Redis](docs/glossary/redis.md))
 - [Google Cloud Console](docs/glossary/google-cloud-console.md) project with [OAuth 2.0](docs/glossary/oauth2.md) [credentials](docs/glossary/credentials.md)
 
 ***
@@ -885,7 +919,7 @@ volta-auth-proxy/
   volta-config.yaml                App registration
   .env.example                     Environment template
 
-  src/main/java/com/volta/authproxy/
+  src/main/java/org/unlaxer/infra/volta/
     Main.java                      Entry point, routes
     AppConfig.java                 Environment variables
     AppRegistry.java               volta-config.yaml loader
@@ -1329,6 +1363,110 @@ Authorization: Bearer ...  -->  Treated as JSON
 | **SCIM** | [Phase](docs/glossary/phase-based-development.md) 4 | Automated user [provisioning](docs/glossary/provisioning.md) from [Okta](docs/glossary/okta.md), Azure AD etc. |
 
 Full specification: [`dge/specs/implementation-all-phases.md`](dge/specs/implementation-all-phases.md)
+
+***
+
+## Multi-Tenancy Model
+
+volta-auth-proxy treats [multi-tenancy](docs/glossary/multi-tenant.md) as a first-class concern, not an afterthought.
+
+### User - Membership - Tenant
+
+```
+User ──── Membership ──── Tenant
+            │
+            ├── role: OWNER | ADMIN | MEMBER | VIEWER
+            └── joined_at
+```
+
+- A single [user](docs/glossary/user.md) can belong to **multiple [tenants](docs/glossary/tenant.md)** with different [roles](docs/glossary/role.md) in each
+- The `memberships` table is the join between users and [tenants](docs/glossary/tenant.md)
+- [Roles](docs/glossary/role.md) are **per-[tenant](docs/glossary/tenant.md)**: you can be ADMIN in Tenant A and VIEWER in Tenant B
+
+### Tenant Selection After Login
+
+After [OIDC](docs/glossary/oidc.md) [authentication](docs/glossary/authentication-vs-authorization.md) completes:
+
+1. If the user belongs to **one [tenant](docs/glossary/tenant.md)** — auto-selected, no extra step
+2. If the user belongs to **multiple [tenants](docs/glossary/tenant.md)** — [tenant](docs/glossary/tenant.md) selection screen is shown ([📊](dge/specs/ui-flow.md#flow-3-tenant-selection))
+3. If the user belongs to **no [tenants](docs/glossary/tenant.md)** — [invitation](docs/glossary/invitation-flow.md) code prompt or manual selection
+
+### Tenant Isolation
+
+Every [API](docs/glossary/api.md) request is scoped to the active [tenant](docs/glossary/tenant.md) via the `X-Volta-Tenant-Id` [header](docs/glossary/header.md):
+
+- [ForwardAuth](docs/glossary/forwardauth.md) injects `X-Volta-Tenant-Id` into every request to [downstream](docs/glossary/downstream-app.md) [apps](docs/glossary/downstream-app.md)
+- [Tenant](docs/glossary/tenant.md)-scoped [APIs](docs/glossary/api.md) use the path `/api/v1/tenants/{tenantId}/*` — the path `tenantId` must match the [JWT](docs/glossary/jwt.md) `volta_tid` [claim](docs/glossary/claim.md)
+- Cross-[tenant](docs/glossary/tenant.md) access is **structurally prevented** (not just policy-enforced)
+
+### Invitation Flow
+
+New members join a [tenant](docs/glossary/tenant.md) through [invitations](docs/glossary/invitation-flow.md):
+
+1. ADMIN+ creates an [invitation](docs/glossary/invitation-flow.md) (link or QR code)
+2. Invitee clicks the link and sees a [consent screen](docs/glossary/consent-screen.md) ([📊](dge/specs/ui-flow.md#flow-1-invite-link---first-login))
+3. On acceptance, a `membership` is created with the specified [role](docs/glossary/role.md)
+4. If the invitee has no account, [OIDC](docs/glossary/oidc.md) [login](docs/glossary/login.md) is triggered first
+
+***
+
+## volta-gateway Compatibility
+
+[volta-gateway](https://github.com/opaopa6969/volta-gateway) is a Rust-based [reverse proxy](docs/glossary/reverse-proxy.md) that includes a volta-auth-proxy compatible auth server built in.
+
+| | Traefik + volta-auth-proxy | volta-gateway |
+|---|---|---|
+| Protocol | [ForwardAuth](docs/glossary/forwardauth.md) | Built-in (same [headers](docs/glossary/header.md)) |
+| [Headers](docs/glossary/header.md) | `X-Volta-*` | `X-Volta-*` (identical) |
+| Deployment | 2 services | 1 service |
+| Use case | Existing Traefik setup | New deployments, simplicity |
+
+volta-gateway speaks the same [ForwardAuth](docs/glossary/forwardauth.md) protocol and produces the same `X-Volta-*` [headers](docs/glossary/header.md). [Downstream](docs/glossary/downstream-app.md) [apps](docs/glossary/downstream-app.md) work identically with either setup — no code changes needed.
+
+**Drop-in replacement:** If you're using Traefik + volta-auth-proxy today, you can switch to volta-gateway by pointing your DNS at the gateway instead of Traefik. Your [apps](docs/glossary/downstream-app.md) continue reading the same [headers](docs/glossary/header.md).
+
+***
+
+## Security Audit
+
+21 [security](docs/glossary/security-responsibility.md) issues were audited and fixed, aligned with [OWASP](docs/glossary/owasp.md) guidelines:
+
+| Category | What was fixed |
+|----------|---------------|
+| [PKCE](docs/glossary/pkce.md) | Code verifier is [encrypted](docs/glossary/encryption.md) at rest (not just hashed) |
+| Timing attacks | All [token](docs/glossary/token.md) comparisons use constant-time (`MessageDigest.isEqual`) |
+| [XXE](docs/glossary/xxe.md) | XML parsing disabled where not needed; external entity resolution blocked |
+| [GDPR](docs/glossary/gdpr.md) | Hard delete after 30-day grace period. [Audit log](docs/glossary/audit-log.md) anonymization on user deletion |
+| [Rate limiting](docs/glossary/rate-limiting.md) | Applied to all [endpoints](docs/glossary/endpoint.md) — [login](docs/glossary/login.md) (10/min/IP), [API](docs/glossary/api.md) (200/min/user), [invitation](docs/glossary/invitation-flow.md) acceptance |
+| [Session](docs/glossary/session.md) | [Fixation](docs/glossary/session-fixation.md) prevention, concurrent [session](docs/glossary/session.md) limit (5), [sliding](docs/glossary/sliding-window-expiry.md) expiry |
+
+***
+
+## Observability
+
+### tramli Logger API
+
+Every [state](docs/glossary/state.md) [transition](docs/glossary/transition.md) produces structured log entries with `durationMicros` for performance monitoring:
+
+```
+[OIDC] INIT → REDIRECTED  (230μs)  actor=user-123  flow=oidc-login
+[OIDC] REDIRECTED → CALLBACK_RECEIVED  (1,204μs)  actor=user-123
+```
+
+### Redis Pub/Sub Telemetry
+
+tramli-viz receives real-time flow [transition](docs/glossary/transition.md) events via [Redis](docs/glossary/redis.md) [Pub/Sub](docs/glossary/pubsub.md). This powers:
+
+- **`/viz/flows`** — live flow visualization dashboard
+- **`/api/v1/admin/flows/{flowId}/transitions`** — replay a specific flow execution for debugging
+
+### Admin Flow Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/viz/flows` | Flow visualization UI (tramli-viz) |
+| GET | `/api/v1/admin/flows` | List recent flow executions |
+| GET | `/api/v1/admin/flows/{flowId}/transitions` | Replay transitions for a specific flow |
 
 ***
 

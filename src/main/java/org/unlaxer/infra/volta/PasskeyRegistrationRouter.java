@@ -53,6 +53,23 @@ public final class PasskeyRegistrationRouter {
                        "id", java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(pk.credentialId()))
             ).toList();
 
+            // Authenticator type selection:
+            //   platform        → built-in (Face ID / Touch ID / Windows Hello); UV required (biometric with PIN fallback)
+            //   cross-platform  → roaming security key (USB/NFC FIDO2); UV required → PIN prompt
+            //   any / absent    → let the browser offer all available authenticators
+            String type = ctx.queryParam("type");
+            Map<String, Object> authenticatorSelection = new java.util.LinkedHashMap<>();
+            authenticatorSelection.put("residentKey", "preferred");
+            if ("platform".equals(type)) {
+                authenticatorSelection.put("authenticatorAttachment", "platform");
+                authenticatorSelection.put("userVerification", "required");
+            } else if ("cross-platform".equals(type)) {
+                authenticatorSelection.put("authenticatorAttachment", "cross-platform");
+                authenticatorSelection.put("userVerification", "required");
+            } else {
+                authenticatorSelection.put("userVerification", "preferred");
+            }
+
             ctx.json(Map.of(
                 "challenge", challengeB64,
                 "rp", Map.of("id", config.webauthnRpId(), "name", config.webauthnRpName()),
@@ -68,10 +85,7 @@ public final class PasskeyRegistrationRouter {
                 ),
                 "timeout", 300000,
                 "attestation", "none",
-                "authenticatorSelection", Map.of(
-                    "residentKey", "preferred",
-                    "userVerification", "preferred"
-                ),
+                "authenticatorSelection", authenticatorSelection,
                 "excludeCredentials", excludeList
             ));
         });

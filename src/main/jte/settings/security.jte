@@ -86,7 +86,21 @@
 
     <div id="passkey-list"></div>
 
-    <button class="button" onclick="registerPasskey()" style="margin-top:1em">+ パスキーを追加</button>
+    <div style="margin-top:1em;display:flex;flex-wrap:wrap;gap:0.5em;align-items:center">
+        <strong style="margin-right:0.5em">+ パスキーを追加:</strong>
+        <button class="button" onclick="registerPasskey('platform')" title="Face ID / Touch ID / Windows Hello">
+            📱 この端末 (Face ID / Touch ID)
+        </button>
+        <button class="button" onclick="registerPasskey('cross-platform')" title="USB / NFC セキュリティキー (PIN を要求)">
+            🔐 セキュリティキー (PIN)
+        </button>
+        <button class="button button-small" onclick="registerPasskey('any')" title="利用可能な全ての認証器から選ぶ">
+            おまかせ
+        </button>
+    </div>
+    <p class="muted" style="font-size:0.85em;margin-top:0.5em">
+        「セキュリティキー」は YubiKey などの USB/NFC キーを使い、登録時・認証時に PIN 入力を求めます。
+    </p>
     <div id="passkey-error" style="color:red;display:none;padding:0.75em;border:1px solid red;border-radius:6px;margin-top:1em"></div>
     <div id="passkey-success" style="color:#16a34a;display:none;padding:0.75em;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;margin-top:1em"></div>
 </main>
@@ -198,14 +212,15 @@ async function loadPasskeys() {
     ).join('');
 }
 
-async function registerPasskey() {
+async function registerPasskey(type) {
     const errEl = document.getElementById('passkey-error');
     const okEl = document.getElementById('passkey-success');
     errEl.style.display = 'none';
     okEl.style.display = 'none';
 
+    const typeParam = (type === 'platform' || type === 'cross-platform') ? ('?type=' + type) : '';
     try {
-        const startRes = await fetch('/api/v1/users/' + userId + '/passkeys/register/start', {
+        const startRes = await fetch('/api/v1/users/' + userId + '/passkeys/register/start' + typeParam, {
             method: 'POST', credentials: 'include',
             headers: {'Content-Type':'application/json','Accept':'application/json'}
         });

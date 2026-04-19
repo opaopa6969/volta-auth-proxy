@@ -9,6 +9,22 @@
 
 **[Keycloak](docs/glossary/keycloak.ja.md) 不要。[oauth2-proxy](docs/glossary/reverse-proxy.ja.md) 不要。Auth as Code。**
 
+---
+
+**ショートカット**
+
+| | |
+|---|---|
+| **5 分で立ち上げる** | [docs/getting-started-ja.md](docs/getting-started-ja.md) |
+| **アーキテクチャ** | [docs/architecture-ja.md](docs/architecture-ja.md) —— ForwardAuth + 二層 SM + tramli |
+| **フロー別シーケンス** | [docs/auth-flows-ja.md](docs/auth-flows-ja.md) —— OIDC · SAML · MFA · Passkey · Invite |
+| **SAML XSW/XXE テストカバー状況** | [docs/auth-flows-ja.md#saml-xswxxe-テストカバー状況](docs/auth-flows-ja.md#saml-xswxxe-テストカバー状況) |
+| **リリースノート** | [CHANGELOG.md](CHANGELOG.md) |
+| **設計判断 (ADR)** | [docs/decisions/](docs/decisions/) (ADR 001〜004) |
+| **会話形式のウォークスルー** | [docs/getting-started-dialogue.ja.md](docs/getting-started-dialogue.ja.md) |
+
+---
+
 > **認証の用語は難しい。でも「分かったフリ」が一番危険。**
 > このドキュメントでは全ての専門用語に[解説記事](docs/glossary/)がリンクされています。
 > クリックして読んでください。恥ずかしくない。知らないことを知るのが一番大事。

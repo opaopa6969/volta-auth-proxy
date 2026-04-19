@@ -9,6 +9,22 @@ Handles [authentication](docs/glossary/authentication-vs-authorization.md), [ten
 
 **No [Keycloak](docs/glossary/keycloak.md). No [oauth2-proxy](docs/glossary/reverse-proxy.md). Auth as Code.**
 
+---
+
+**Quick links**
+
+| | |
+|---|---|
+| **Get running in 5 min** | [docs/getting-started.md](docs/getting-started.md) |
+| **How it's built** | [docs/architecture.md](docs/architecture.md) — ForwardAuth + two-layer SM + tramli |
+| **Flow-by-flow sequences** | [docs/auth-flows.md](docs/auth-flows.md) — OIDC · SAML · MFA · Passkey · Invite |
+| **SAML XSW/XXE test coverage** | [docs/auth-flows.md#saml-xswxxe-test-coverage](docs/auth-flows.md#saml-xswxxe-test-coverage) |
+| **Release notes** | [CHANGELOG.md](CHANGELOG.md) |
+| **Design decisions** | [docs/decisions/](docs/decisions/) (ADR 001–004) |
+| **Conversational walkthrough** | [docs/getting-started-dialogue.md](docs/getting-started-dialogue.md) |
+
+---
+
 > **Auth terminology is hard. But pretending you understand is the most dangerous thing.**
 > Every technical term in this document links to a [glossary article](docs/glossary/).
 > Click and read. It's not embarrassing. Knowing what you don't know is the most im[port](docs/glossary/port.md)ant thing.

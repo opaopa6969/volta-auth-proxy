@@ -1,7 +1,8 @@
 # Decision 002: TRUSTED_NETWORKS による認証バイパスを実装しない
 
-**Status:** Rejected
+**Status:** Superseded
 **Date:** 2026-04-02
+**Superseded-by:** [003-accept-local-network-bypass](003-accept-local-network-bypass.md)
 **DGE Session:** [dge/sessions/2026-04-02-trusted-network-bypass.md](../../dge/sessions/2026-04-02-trusted-network-bypass.md)
 
 ## 何を検討したか

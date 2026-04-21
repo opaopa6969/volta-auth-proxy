@@ -60,6 +60,44 @@ public final class VizRouter {
     }
 
     public void register(Javalin app) {
+        // Phase 3: Replay browse — list flows with tenant / type / time filters.
+        // Admin tools pick a flow from this list, then load its transitions via
+        // the sibling endpoint below.
+        app.get("/api/v1/admin/flows", ctx -> {
+            AuthPrincipal principal = ctx.attribute("principal");
+            if (principal == null) {
+                HttpSupport.jsonError(ctx, 401, "AUTHENTICATION_REQUIRED", "Authentication required");
+                return;
+            }
+            policy.enforceMinRole(principal, "ADMIN");
+
+            String tenantIdParam = ctx.queryParam("tenant_id");
+            String flowType      = ctx.queryParam("flow_type");
+            String sinceParam    = ctx.queryParam("since");
+            int limit = parseLimit(ctx.queryParam("limit"), 50, 200);
+
+            UUID tenantId = null;
+            if (tenantIdParam != null && !tenantIdParam.isBlank()) {
+                try { tenantId = UUID.fromString(tenantIdParam); }
+                catch (IllegalArgumentException e) {
+                    HttpSupport.jsonError(ctx, 400, "BAD_REQUEST", "tenant_id must be a UUID");
+                    return;
+                }
+            }
+            java.time.Instant since = parseSince(sinceParam);
+
+            List<Map<String, Object>> flows = listFlows(tenantId, flowType, since, limit);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("flows", flows);
+            body.put("filters", Map.of(
+                    "tenant_id", tenantId == null ? null : tenantId.toString(),
+                    "flow_type", flowType,
+                    "since",     since == null ? null : since.toString(),
+                    "limit",     limit
+            ));
+            ctx.json(body);
+        });
+
         // Phase 2: Replay API — returns all transitions for a flow
         app.get("/api/v1/admin/flows/{flowId}/transitions", ctx -> {
             AuthPrincipal principal = ctx.attribute("principal");
@@ -132,7 +170,119 @@ public final class VizRouter {
         }
     }
 
+    // ── Query parameter helpers ──────────────────────────────────────────────
+
+    private static int parseLimit(String raw, int defaultLimit, int maxLimit) {
+        if (raw == null || raw.isBlank()) return defaultLimit;
+        try {
+            int v = Integer.parseInt(raw);
+            if (v < 1) return 1;
+            if (v > maxLimit) return maxLimit;
+            return v;
+        } catch (NumberFormatException e) {
+            return defaultLimit;
+        }
+    }
+
+    /**
+     * Accepts either a relative duration ("1h", "30m", "7d") or an absolute
+     * ISO-8601 instant. Returns null when unset/invalid so callers can treat
+     * it as "no lower bound".
+     */
+    private static java.time.Instant parseSince(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            char last = raw.charAt(raw.length() - 1);
+            if (last == 's' || last == 'm' || last == 'h' || last == 'd') {
+                long n = Long.parseLong(raw.substring(0, raw.length() - 1));
+                long seconds = switch (last) {
+                    case 's' -> n;
+                    case 'm' -> n * 60;
+                    case 'h' -> n * 3600;
+                    case 'd' -> n * 86400;
+                    default  -> 0;
+                };
+                return java.time.Instant.now().minusSeconds(seconds);
+            }
+            return java.time.Instant.parse(raw);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     // ── DB helpers ───────────────────────────────────────────────────────────
+
+    private List<Map<String, Object>> listFlows(UUID tenantId, String flowType,
+                                                java.time.Instant since, int limit) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT id, flow_type, current_state, exit_state, context,
+                       created_at, updated_at, completed_at, expires_at,
+                       session_id, journey_id
+                FROM auth_flows
+                WHERE 1 = 1
+                """);
+        List<Object> params = new ArrayList<>();
+
+        if (tenantId != null) {
+            // auth_flows stores tenant_id inside the context JSONB (see
+            // OidcFlowData / PasskeyFlowData / InviteFlowData). The key is
+            // sometimes a UUID object, sometimes a raw string — text extraction
+            // handles both uniformly.
+            sql.append(" AND context->>'tenant_id' = ?");
+            params.add(tenantId.toString());
+        }
+        if (flowType != null && !flowType.isBlank()) {
+            sql.append(" AND flow_type = ?");
+            params.add(flowType);
+        }
+        if (since != null) {
+            sql.append(" AND created_at >= ?");
+            params.add(java.sql.Timestamp.from(since));
+        }
+        sql.append(" ORDER BY created_at DESC, id DESC LIMIT ?");
+        params.add(limit);
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            for (int i = 0; i < params.size(); i++) {
+                ps.setObject(i + 1, params.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", rs.getString("id"));
+                    row.put("flowType", rs.getString("flow_type"));
+                    row.put("currentState", rs.getString("current_state"));
+                    row.put("exitState", rs.getString("exit_state"));
+                    String contextJson = rs.getString("context");
+                    if (contextJson != null) {
+                        try {
+                            var node = objectMapper.readTree(contextJson);
+                            var tenantNode = node.get("tenant_id");
+                            if (tenantNode != null && !tenantNode.isNull()) {
+                                row.put("tenantId", tenantNode.asText());
+                            }
+                        } catch (Exception ignore) {
+                            // skip malformed context
+                        }
+                    }
+                    java.sql.Timestamp created = rs.getTimestamp("created_at");
+                    if (created != null) row.put("createdAt", created.toInstant().toString());
+                    java.sql.Timestamp completed = rs.getTimestamp("completed_at");
+                    if (completed != null) row.put("completedAt", completed.toInstant().toString());
+                    String sessionId = rs.getString("session_id");
+                    if (sessionId != null) row.put("sessionId", sessionId);
+                    String journeyId = rs.getString("journey_id");
+                    if (journeyId != null) row.put("journeyId", journeyId);
+                    result.add(row);
+                }
+            }
+        } catch (Exception e) {
+            throw new ApiException(500, "DB_ERROR", "Failed to list flows: " + e.getMessage());
+        }
+        return result;
+    }
 
     private List<Map<String, Object>> listTransitions(String flowId) {
         String sql = """

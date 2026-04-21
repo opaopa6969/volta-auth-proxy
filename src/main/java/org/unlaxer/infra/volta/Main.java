@@ -161,10 +161,11 @@ public final class Main {
             app.post("/auth/mfa/verify", authFlowHandler::mfaVerify);
 
             // tramli-viz: replay API + static graph endpoint + auth event SSE (SAAS-016)
+            // + flow-event WebSocket bridge (AUTH-VIZ Phase 1 — /viz/ws)
             vizRouterHolder[0] = new org.unlaxer.infra.volta.viz.VizRouter(
                     dataSource, authService, policy, objectMapper,
                     java.util.List.of(oidcFlowDef, passkeyFlowDef, mfaFlowDef, inviteFlowDef),
-                    vizJedis, authEventChannel
+                    vizJedis, authEventChannel, vizChannel
             );
             vizRouterHolder[0].register(app);
         }

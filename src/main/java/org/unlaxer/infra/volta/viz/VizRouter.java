@@ -3,6 +3,7 @@ package org.unlaxer.infra.volta.viz;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.javalin.Javalin;
 import io.javalin.http.sse.SseClient;
+import io.javalin.websocket.WsContext;
 import org.unlaxer.infra.volta.*;
 import org.unlaxer.tramli.FlowDefinition;
 import org.unlaxer.tramli.FlowState;
@@ -42,14 +43,27 @@ public final class VizRouter {
     private final Set<SseClient> sseClients = ConcurrentHashMap.newKeySet();
     private volatile JedisPubSub pubSub;
 
+    // AUTH-VIZ Phase 1: tramli-viz WebSocket bridge
+    private final String vizFlowChannel;  // nullable — WS disabled if null
+    private final Set<WsContext> wsClients = ConcurrentHashMap.newKeySet();
+    private volatile JedisPubSub wsPubSub;
+
     public VizRouter(DataSource dataSource, AuthService authService, PolicyEngine policy,
                      ObjectMapper objectMapper, List<FlowDefinition<?>> flowDefinitions) {
-        this(dataSource, authService, policy, objectMapper, flowDefinitions, null, null);
+        this(dataSource, authService, policy, objectMapper, flowDefinitions, null, null, null);
     }
 
     public VizRouter(DataSource dataSource, AuthService authService, PolicyEngine policy,
                      ObjectMapper objectMapper, List<FlowDefinition<?>> flowDefinitions,
                      JedisPooled authEventJedis, String authEventChannel) {
+        this(dataSource, authService, policy, objectMapper, flowDefinitions,
+             authEventJedis, authEventChannel, null);
+    }
+
+    public VizRouter(DataSource dataSource, AuthService authService, PolicyEngine policy,
+                     ObjectMapper objectMapper, List<FlowDefinition<?>> flowDefinitions,
+                     JedisPooled authEventJedis, String authEventChannel,
+                     String vizFlowChannel) {
         this.dataSource = dataSource;
         this.authService = authService;
         this.policy = policy;
@@ -57,6 +71,7 @@ public final class VizRouter {
         this.flowDefinitions = flowDefinitions;
         this.authEventJedis = authEventJedis;
         this.authEventChannel = authEventChannel;
+        this.vizFlowChannel = vizFlowChannel;
     }
 
     public void register(Javalin app) {
@@ -139,6 +154,124 @@ public final class VizRouter {
 
             LOG.log(System.Logger.Level.INFO, "Auth event SSE stream enabled on /viz/auth/stream (channel: " + authEventChannel + ")");
         }
+
+        // AUTH-VIZ Phase 1: tramli-viz WebSocket bridge.
+        // Relays RedisTelemetrySink events (channel: volta:viz:events) to the
+        // tramli-viz VizDashboard protocol. On connect we emit `init-multi`
+        // with all flow definitions, then forward each telemetry event as
+        // `{ type: 'event', event: {...} }`.
+        if (authEventJedis != null && vizFlowChannel != null && !vizFlowChannel.isBlank()) {
+            app.ws("/viz/ws", ws -> {
+                ws.onConnect(ctx -> {
+                    wsClients.add(ctx);
+                    try {
+                        ctx.send(buildInitMultiMessage());
+                    } catch (Exception e) {
+                        LOG.log(System.Logger.Level.WARNING, "Failed to send init-multi: " + e.getMessage());
+                    }
+                });
+                ws.onClose(ctx -> wsClients.remove(ctx));
+                ws.onError(ctx -> wsClients.remove(ctx));
+            });
+
+            Thread.ofVirtual()
+                    .name("viz-flow-ws-sub")
+                    .start(this::subscribeToFlowEvents);
+
+            LOG.log(System.Logger.Level.INFO, "tramli-viz WebSocket bridge enabled on /viz/ws (channel: " + vizFlowChannel + ")");
+        }
+    }
+
+    private String buildInitMultiMessage() throws Exception {
+        List<Map<String, Object>> flows = new ArrayList<>();
+        int layer = 1;
+        for (FlowDefinition<?> def : flowDefinitions) {
+            flows.add(renderFlowDefinitionInfo(def, layer));
+        }
+        Map<String, Object> msg = new LinkedHashMap<>();
+        msg.put("type", "init-multi");
+        msg.put("flows", flows);
+        return objectMapper.writeValueAsString(msg);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Map<String, Object> renderFlowDefinitionInfo(FlowDefinition<?> def, int layer) {
+        RenderableGraph.StateDiagram diagram = ((FlowDefinition) def).toRenderableStateDiagram();
+        Map<String, Object> info = new LinkedHashMap<>();
+        info.put("flowName", def.name());
+        info.put("layer", layer);
+
+        // States: position is assigned here with a simple horizontal layout.
+        // tramli-viz can override via its own auto-layout, but we provide
+        // reasonable defaults so the first render isn't empty.
+        List<Map<String, Object>> states = new ArrayList<>();
+        int idx = 0;
+        for (String stateName : collectStates(diagram)) {
+            Map<String, Object> s = new LinkedHashMap<>();
+            s.put("name", stateName);
+            s.put("initial", stateName.equals(diagram.initialState()));
+            s.put("terminal", diagram.terminalStates().contains(stateName));
+            s.put("x", idx * 160);
+            s.put("y", (layer - 1) * 240);
+            states.add(s);
+            idx++;
+        }
+        info.put("states", states);
+
+        List<Map<String, Object>> edges = new ArrayList<>();
+        for (RenderableGraph.StateEdge edge : diagram.transitions()) {
+            Map<String, Object> e = new LinkedHashMap<>();
+            e.put("from", edge.from());
+            e.put("to", edge.to());
+            e.put("type", "auto");
+            e.put("label", edge.label() == null ? "" : edge.label());
+            edges.add(e);
+        }
+        info.put("edges", edges);
+        return info;
+    }
+
+    private static java.util.LinkedHashSet<String> collectStates(RenderableGraph.StateDiagram d) {
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        if (d.initialState() != null) out.add(d.initialState());
+        for (RenderableGraph.StateEdge e : d.transitions()) {
+            out.add(e.from());
+            out.add(e.to());
+        }
+        out.addAll(d.terminalStates());
+        return out;
+    }
+
+    private void subscribeToFlowEvents() {
+        wsPubSub = new JedisPubSub() {
+            @Override
+            public void onMessage(String channel, String message) {
+                if (wsClients.isEmpty()) return;
+                // Rewrap telemetry payload as tramli-viz ServerMessage.
+                String wrapped;
+                try {
+                    var node = objectMapper.readTree(message);
+                    Map<String, Object> env = new LinkedHashMap<>();
+                    env.put("type", "event");
+                    env.put("event", objectMapper.convertValue(node, Map.class));
+                    wrapped = objectMapper.writeValueAsString(env);
+                } catch (Exception e) {
+                    wrapped = "{\"type\":\"event\",\"event\":" + message + "}";
+                }
+                for (WsContext client : wsClients) {
+                    try {
+                        client.send(wrapped);
+                    } catch (Exception e) {
+                        wsClients.remove(client);
+                    }
+                }
+            }
+        };
+        try {
+            authEventJedis.subscribe(wsPubSub, vizFlowChannel);
+        } catch (Exception e) {
+            LOG.log(System.Logger.Level.WARNING, "Flow-event Redis subscriber disconnected: " + e.getMessage());
+        }
     }
 
     private void subscribeToAuthEvents() {
@@ -163,10 +296,13 @@ public final class VizRouter {
         }
     }
 
-    /** Call from shutdown hook to cleanly stop the Redis subscriber. */
+    /** Call from shutdown hook to cleanly stop the Redis subscribers. */
     public void close() {
         if (pubSub != null) {
             try { pubSub.unsubscribe(); } catch (Exception ignored) {}
+        }
+        if (wsPubSub != null) {
+            try { wsPubSub.unsubscribe(); } catch (Exception ignored) {}
         }
     }
 

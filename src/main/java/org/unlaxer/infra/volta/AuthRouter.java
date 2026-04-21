@@ -370,8 +370,24 @@ public final class AuthRouter {
                                       SqlStore store, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         try {
             String ua = ctx.userAgent();
-            String fp = inferBrowser(ua) + "/" + inferOs(ua);
-            String label = inferBrowser(ua) + " on " + inferOs(ua);
+            // AUTH-010: Chrome UA Reduction — fall through to Sec-CH-UA when
+            // the legacy UA string no longer carries distinguishing tokens.
+            String secChUa         = ctx.header("Sec-CH-UA");
+            String secChUaPlatform = ctx.header("Sec-CH-UA-Platform");
+            String browser = inferBrowser(ua);
+            if ("Browser".equals(browser)) {
+                browser = DeviceNameResolver.browserFromClientHints(secChUa);
+            }
+            String os = inferOs(ua);
+            if ("OS".equals(os) || "Unknown".equals(os)) {
+                os = DeviceNameResolver.osFromClientHints(secChUaPlatform);
+            }
+            String fp = browser + "/" + os;
+            String label = browser + " on " + os;
+            // Ask the browser to send Client Hints on subsequent requests so
+            // future calls have better fidelity. Harmless on browsers that
+            // don't implement UA-CH.
+            ctx.header("Accept-CH", "Sec-CH-UA, Sec-CH-UA-Platform, Sec-CH-UA-Mobile");
             String ip = HttpSupport.clientIp(ctx);
             int existing = store.countKnownDevices(principal.userId());
             boolean isNew = store.upsertKnownDevice(principal.userId(), fp, label, ip);

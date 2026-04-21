@@ -293,6 +293,32 @@ public final class ApiRouter {
             ctx.json(Map.of("ok", true));
         });
 
+        // AUTH-004-v2: implicit login-fingerprint history (known_devices).
+        // Separate from trusted_devices above — this is the table that
+        // triggers "new device" notifications.
+        app.get("/api/v1/users/me/known-devices", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            ctx.json(Map.of("items", store.listKnownDevices(p.userId())));
+        });
+
+        app.delete("/api/v1/users/me/known-devices/{fingerprint}", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            String fingerprint = ctx.pathParam("fingerprint");
+            int removed = store.deleteKnownDevice(p.userId(), fingerprint);
+            if (removed == 0) {
+                throw new ApiException(404, "NOT_FOUND", "device not found");
+            }
+            auditService.log(ctx, "KNOWN_DEVICE_REMOVED", p, "DEVICE", fingerprint, Map.of());
+            ctx.json(Map.of("ok", true, "removed", removed));
+        });
+
+        app.delete("/api/v1/users/me/known-devices", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            int removed = store.deleteAllKnownDevices(p.userId());
+            auditService.log(ctx, "KNOWN_DEVICES_RESET", p, "USER", p.userId().toString(), Map.of("count", removed));
+            ctx.json(Map.of("ok", true, "removed", removed));
+        });
+
         app.get("/api/v1/users/{id}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID userId = UUID.fromString(ctx.pathParam("id"));
@@ -972,6 +998,20 @@ public final class ApiRouter {
             requireOwner(p);
             Pagination.PageRequest pageReq = Pagination.PageRequest.from(ctx);
             ctx.json(store.findUsersPaginated(pageReq).toJson());
+        });
+
+        // AUTH-004-v2: admin "reset all known devices" for a user.
+        // Use case: user lost a device, or got a suspicious login alert;
+        // admin wipes the fingerprint history so the user will get fresh
+        // new-device notifications on their next sign-ins from any device.
+        app.delete("/api/v1/admin/users/{userId}/known-devices", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            policy.enforceMinRole(p, "ADMIN");
+            UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            int removed = store.deleteAllKnownDevices(userId);
+            auditService.log(ctx, "KNOWN_DEVICES_ADMIN_RESET", p, "USER", userId.toString(),
+                    Map.of("count", removed));
+            ctx.json(Map.of("ok", true, "removed", removed));
         });
 
         app.get("/api/v1/admin/audit", ctx -> {

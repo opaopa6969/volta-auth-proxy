@@ -2135,6 +2135,65 @@ public final class SqlStore {
         }
     }
 
+    /**
+     * AUTH-004-v2: list all known devices for a user. Returned entries are
+     * sorted by most-recently-seen first so the UI can show active devices
+     * at the top.
+     */
+    public List<Map<String, Object>> listKnownDevices(UUID userId) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT fingerprint, label, last_ip, first_seen_at, last_seen_at
+                     FROM known_devices
+                     WHERE user_id = ?
+                     ORDER BY last_seen_at DESC
+                     """)) {
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("fingerprint", rs.getString("fingerprint"));
+                    row.put("label", rs.getString("label"));
+                    row.put("lastIp", rs.getString("last_ip"));
+                    java.sql.Timestamp first = rs.getTimestamp("first_seen_at");
+                    java.sql.Timestamp last  = rs.getTimestamp("last_seen_at");
+                    if (first != null) row.put("firstSeenAt", first.toInstant().toString());
+                    if (last  != null) row.put("lastSeenAt",  last.toInstant().toString());
+                    out.add(row);
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return out;
+    }
+
+    /** AUTH-004-v2: delete one device by fingerprint. Returns rows affected. */
+    public int deleteKnownDevice(UUID userId, String fingerprint) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM known_devices WHERE user_id = ? AND fingerprint = ?")) {
+            ps.setObject(1, userId);
+            ps.setString(2, fingerprint);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** AUTH-004-v2: reset all known devices for a user (admin use). Returns rows affected. */
+    public int deleteAllKnownDevices(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM known_devices WHERE user_id = ?")) {
+            ps.setObject(1, userId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     // --- Passkey CRUD ---
 
     public record PasskeyRecord(UUID id, UUID userId, byte[] credentialId, byte[] publicKey,

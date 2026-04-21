@@ -84,7 +84,45 @@ public final class ConfigLoader {
                         Map.copyOf(extra)));
             }
         }
-        return new VoltaConfig(version, List.copyOf(idps));
+
+        VoltaConfig.TenancyConfig tenancy = parseTenancy(root.get("tenancy"));
+        return new VoltaConfig(version, List.copyOf(idps), tenancy);
+    }
+
+    private static VoltaConfig.TenancyConfig parseTenancy(Object section) {
+        VoltaConfig.TenancyConfig def = VoltaConfig.TenancyConfig.defaults();
+        if (!(section instanceof Map<?, ?> m)) return def;
+
+        VoltaConfig.TenancyConfig.Mode mode = def.mode();
+        Object modeRaw = m.get("mode");
+        if (modeRaw != null) {
+            try { mode = VoltaConfig.TenancyConfig.Mode.valueOf(modeRaw.toString().toUpperCase(java.util.Locale.ROOT)); }
+            catch (IllegalArgumentException ignored) { /* keep default */ }
+        }
+
+        VoltaConfig.TenancyConfig.CreationPolicy policy = def.creationPolicy();
+        Object policyRaw = m.get("creation_policy");
+        if (policyRaw != null) {
+            // YAML value is kebab-like (disabled / auto / admin_only / invite_only) —
+            // upper-case and swap '-' for '_' to match the enum literal.
+            String normalized = policyRaw.toString().replace('-', '_').toUpperCase(java.util.Locale.ROOT);
+            try { policy = VoltaConfig.TenancyConfig.CreationPolicy.valueOf(normalized); }
+            catch (IllegalArgumentException ignored) { /* keep default */ }
+        }
+
+        int maxOrgs = def.maxOrgsPerUser();
+        Object maxRaw = m.get("max_orgs_per_user");
+        if (maxRaw instanceof Number n) maxOrgs = n.intValue();
+
+        boolean shadowOrg = def.shadowOrg();
+        Object shadowRaw = m.get("shadow_org");
+        if (shadowRaw instanceof Boolean b) shadowOrg = b;
+
+        String slugFormat = def.slugFormat();
+        Object slugRaw = m.get("slug_format");
+        if (slugRaw != null && !slugRaw.toString().isBlank()) slugFormat = slugRaw.toString();
+
+        return new VoltaConfig.TenancyConfig(mode, policy, maxOrgs, shadowOrg, slugFormat);
     }
 
     private static String str(Map<?, ?> m, String key) {

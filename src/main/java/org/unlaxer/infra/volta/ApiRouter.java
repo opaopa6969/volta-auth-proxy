@@ -18,6 +18,7 @@ public final class ApiRouter {
     private final JwtService jwtService;
     private final ObjectMapper objectMapper;
     private final AppConfig config;
+    private final VoltaConfig voltaConfig;
     private final GdprService gdprService;
     private final DeviceTrustService deviceTrustService;
     private final NotificationService notificationService;
@@ -27,7 +28,8 @@ public final class ApiRouter {
 
     public ApiRouter(SqlStore store, AuthService authService, SessionStore sessionStore,
                      PolicyEngine policy, AuditService auditService, JwtService jwtService,
-                     ObjectMapper objectMapper, AppConfig config, GdprService gdprService,
+                     ObjectMapper objectMapper, AppConfig config, VoltaConfig voltaConfig,
+                     GdprService gdprService,
                      DeviceTrustService deviceTrustService, NotificationService notificationService,
                      KeyCipher secretCipher, RateLimiter rateLimiter, OutboxWorker outboxWorker) {
         this.store = store;
@@ -38,6 +40,7 @@ public final class ApiRouter {
         this.jwtService = jwtService;
         this.objectMapper = objectMapper;
         this.config = config;
+        this.voltaConfig = voltaConfig != null ? voltaConfig : VoltaConfig.empty();
         this.gdprService = gdprService;
         this.deviceTrustService = deviceTrustService;
         this.notificationService = notificationService;
@@ -645,8 +648,34 @@ public final class ApiRouter {
 
         app.post("/api/v1/tenants", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
-            if (!config.allowSelfServiceTenant()) {
-                throw new ApiException(403, "FORBIDDEN", "self-service tenant 作成は無効です。");
+            // AUTH-014 Phase 1: tenancy.creation_policy from volta-config.yaml
+            // supersedes the legacy ALLOW_SELF_SERVICE_TENANT env var.
+            // If the YAML has no `tenancy:` section we read the AppConfig
+            // fallback (true → AUTO, false → DISABLED) to stay compatible.
+            var policyKind = voltaConfig.tenancy().creationPolicy();
+            if (policyKind == VoltaConfig.TenancyConfig.CreationPolicy.DISABLED
+                    && voltaConfig.tenancy() == VoltaConfig.TenancyConfig.defaults()
+                    && config.allowSelfServiceTenant()) {
+                // No YAML tenancy section AND env var says allow → treat as AUTO.
+                policyKind = VoltaConfig.TenancyConfig.CreationPolicy.AUTO;
+            }
+            switch (policyKind) {
+                case DISABLED -> throw new ApiException(403, "FORBIDDEN", "self-service tenant 作成は無効です。");
+                case AUTO -> { /* allow any authenticated user */ }
+                case ADMIN_ONLY -> {
+                    // Platform super-admin role is not yet modelled; require
+                    // OWNER of at least one existing tenant as a conservative
+                    // stand-in until AUTH-014 Phase 4 introduces a dedicated role.
+                    if (!store.hasOwnerRoleAnyTenant(p.userId())) {
+                        throw new ApiException(403, "FORBIDDEN", "admin_only policy: platform admin required.");
+                    }
+                }
+                case INVITE_ONLY -> {
+                    // Existing org ADMIN or OWNER may create another org.
+                    if (!store.hasAdminRoleAnyTenant(p.userId())) {
+                        throw new ApiException(403, "FORBIDDEN", "invite_only policy: existing-tenant admin required.");
+                    }
+                }
             }
             JsonNode body = objectMapper.readTree(ctx.body());
             String name = body.path("name").asText();

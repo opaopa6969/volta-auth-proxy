@@ -86,8 +86,7 @@ class OidcFlowDefTest {
     private FlowDefinition<OidcFlowState> createTestDefinition() {
         // All these null deps are fine — OidcFlowDef.create() only instantiates processors,
         // it doesn't call process(). The build() validation checks structure only.
-        var oidcService = new OidcService(AppConfig.fromEnv(), null,
-                new VoltaConfig(1, List.of()));
+        var oidcService = new OidcService(AppConfig.fromEnv(), null, VoltaConfig.empty());
         var stateCodec = new OidcStateCodec("test-key-for-unit-tests!!");
         var authService = new AuthService(AppConfig.fromEnv(), null, null, null);
         var appRegistry = new AppRegistry(List.of());

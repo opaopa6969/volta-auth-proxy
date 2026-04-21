@@ -360,7 +360,7 @@ public final class Main {
         new AdminRouter(store, authService, sessionStore, policy, auditService).register(app);
 
         new ApiRouter(store, authService, sessionStore, policy, auditService, jwtService,
-                objectMapper, config, gdprService, deviceTrustService, notificationService,
+                objectMapper, config, voltaConfig, gdprService, deviceTrustService, notificationService,
                 secretCipher, rateLimiter, outboxWorker).register(app);
 
         new ScimRouter(store, config, objectMapper).register(app);

@@ -673,6 +673,40 @@ public final class SqlStore {
         }
     }
 
+    /**
+     * AUTH-014 Phase 1 (creation_policy=ADMIN_ONLY): returns true when the
+     * user holds an active OWNER membership in any tenant. Used as a
+     * stand-in for platform-admin until a dedicated role is introduced.
+     */
+    public boolean hasOwnerRoleAnyTenant(UUID userId) {
+        return hasRoleAtLeast(userId, "OWNER");
+    }
+
+    /**
+     * AUTH-014 Phase 1 (creation_policy=INVITE_ONLY): returns true when the
+     * user holds an active ADMIN or OWNER membership in any tenant.
+     */
+    public boolean hasAdminRoleAnyTenant(UUID userId) {
+        return hasRoleAtLeast(userId, "ADMIN");
+    }
+
+    private boolean hasRoleAtLeast(UUID userId, String minRole) {
+        // Explicit enumeration avoids coupling to the role hierarchy in this
+        // SQL layer; callers use the two public helpers above.
+        String sql = "OWNER".equals(minRole)
+                ? "SELECT 1 FROM memberships WHERE user_id = ? AND is_active = true AND role = 'OWNER' LIMIT 1"
+                : "SELECT 1 FROM memberships WHERE user_id = ? AND is_active = true AND role IN ('OWNER','ADMIN') LIMIT 1";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public int countActiveOwners(UUID tenantId) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

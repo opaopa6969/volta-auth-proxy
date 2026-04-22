@@ -154,7 +154,8 @@ public final class Main {
             var authFlowHandler = new org.unlaxer.infra.volta.auth.AuthFlowHandler(
                     flowEngine, oidcFlowDef, mfaFlowDef,
                     authService, config, stateCodec, jwtService, appRegistry, store,
-                    oidcService, auditService, objectMapper, fraudAlertClient, localNetworkBypass);
+                    oidcService, auditService, objectMapper, fraudAlertClient, localNetworkBypass,
+                    tenancyPolicyEarly);
             app.get("/login", authFlowHandler::loginPage);
             app.get("/callback", authFlowHandler::callback);
             app.post("/auth/callback/complete", authFlowHandler::callbackPost);

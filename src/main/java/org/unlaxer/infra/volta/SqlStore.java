@@ -235,6 +235,35 @@ public final class SqlStore {
         }
     }
 
+    /**
+     * AUTH-014 Phase 2 item 3: resolve a tenant by URL slug. Used by slug
+     * routing ({@code /o/:slug/...}) to re-scope the request from the
+     * session's default tenant to the URL-specified one.
+     */
+    public Optional<TenantRecord> findTenantBySlug(String slug) {
+        if (slug == null || slug.isBlank()) return Optional.empty();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT id, name, slug, mfa_required, mfa_grace_until
+                     FROM tenants
+                     WHERE slug = ? AND is_active = true
+                     """)) {
+            ps.setString(1, slug);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new TenantRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("name"),
+                        rs.getString("slug"),
+                        rs.getBoolean("mfa_required"),
+                        rs.getTimestamp("mfa_grace_until") == null ? null : rs.getTimestamp("mfa_grace_until").toInstant()
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public Optional<TenantDetailRecord> findTenantDetailById(UUID tenantId) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

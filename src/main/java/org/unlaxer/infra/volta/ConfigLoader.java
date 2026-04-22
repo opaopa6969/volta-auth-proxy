@@ -122,7 +122,43 @@ public final class ConfigLoader {
         Object slugRaw = m.get("slug_format");
         if (slugRaw != null && !slugRaw.toString().isBlank()) slugFormat = slugRaw.toString();
 
-        return new VoltaConfig.TenancyConfig(mode, policy, maxOrgs, shadowOrg, slugFormat);
+        VoltaConfig.TenancyConfig.Routing routing = parseRouting(m.get("routing"));
+
+        return new VoltaConfig.TenancyConfig(mode, policy, maxOrgs, shadowOrg, slugFormat, routing);
+    }
+
+    private static VoltaConfig.TenancyConfig.Routing parseRouting(Object section) {
+        VoltaConfig.TenancyConfig.Routing def = VoltaConfig.TenancyConfig.Routing.defaults();
+        if (!(section instanceof Map<?, ?> m)) return def;
+
+        VoltaConfig.TenancyConfig.Routing.Mode mode = def.mode();
+        Object modeRaw = m.get("mode");
+        if (modeRaw != null) {
+            String norm = modeRaw.toString().replace('-', '_').toUpperCase(java.util.Locale.ROOT);
+            try { mode = VoltaConfig.TenancyConfig.Routing.Mode.valueOf(norm); }
+            catch (IllegalArgumentException ignored) { /* keep default */ }
+        }
+
+        String baseDomain = def.baseDomain();
+        Object baseDomainRaw = m.get("base_domain");
+        if (baseDomainRaw != null) baseDomain = baseDomainRaw.toString();
+
+        String slugHeader = def.slugHeader();
+        Object slugHeaderRaw = m.get("slug_header");
+        if (slugHeaderRaw != null && !slugHeaderRaw.toString().isBlank()) slugHeader = slugHeaderRaw.toString();
+
+        String slugPrefix = def.slugPrefix();
+        Object slugPrefixRaw = m.get("slug_prefix");
+        if (slugPrefixRaw != null && !slugPrefixRaw.toString().isBlank()) {
+            String p = slugPrefixRaw.toString();
+            // Normalize to leading + trailing slash so callers can do
+            // startsWith + substring without edge cases.
+            if (!p.startsWith("/")) p = "/" + p;
+            if (!p.endsWith("/")) p = p + "/";
+            slugPrefix = p;
+        }
+
+        return new VoltaConfig.TenancyConfig.Routing(mode, baseDomain, slugHeader, slugPrefix);
     }
 
     private static String str(Map<?, ?> m, String key) {

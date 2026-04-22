@@ -53,6 +53,71 @@ class TenancyPolicyTest {
         assertTrue(p.isSingle());
     }
 
+    // ── Phase 2 item 3: slug routing ────────────────────────────────────────
+
+    @Test
+    void slugRoutingDefaultsToNone() {
+        TenancyPolicy p = new TenancyPolicy(VoltaConfig.empty());
+        assertFalse(p.isSlugRouting());
+        assertNull(p.slugFromPath("/o/acme/services"));
+    }
+
+    @Test
+    void slugRoutingEnabled() {
+        String yaml = """
+                tenancy:
+                  mode: multi
+                  routing:
+                    mode: slug
+                """;
+        TenancyPolicy p = new TenancyPolicy(ConfigLoader.parse(yaml));
+        assertTrue(p.isSlugRouting());
+        assertEquals("/o/", p.routing().slugPrefix());
+    }
+
+    @Test
+    void slugFromPathHappyCases() {
+        String yaml = "tenancy:\n  routing:\n    mode: slug\n";
+        TenancyPolicy p = new TenancyPolicy(ConfigLoader.parse(yaml));
+        assertEquals("acme",    p.slugFromPath("/o/acme/services"));
+        assertEquals("acme",    p.slugFromPath("/o/acme/"));
+        assertEquals("acme",    p.slugFromPath("/o/acme"));
+        assertEquals("acme-co", p.slugFromPath("/o/acme-co/deep/path?q=x"));
+    }
+
+    @Test
+    void slugFromPathSadCases() {
+        String yaml = "tenancy:\n  routing:\n    mode: slug\n";
+        TenancyPolicy p = new TenancyPolicy(ConfigLoader.parse(yaml));
+        assertNull(p.slugFromPath(null));
+        assertNull(p.slugFromPath(""));
+        assertNull(p.slugFromPath("/settings"));
+        assertNull(p.slugFromPath("/o/"));         // no slug after prefix
+        assertNull(p.slugFromPath("/o"));          // missing trailing slash
+        assertNull(p.slugFromPath("/other/acme")); // wrong prefix
+    }
+
+    @Test
+    void customSlugPrefix() {
+        String yaml = """
+                tenancy:
+                  routing:
+                    mode: slug
+                    slug_prefix: /t
+                """;
+        TenancyPolicy p = new TenancyPolicy(ConfigLoader.parse(yaml));
+        assertEquals("/t/", p.routing().slugPrefix()); // auto-normalized to leading + trailing
+        assertEquals("acme", p.slugFromPath("/t/acme/x"));
+        assertNull(p.slugFromPath("/o/acme/x"));
+    }
+
+    @Test
+    void nonSlugModeDoesNotParseSlug() {
+        // routing.mode=none — even a /o/... path should not be interpreted.
+        TenancyPolicy p = new TenancyPolicy(VoltaConfig.empty());
+        assertNull(p.slugFromPath("/o/acme/services"));
+    }
+
     @Test
     void creationPolicyExposedForDiscoveryUi() {
         // Phase 2 item 2: tenant-select.jte reads the policy to decide

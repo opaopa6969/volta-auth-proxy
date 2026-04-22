@@ -34,9 +34,28 @@ public record VoltaConfig(int version, List<IdpEntry> idp, TenancyConfig tenancy
      */
     public record TenancyConfig(Mode mode, CreationPolicy creationPolicy,
                                 int maxOrgsPerUser, boolean shadowOrg,
-                                String slugFormat) {
+                                String slugFormat, Routing routing) {
         public enum Mode { SINGLE, MULTI }
         public enum CreationPolicy { DISABLED, AUTO, ADMIN_ONLY, INVITE_ONLY }
+
+        /**
+         * AUTH-014 Phase 2 item 3: how the request URL identifies which
+         * tenant scope is active.
+         *
+         * <ul>
+         *   <li>{@code NONE}      — no URL-level tenancy; session tenant is authoritative.</li>
+         *   <li>{@code SLUG}      — URL path prefix {@code /o/:slug/} (or configured {@code slugPrefix}) selects tenant.</li>
+         *   <li>{@code SUBDOMAIN} — {@code tenant.baseDomain} (Phase 4).</li>
+         *   <li>{@code DOMAIN}    — custom per-tenant domain (Phase 4).</li>
+         * </ul>
+         */
+        public record Routing(Mode mode, String baseDomain, String slugHeader, String slugPrefix) {
+            public enum Mode { NONE, SLUG, SUBDOMAIN, DOMAIN }
+
+            public static Routing defaults() {
+                return new Routing(Mode.NONE, "", "X-Volta-Tenant-Slug", "/o/");
+            }
+        }
 
         public static TenancyConfig defaults() {
             return new TenancyConfig(
@@ -44,8 +63,16 @@ public record VoltaConfig(int version, List<IdpEntry> idp, TenancyConfig tenancy
                     CreationPolicy.DISABLED,
                     1,
                     true,
-                    "{name}-{random6}"
+                    "{name}-{random6}",
+                    Routing.defaults()
             );
+        }
+
+        // Backward-compat constructor used by older call sites / tests that
+        // don't yet supply a routing block.
+        public TenancyConfig(Mode mode, CreationPolicy creationPolicy,
+                             int maxOrgsPerUser, boolean shadowOrg, String slugFormat) {
+            this(mode, creationPolicy, maxOrgsPerUser, shadowOrg, slugFormat, Routing.defaults());
         }
     }
 

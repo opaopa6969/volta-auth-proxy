@@ -16,6 +16,7 @@ public final class TenancyPolicy {
 
     private final VoltaConfig.TenancyConfig.Mode mode;
     private final VoltaConfig.TenancyConfig.CreationPolicy creationPolicy;
+    private final VoltaConfig.TenancyConfig.Routing routing;
 
     public TenancyPolicy(VoltaConfig voltaConfig) {
         this(voltaConfig == null
@@ -23,19 +24,32 @@ public final class TenancyPolicy {
                 : voltaConfig.tenancy().mode(),
              voltaConfig == null
                 ? VoltaConfig.TenancyConfig.defaults().creationPolicy()
-                : voltaConfig.tenancy().creationPolicy());
+                : voltaConfig.tenancy().creationPolicy(),
+             voltaConfig == null
+                ? VoltaConfig.TenancyConfig.Routing.defaults()
+                : voltaConfig.tenancy().routing());
     }
 
     public TenancyPolicy(VoltaConfig.TenancyConfig.Mode mode) {
-        this(mode, VoltaConfig.TenancyConfig.defaults().creationPolicy());
+        this(mode, VoltaConfig.TenancyConfig.defaults().creationPolicy(),
+             VoltaConfig.TenancyConfig.Routing.defaults());
     }
 
     public TenancyPolicy(VoltaConfig.TenancyConfig.Mode mode,
                          VoltaConfig.TenancyConfig.CreationPolicy creationPolicy) {
+        this(mode, creationPolicy, VoltaConfig.TenancyConfig.Routing.defaults());
+    }
+
+    public TenancyPolicy(VoltaConfig.TenancyConfig.Mode mode,
+                         VoltaConfig.TenancyConfig.CreationPolicy creationPolicy,
+                         VoltaConfig.TenancyConfig.Routing routing) {
         this.mode = mode == null ? VoltaConfig.TenancyConfig.Mode.SINGLE : mode;
         this.creationPolicy = creationPolicy == null
                 ? VoltaConfig.TenancyConfig.defaults().creationPolicy()
                 : creationPolicy;
+        this.routing = routing == null
+                ? VoltaConfig.TenancyConfig.Routing.defaults()
+                : routing;
     }
 
     public VoltaConfig.TenancyConfig.Mode mode() {
@@ -49,6 +63,43 @@ public final class TenancyPolicy {
     /** True when any authenticated user may create a new tenant (policy=AUTO). */
     public boolean allowsSelfServiceCreation() {
         return creationPolicy == VoltaConfig.TenancyConfig.CreationPolicy.AUTO;
+    }
+
+    public VoltaConfig.TenancyConfig.Routing routing() { return routing; }
+
+    public boolean isSlugRouting() {
+        return routing.mode() == VoltaConfig.TenancyConfig.Routing.Mode.SLUG;
+    }
+
+    /**
+     * Extract the tenant slug from a forwarded URI when slug routing is
+     * enabled. Returns {@code null} when routing is off or the URI does not
+     * start with the configured slug prefix.
+     *
+     * <p>Examples with default {@code slugPrefix=/o/}:
+     * <pre>
+     *   /o/acme/services      → "acme"
+     *   /o/acme/              → "acme"
+     *   /o/acme               → "acme"
+     *   /settings             → null
+     *   null                  → null
+     * </pre>
+     */
+    public String slugFromPath(String path) {
+        if (!isSlugRouting() || path == null || path.isBlank()) return null;
+        String prefix = routing.slugPrefix();
+        if (prefix == null || prefix.isBlank() || !path.startsWith(prefix)) return null;
+        String rest = path.substring(prefix.length());
+        if (rest.isEmpty()) return null;
+        int end = rest.indexOf('/');
+        String slug = end < 0 ? rest : rest.substring(0, end);
+        // Strip query / fragment if present (the path parameter usually has
+        // them stripped already, but be defensive).
+        int q = slug.indexOf('?');
+        if (q >= 0) slug = slug.substring(0, q);
+        int h = slug.indexOf('#');
+        if (h >= 0) slug = slug.substring(0, h);
+        return slug.isBlank() ? null : slug;
     }
 
     public boolean isSingle() {

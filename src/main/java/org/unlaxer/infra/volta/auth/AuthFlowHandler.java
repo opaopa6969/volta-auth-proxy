@@ -47,6 +47,7 @@ public class AuthFlowHandler {
     private final ObjectMapper objectMapper;
     private final FraudAlertClient fraudAlert;
     private final org.unlaxer.infra.volta.LocalNetworkBypass localNetworkBypass;
+    private final org.unlaxer.infra.volta.TenancyPolicy tenancy;
 
     // ── フローエンジン ──
     private final FlowEngine engine;
@@ -67,6 +68,26 @@ public class AuthFlowHandler {
                            ObjectMapper objectMapper,
                            FraudAlertClient fraudAlert,
                            org.unlaxer.infra.volta.LocalNetworkBypass localNetworkBypass) {
+        this(engine, oidcFlowDef, mfaFlowDef, authService, appConfig, stateCodec, jwtService,
+             appRegistry, store, oidcService, auditService, objectMapper, fraudAlert,
+             localNetworkBypass, new org.unlaxer.infra.volta.TenancyPolicy((org.unlaxer.infra.volta.VoltaConfig) null));
+    }
+
+    public AuthFlowHandler(FlowEngine engine,
+                           FlowDefinition<OidcFlowState> oidcFlowDef,
+                           FlowDefinition<MfaFlowState> mfaFlowDef,
+                           AuthService authService,
+                           AppConfig appConfig,
+                           OidcStateCodec stateCodec,
+                           JwtService jwtService,
+                           AppRegistry appRegistry,
+                           SqlStore store,
+                           OidcService oidcService,
+                           AuditService auditService,
+                           ObjectMapper objectMapper,
+                           FraudAlertClient fraudAlert,
+                           org.unlaxer.infra.volta.LocalNetworkBypass localNetworkBypass,
+                           org.unlaxer.infra.volta.TenancyPolicy tenancy) {
         this.engine = engine;
         this.oidcFlowDef = oidcFlowDef;
         this.mfaFlowDef = mfaFlowDef;
@@ -81,6 +102,9 @@ public class AuthFlowHandler {
         this.objectMapper = objectMapper;
         this.fraudAlert = fraudAlert;
         this.localNetworkBypass = localNetworkBypass;
+        this.tenancy = tenancy == null
+                ? new org.unlaxer.infra.volta.TenancyPolicy((org.unlaxer.infra.volta.VoltaConfig) null)
+                : tenancy;
     }
 
     // ================================================================
@@ -141,11 +165,41 @@ public class AuthFlowHandler {
                 return;
             }
 
+            // AUTH-014 Phase 2 item 3: slug routing — when the forwarded URI
+            // starts with the configured slug prefix, re-scope to the
+            // URL-specified tenant instead of the session's default.
+            UUID effectiveTenantId = principal.tenantId();
+            String effectiveTenantSlug = principal.tenantSlug();
+            String urlSlug = tenancy.isSlugRouting()
+                    ? tenancy.slugFromPath(ctx.header("X-Forwarded-Uri"))
+                    : null;
+            if (urlSlug != null) {
+                var urlTenantOpt = store.findTenantBySlug(urlSlug);
+                if (urlTenantOpt.isEmpty()) {
+                    LOG.log(System.Logger.Level.INFO, "[verify] slug route unknown slug={0}", urlSlug);
+                    ctx.status(404);
+                    return;
+                }
+                var urlTenant = urlTenantOpt.get();
+                // Membership check: the signed-in user must belong to the
+                // URL-selected tenant, otherwise fail closed.
+                var membership = store.findMembership(principal.userId(), urlTenant.id());
+                if (membership.isEmpty() || !membership.get().active()) {
+                    LOG.log(System.Logger.Level.INFO,
+                            "[verify] slug route denied: user={0} tenant={1}",
+                            principal.email(), urlSlug);
+                    ctx.status(403);
+                    return;
+                }
+                effectiveTenantId = urlTenant.id();
+                effectiveTenantSlug = urlTenant.slug();
+            }
+
             String jwt = jwtService.issueToken(principal);
             ctx.header("X-Volta-User-Id", principal.userId().toString());
             ctx.header("X-Volta-Email", principal.email());
-            ctx.header("X-Volta-Tenant-Id", principal.tenantId().toString());
-            ctx.header("X-Volta-Tenant-Slug", principal.tenantSlug());
+            ctx.header("X-Volta-Tenant-Id", effectiveTenantId.toString());
+            ctx.header("X-Volta-Tenant-Slug", effectiveTenantSlug);
             ctx.header("X-Volta-Roles", String.join(",", principal.roles()));
             ctx.header("X-Volta-Display-Name",
                     principal.displayName() == null ? "" : principal.displayName());

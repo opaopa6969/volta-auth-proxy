@@ -23,6 +23,15 @@ public final class PasskeyFlowDef {
             AuthService authService,
             AppRegistry appRegistry,
             SqlStore store) {
+        return create(config, authService, appRegistry, store, new TenancyPolicy((VoltaConfig) null));
+    }
+
+    public static FlowDefinition<PasskeyFlowState> create(
+            AppConfig config,
+            AuthService authService,
+            AppRegistry appRegistry,
+            SqlStore store,
+            TenancyPolicy tenancy) {
 
         return FlowDefinition.builder("passkey", PasskeyFlowState.class)
                 .ttl(Duration.ofMinutes(5))
@@ -40,7 +49,7 @@ public final class PasskeyFlowDef {
                         new PasskeyVerifyProcessor(config, store))
 
                 .from(USER_RESOLVED).auto(COMPLETE,
-                        new PasskeySessionProcessor(authService, appRegistry, store, config))
+                        new PasskeySessionProcessor(authService, appRegistry, store, config, tenancy))
 
                 .onAnyError(TERMINAL_ERROR)
 

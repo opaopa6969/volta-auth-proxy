@@ -128,15 +128,17 @@ public final class Main {
             pluginRegistry.analyzeAndValidate(oidcFlowDef);
 
             // Passkey Flow (independent — NOT migrated to AuthFlowHandler)
+            var tenancyPolicyEarly = new TenancyPolicy(voltaConfig);
             var passkeyFlowDef = org.unlaxer.infra.volta.flow.passkey.PasskeyFlowDef.create(
-                    config, authService, appRegistry, store);
+                    config, authService, appRegistry, store, tenancyPolicyEarly);
             pluginRegistry.analyzeAndValidate(passkeyFlowDef);
             new org.unlaxer.infra.volta.flow.passkey.PasskeyFlowRouter(
                     flowEngine, passkeyFlowDef, config, auditService, objectMapper
             ).register(app);
 
             // MFA Flow
-            var mfaFlowDef = org.unlaxer.infra.volta.flow.mfa.MfaFlowDef.create(store, authService, secretCipher, appRegistry);
+            var mfaFlowDef = org.unlaxer.infra.volta.flow.mfa.MfaFlowDef.create(
+                    store, authService, secretCipher, appRegistry, tenancyPolicyEarly);
             pluginRegistry.analyzeAndValidate(mfaFlowDef);
 
             // Invite Flow (independent — NOT migrated to AuthFlowHandler)
@@ -350,9 +352,13 @@ public final class Main {
         });
 
         // ─── Register extracted Routers ───
+        // Reuse the TenancyPolicy created earlier for the flow processors
+        // if it exists; otherwise construct one here for older code paths.
+        TenancyPolicy tenancyPolicy = new TenancyPolicy(voltaConfig);
         new AuthRouter(config, store, authService, sessionStore, auditService,
                 oidcService, samlService, appRegistry, notificationService,
-                objectMapper, policy, rateLimiter, deviceTrustService).register(app);
+                objectMapper, policy, rateLimiter, deviceTrustService,
+                tenancyPolicy).register(app);
 
         new PasskeyRegistrationRouter(config, store, authService, sessionStore,
                 auditService, policy, secretCipher, objectMapper).register(app);

@@ -20,12 +20,19 @@ public final class MfaVerifyProcessor implements StateProcessor {
     private final AuthService authService;
     private final KeyCipher secretCipher;
     private final AppRegistry appRegistry;
+    private final TenancyPolicy tenancy;
 
     public MfaVerifyProcessor(SqlStore store, AuthService authService, KeyCipher secretCipher, AppRegistry appRegistry) {
+        this(store, authService, secretCipher, appRegistry, new TenancyPolicy((VoltaConfig) null));
+    }
+
+    public MfaVerifyProcessor(SqlStore store, AuthService authService, KeyCipher secretCipher,
+                              AppRegistry appRegistry, TenancyPolicy tenancy) {
         this.store = store;
         this.authService = authService;
         this.secretCipher = secretCipher;
         this.appRegistry = appRegistry;
+        this.tenancy = tenancy == null ? new TenancyPolicy((VoltaConfig) null) : tenancy;
     }
 
     @Override public String name() { return "MfaVerifyProcessor"; }
@@ -74,11 +81,10 @@ public final class MfaVerifyProcessor implements StateProcessor {
         if (returnTo != null && !returnTo.isBlank()) {
             return returnTo;
         }
-        // No return_to — check if tenant selection is needed
+        // No return_to — decide based on tenancy mode.
         var tenants = store.findTenantsByUser(session.userId());
-        if (tenants.size() > 1) return "/select-tenant";
-        // Single tenant — go directly to app
-        return appRegistry.defaultAppUrl().orElse("/select-tenant");
+        if (tenancy.shouldSelectTenant(tenants.size())) return "/select-tenant";
+        return appRegistry.defaultAppUrl().orElse(tenancy.isSingle() ? "/" : "/select-tenant");
     }
 
     private static String sha256Hex(String input) {

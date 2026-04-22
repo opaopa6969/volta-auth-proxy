@@ -18,13 +18,20 @@ public final class PasskeySessionProcessor implements StateProcessor {
     private final AppRegistry appRegistry;
     private final SqlStore store;
     private final AppConfig config;
+    private final TenancyPolicy tenancy;
 
     public PasskeySessionProcessor(AuthService authService, AppRegistry appRegistry,
                                    SqlStore store, AppConfig config) {
+        this(authService, appRegistry, store, config, new TenancyPolicy((VoltaConfig) null));
+    }
+
+    public PasskeySessionProcessor(AuthService authService, AppRegistry appRegistry,
+                                   SqlStore store, AppConfig config, TenancyPolicy tenancy) {
         this.authService = authService;
         this.appRegistry = appRegistry;
         this.store = store;
         this.config = config;
+        this.tenancy = tenancy == null ? new TenancyPolicy((VoltaConfig) null) : tenancy;
     }
 
     @Override public String name() { return "PasskeySessionProcessor"; }
@@ -54,12 +61,14 @@ public final class PasskeySessionProcessor implements StateProcessor {
 
     private String resolveRedirectTo(PasskeyVerifiedUser user, PasskeyRequest request) {
         var tenants = store.findTenantsByUser(user.userId());
-        if (tenants.size() > 1) return "/select-tenant";
+        if (tenancy.shouldSelectTenant(tenants.size())) return "/select-tenant";
 
         if (request.returnTo() != null && HttpSupport.isAllowedReturnTo(
                 request.returnTo(), config.allowedRedirectDomains())) {
             return request.returnTo();
         }
-        return appRegistry.defaultAppUrl().orElse("/select-tenant");
+        // In single mode the selector is never the right fallback — prefer
+        // the default app. Multi mode keeps the old safety net.
+        return appRegistry.defaultAppUrl().orElse(tenancy.isSingle() ? "/" : "/select-tenant");
     }
 }

@@ -22,6 +22,7 @@ public final class AuthRouter {
     private final PolicyEngine policy;
     private final RateLimiter rateLimiter;
     private final DeviceTrustService deviceTrustService;
+    private final TenancyPolicy tenancy;
 
     public AuthRouter(AppConfig config, SqlStore store, AuthService authService,
                       SessionStore sessionStore, AuditService auditService,
@@ -29,6 +30,18 @@ public final class AuthRouter {
                       AppRegistry appRegistry, NotificationService notificationService,
                       ObjectMapper objectMapper, PolicyEngine policy,
                       RateLimiter rateLimiter, DeviceTrustService deviceTrustService) {
+        this(config, store, authService, sessionStore, auditService, oidcService, samlService,
+             appRegistry, notificationService, objectMapper, policy, rateLimiter, deviceTrustService,
+             new TenancyPolicy((VoltaConfig) null));
+    }
+
+    public AuthRouter(AppConfig config, SqlStore store, AuthService authService,
+                      SessionStore sessionStore, AuditService auditService,
+                      OidcService oidcService, SamlService samlService,
+                      AppRegistry appRegistry, NotificationService notificationService,
+                      ObjectMapper objectMapper, PolicyEngine policy,
+                      RateLimiter rateLimiter, DeviceTrustService deviceTrustService,
+                      TenancyPolicy tenancy) {
         this.config = config;
         this.store = store;
         this.authService = authService;
@@ -42,6 +55,7 @@ public final class AuthRouter {
         this.policy = policy;
         this.rateLimiter = rateLimiter;
         this.deviceTrustService = deviceTrustService;
+        this.tenancy = tenancy == null ? new TenancyPolicy((VoltaConfig) null) : tenancy;
     }
 
     public void register(Javalin app) {
@@ -255,6 +269,13 @@ public final class AuthRouter {
         });
 
         app.get("/select-tenant", ctx -> {
+            // AUTH-014 Phase 2: in single-tenant mode the selector is
+            // disabled — no user-facing UI should ever reach this URL.
+            // Defend against direct hits by redirecting to the default app.
+            if (tenancy.isSingle()) {
+                ctx.redirect(appRegistry.defaultAppUrl().orElse("/"));
+                return;
+            }
             Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
             if (principalOpt.isEmpty()) {
                 if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {

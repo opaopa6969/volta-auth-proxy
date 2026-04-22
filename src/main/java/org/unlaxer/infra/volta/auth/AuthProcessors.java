@@ -42,12 +42,23 @@ public final class AuthProcessors {
                          AuthService authService,
                          AppConfig appConfig,
                          AppRegistry appRegistry) {
+            this(oidcService, stateCodec, store, authService, appConfig, appRegistry,
+                 new TenancyPolicy((VoltaConfig) null));
+        }
+
+        public Container(OidcService oidcService,
+                         OidcStateCodec stateCodec,
+                         SqlStore store,
+                         AuthService authService,
+                         AppConfig appConfig,
+                         AppRegistry appRegistry,
+                         TenancyPolicy tenancy) {
             this.loginRedirectInit = new LoginRedirectInit();
             this.callbackGuard = new CallbackGuard();
             this.tokenExchange = new TokenExchange(oidcService, stateCodec, appConfig, store);
             this.mfaCheck = new MfaCheck();
             this.mfaGuard = new MfaGuard(store);
-            this.sessionCreator = new SessionCreator(authService, appRegistry, store, appConfig);
+            this.sessionCreator = new SessionCreator(authService, appRegistry, store, appConfig, tenancy);
         }
     }
 
@@ -307,13 +318,20 @@ public final class AuthProcessors {
         private final AppRegistry appRegistry;
         private final SqlStore store;
         private final AppConfig appConfig;
+        private final TenancyPolicy tenancy;
 
         SessionCreator(AuthService authService, AppRegistry appRegistry,
                        SqlStore store, AppConfig appConfig) {
+            this(authService, appRegistry, store, appConfig, new TenancyPolicy((VoltaConfig) null));
+        }
+
+        SessionCreator(AuthService authService, AppRegistry appRegistry,
+                       SqlStore store, AppConfig appConfig, TenancyPolicy tenancy) {
             this.authService = authService;
             this.appRegistry = appRegistry;
             this.store = store;
             this.appConfig = appConfig;
+            this.tenancy = tenancy == null ? new TenancyPolicy((VoltaConfig) null) : tenancy;
         }
 
         @Override public String name() { return "SessionCreator"; }
@@ -372,8 +390,10 @@ public final class AuthProcessors {
 
         private String resolveRedirectTo(UserRecord user, LoginRedirect redirect,
                                          List<TenantRecord> tenants) {
-            // Multiple tenants -> tenant selection
-            if (tenants.size() > 1) {
+            // In MULTI mode with multiple memberships → tenant selector.
+            // In SINGLE mode we skip the selector even when >1 tenants exist,
+            // honouring the "shadow_org" semantic (user doesn't see orgs).
+            if (tenancy.shouldSelectTenant(tenants.size())) {
                 return "/select-tenant";
             }
 
@@ -383,7 +403,7 @@ public final class AuthProcessors {
                 return redirect.returnTo();
             }
 
-            return appRegistry.defaultAppUrl().orElse("/select-tenant");
+            return appRegistry.defaultAppUrl().orElse(tenancy.isSingle() ? "/" : "/select-tenant");
         }
     }
 }

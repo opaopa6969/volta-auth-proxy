@@ -68,12 +68,25 @@ public final class HttpSupport {
     private static final boolean FORCE_SECURE_COOKIE =
             "true".equalsIgnoreCase(System.getenv("FORCE_SECURE_COOKIE"));
 
+    // AUTH-014 Phase 4 item 2: optional global tenancy policy. When set at
+    // boot (see Main.java), setSessionCookie consults it to pick the effective
+    // Domain= attribute instead of reading COOKIE_DOMAIN directly. Not thread-
+    // safe for reassignment, but callers only assign once at startup.
+    private static volatile TenancyPolicy tenancyPolicy;
+
+    public static void setTenancyPolicy(TenancyPolicy p) {
+        tenancyPolicy = p;
+    }
+
     /**
      * Set a session cookie with proper security attributes.
      * Secure flag is added if the request is over HTTPS or FORCE_SECURE_COOKIE=true.
      */
     public static void setSessionCookie(Context ctx, String cookieName, String value, int maxAgeSeconds) {
-        String cookieDomain = System.getenv("COOKIE_DOMAIN");
+        TenancyPolicy tp = tenancyPolicy;
+        String cookieDomain = tp != null
+                ? tp.effectiveCookieDomain(System.getenv("COOKIE_DOMAIN"))
+                : System.getenv("COOKIE_DOMAIN");
         StringBuilder sb = new StringBuilder();
         sb.append(cookieName).append("=").append(value)
                 .append("; Path=/; Max-Age=").append(maxAgeSeconds)

@@ -236,6 +236,40 @@ public final class SqlStore {
     }
 
     /**
+     * AUTH-014 Phase 4 item 3: resolve a tenant by a verified custom domain.
+     * Used for {@code tenancy.routing.mode=domain} where each tenant owns
+     * a distinct hostname. Only verified domains count (prevents squatting).
+     */
+    public Optional<TenantRecord> findTenantByDomain(String domain) {
+        if (domain == null || domain.isBlank()) return Optional.empty();
+        String normalized = domain.toLowerCase(java.util.Locale.ROOT).trim();
+        int colon = normalized.indexOf(':');
+        if (colon >= 0) normalized = normalized.substring(0, colon);
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT t.id, t.name, t.slug, t.mfa_required, t.mfa_grace_until
+                     FROM tenant_domains td
+                     JOIN tenants t ON t.id = td.tenant_id
+                     WHERE td.domain = ? AND td.verified = true AND t.is_active = true
+                     LIMIT 1
+                     """)) {
+            ps.setString(1, normalized);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new TenantRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("name"),
+                        rs.getString("slug"),
+                        rs.getBoolean("mfa_required"),
+                        rs.getTimestamp("mfa_grace_until") == null ? null : rs.getTimestamp("mfa_grace_until").toInstant()
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
      * AUTH-014 Phase 2 item 3: resolve a tenant by URL slug. Used by slug
      * routing ({@code /o/:slug/...}) to re-scope the request from the
      * session's default tenant to the URL-specified one.

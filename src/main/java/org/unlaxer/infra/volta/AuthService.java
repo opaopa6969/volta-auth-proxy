@@ -16,12 +16,19 @@ public final class AuthService {
     private final SqlStore store;
     private final JwtService jwtService;
     private final SessionStore sessionStore;
+    private final TenancyPolicy tenancy;
 
     public AuthService(AppConfig config, SqlStore store, JwtService jwtService, SessionStore sessionStore) {
+        this(config, store, jwtService, sessionStore, new TenancyPolicy((VoltaConfig) null));
+    }
+
+    public AuthService(AppConfig config, SqlStore store, JwtService jwtService, SessionStore sessionStore,
+                       TenancyPolicy tenancy) {
         this.config = config;
         this.store = store;
         this.jwtService = jwtService;
         this.sessionStore = sessionStore;
+        this.tenancy = tenancy == null ? new TenancyPolicy((VoltaConfig) null) : tenancy;
     }
 
     public Optional<AuthPrincipal> authenticate(Context ctx) {
@@ -172,7 +179,9 @@ public final class AuthService {
     public void clearSessionCookie(Context ctx) {
         StringBuilder sb = new StringBuilder();
         sb.append(SESSION_COOKIE).append("=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
-        String cookieDomain = System.getenv("COOKIE_DOMAIN");
+        // AUTH-014 Phase 4 item 2: cookie scope from tenancy.routing if set,
+        // otherwise fall back to legacy COOKIE_DOMAIN env var.
+        String cookieDomain = tenancy.effectiveCookieDomain(System.getenv("COOKIE_DOMAIN"));
         if (cookieDomain != null && !cookieDomain.isEmpty()) {
             sb.append("; Domain=").append(cookieDomain);
         }

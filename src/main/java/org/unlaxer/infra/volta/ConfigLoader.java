@@ -124,7 +124,21 @@ public final class ConfigLoader {
 
         VoltaConfig.TenancyConfig.Routing routing = parseRouting(m.get("routing"));
 
-        return new VoltaConfig.TenancyConfig(mode, policy, maxOrgs, shadowOrg, slugFormat, routing);
+        // AUTH-014 Phase 4 item 4-5: isolation + custom_roles (config-only scaffold).
+        VoltaConfig.TenancyConfig.Isolation isolation = def.isolation();
+        Object isolationRaw = m.get("isolation");
+        if (isolationRaw != null) {
+            String norm = isolationRaw.toString().toUpperCase(java.util.Locale.ROOT);
+            try { isolation = VoltaConfig.TenancyConfig.Isolation.valueOf(norm); }
+            catch (IllegalArgumentException ignored) { /* keep default */ }
+        }
+
+        boolean customRoles = def.customRoles();
+        Object customRolesRaw = m.get("custom_roles");
+        if (customRolesRaw instanceof Boolean b) customRoles = b;
+
+        return new VoltaConfig.TenancyConfig(mode, policy, maxOrgs, shadowOrg, slugFormat, routing,
+                                             isolation, customRoles);
     }
 
     private static VoltaConfig.TenancyConfig.Routing parseRouting(Object section) {
@@ -158,7 +172,15 @@ public final class ConfigLoader {
             slugPrefix = p;
         }
 
-        return new VoltaConfig.TenancyConfig.Routing(mode, baseDomain, slugHeader, slugPrefix);
+        VoltaConfig.TenancyConfig.Routing.CookieScope cookieScope = def.cookieScope();
+        Object scopeRaw = m.get("cookie_scope");
+        if (scopeRaw != null) {
+            String norm = scopeRaw.toString().toUpperCase(java.util.Locale.ROOT);
+            try { cookieScope = VoltaConfig.TenancyConfig.Routing.CookieScope.valueOf(norm); }
+            catch (IllegalArgumentException ignored) { /* keep default */ }
+        }
+
+        return new VoltaConfig.TenancyConfig.Routing(mode, baseDomain, slugHeader, slugPrefix, cookieScope);
     }
 
     private static String str(Map<?, ?> m, String key) {

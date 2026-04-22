@@ -165,18 +165,33 @@ public class AuthFlowHandler {
                 return;
             }
 
-            // AUTH-014 Phase 2 item 3: slug routing — when the forwarded URI
-            // starts with the configured slug prefix, re-scope to the
-            // URL-specified tenant instead of the session's default.
+            // AUTH-014 Phase 2/4: URL-driven tenant re-scoping.
+            //   SLUG      → slug extracted from /o/{slug}/ path prefix
+            //   SUBDOMAIN → slug extracted from X-Forwarded-Host (Phase 4)
+            //   DOMAIN    → whole host matched against tenant_domains (Phase 4)
+            // The session's default tenant is preserved; only the outgoing
+            // X-Volta-Tenant-* headers get re-scoped for this request.
             UUID effectiveTenantId = principal.tenantId();
             String effectiveTenantSlug = principal.tenantSlug();
-            String urlSlug = tenancy.isSlugRouting()
-                    ? tenancy.slugFromPath(ctx.header("X-Forwarded-Uri"))
-                    : null;
-            if (urlSlug != null) {
-                var urlTenantOpt = store.findTenantBySlug(urlSlug);
+            Optional<org.unlaxer.infra.volta.TenantRecord> urlTenantOpt = Optional.empty();
+            String urlLabel = null;
+            if (tenancy.isSlugRouting()) {
+                String s = tenancy.slugFromPath(ctx.header("X-Forwarded-Uri"));
+                if (s != null) { urlLabel = s; urlTenantOpt = store.findTenantBySlug(s); }
+            } else if (tenancy.isSubdomainRouting()) {
+                String s = tenancy.slugFromHost(ctx.header("X-Forwarded-Host"));
+                if (s != null) { urlLabel = s; urlTenantOpt = store.findTenantBySlug(s); }
+            } else if (tenancy.isDomainRouting()) {
+                String host = ctx.header("X-Forwarded-Host");
+                if (host != null && !host.isBlank()) {
+                    urlLabel = host;
+                    urlTenantOpt = store.findTenantByDomain(host);
+                }
+            }
+
+            if (urlLabel != null) {
                 if (urlTenantOpt.isEmpty()) {
-                    LOG.log(System.Logger.Level.INFO, "[verify] slug route unknown slug={0}", urlSlug);
+                    LOG.log(System.Logger.Level.INFO, "[verify] tenant route unknown label={0}", urlLabel);
                     ctx.status(404);
                     return;
                 }
@@ -186,8 +201,8 @@ public class AuthFlowHandler {
                 var membership = store.findMembership(principal.userId(), urlTenant.id());
                 if (membership.isEmpty() || !membership.get().active()) {
                     LOG.log(System.Logger.Level.INFO,
-                            "[verify] slug route denied: user={0} tenant={1}",
-                            principal.email(), urlSlug);
+                            "[verify] tenant route denied: user={0} label={1}",
+                            principal.email(), urlLabel);
                     ctx.status(403);
                     return;
                 }

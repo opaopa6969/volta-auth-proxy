@@ -34,9 +34,21 @@ public record VoltaConfig(int version, List<IdpEntry> idp, TenancyConfig tenancy
      */
     public record TenancyConfig(Mode mode, CreationPolicy creationPolicy,
                                 int maxOrgsPerUser, boolean shadowOrg,
-                                String slugFormat, Routing routing) {
+                                String slugFormat, Routing routing,
+                                Isolation isolation, boolean customRoles) {
         public enum Mode { SINGLE, MULTI }
         public enum CreationPolicy { DISABLED, AUTO, ADMIN_ONLY, INVITE_ONLY }
+
+        /**
+         * AUTH-014 Phase 4 item 4: data isolation strategy.
+         *
+         * <ul>
+         *   <li>{@code SHARED}   — all tenants share tables; {@code tenant_id} column scopes rows. Default.</li>
+         *   <li>{@code SCHEMA}   — PostgreSQL schema per tenant. (Scaffolded; migration work deferred to a dedicated issue.)</li>
+         *   <li>{@code DATABASE} — database per tenant. (Scaffolded; not yet implemented.)</li>
+         * </ul>
+         */
+        public enum Isolation { SHARED, SCHEMA, DATABASE }
 
         /**
          * AUTH-014 Phase 2 item 3: how the request URL identifies which
@@ -49,11 +61,28 @@ public record VoltaConfig(int version, List<IdpEntry> idp, TenancyConfig tenancy
          *   <li>{@code DOMAIN}    — custom per-tenant domain (Phase 4).</li>
          * </ul>
          */
-        public record Routing(Mode mode, String baseDomain, String slugHeader, String slugPrefix) {
+        public record Routing(Mode mode, String baseDomain, String slugHeader, String slugPrefix,
+                              CookieScope cookieScope) {
             public enum Mode { NONE, SLUG, SUBDOMAIN, DOMAIN }
 
+            /**
+             * AUTH-014 Phase 4 item 2: how session cookies cross subdomains.
+             * {@code SHARED}   → {@code Domain=.<baseDomain>} so a login on
+             *                    auth.x.org is visible on acme.x.org too.
+             *                    Enables SSO-like flow across tenants.
+             * {@code ISOLATED} → no {@code Domain} attribute; the cookie is
+             *                    scoped to the exact host. Each tenant has a
+             *                    separate session.
+             */
+            public enum CookieScope { SHARED, ISOLATED }
+
             public static Routing defaults() {
-                return new Routing(Mode.NONE, "", "X-Volta-Tenant-Slug", "/o/");
+                return new Routing(Mode.NONE, "", "X-Volta-Tenant-Slug", "/o/", CookieScope.SHARED);
+            }
+
+            // Back-compat for older callers / tests that don't pass cookieScope.
+            public Routing(Mode mode, String baseDomain, String slugHeader, String slugPrefix) {
+                this(mode, baseDomain, slugHeader, slugPrefix, CookieScope.SHARED);
             }
         }
 
@@ -64,7 +93,9 @@ public record VoltaConfig(int version, List<IdpEntry> idp, TenancyConfig tenancy
                     1,
                     true,
                     "{name}-{random6}",
-                    Routing.defaults()
+                    Routing.defaults(),
+                    Isolation.SHARED,
+                    false
             );
         }
 
@@ -72,7 +103,16 @@ public record VoltaConfig(int version, List<IdpEntry> idp, TenancyConfig tenancy
         // don't yet supply a routing block.
         public TenancyConfig(Mode mode, CreationPolicy creationPolicy,
                              int maxOrgsPerUser, boolean shadowOrg, String slugFormat) {
-            this(mode, creationPolicy, maxOrgsPerUser, shadowOrg, slugFormat, Routing.defaults());
+            this(mode, creationPolicy, maxOrgsPerUser, shadowOrg, slugFormat, Routing.defaults(),
+                 Isolation.SHARED, false);
+        }
+
+        // Back-compat for the routing-only constructor (Phase 2 code).
+        public TenancyConfig(Mode mode, CreationPolicy creationPolicy,
+                             int maxOrgsPerUser, boolean shadowOrg,
+                             String slugFormat, Routing routing) {
+            this(mode, creationPolicy, maxOrgsPerUser, shadowOrg, slugFormat, routing,
+                 Isolation.SHARED, false);
         }
     }
 

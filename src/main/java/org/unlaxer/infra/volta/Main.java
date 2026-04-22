@@ -29,8 +29,16 @@ public final class Main {
         SqlStore store = new SqlStore(dataSource);
         SessionStore sessionStore = SessionStore.create(config, store);
         JwtService jwtService = new JwtService(config, store);
-        AuthService authService = new AuthService(config, store, jwtService, sessionStore);
         VoltaConfig voltaConfig = ConfigLoader.load(config.appConfigPath());
+        // AUTH-014 Phase 4: install tenancy policy early so cookie/Domain
+        // attribute, slug/subdomain/domain routing, and single-vs-multi
+        // mode decisions are consistent across the app lifetime.
+        TenancyPolicy globalTenancy = new TenancyPolicy(voltaConfig);
+        HttpSupport.setTenancyPolicy(globalTenancy);
+        for (String w : globalTenancy.unimplementedWarnings()) {
+            System.getLogger("volta.tenancy").log(System.Logger.Level.WARNING, w);
+        }
+        AuthService authService = new AuthService(config, store, jwtService, sessionStore, globalTenancy);
         KeyCipher secretCipher = new KeyCipher(config.jwtKeyEncryptionSecret());
         OidcService oidcService = new OidcService(config, store, voltaConfig, secretCipher);
         SamlService samlService = new SamlService();

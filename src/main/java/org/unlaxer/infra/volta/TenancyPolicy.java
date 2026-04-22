@@ -15,19 +15,40 @@ package org.unlaxer.infra.volta;
 public final class TenancyPolicy {
 
     private final VoltaConfig.TenancyConfig.Mode mode;
+    private final VoltaConfig.TenancyConfig.CreationPolicy creationPolicy;
 
     public TenancyPolicy(VoltaConfig voltaConfig) {
         this(voltaConfig == null
                 ? VoltaConfig.TenancyConfig.defaults().mode()
-                : voltaConfig.tenancy().mode());
+                : voltaConfig.tenancy().mode(),
+             voltaConfig == null
+                ? VoltaConfig.TenancyConfig.defaults().creationPolicy()
+                : voltaConfig.tenancy().creationPolicy());
     }
 
     public TenancyPolicy(VoltaConfig.TenancyConfig.Mode mode) {
+        this(mode, VoltaConfig.TenancyConfig.defaults().creationPolicy());
+    }
+
+    public TenancyPolicy(VoltaConfig.TenancyConfig.Mode mode,
+                         VoltaConfig.TenancyConfig.CreationPolicy creationPolicy) {
         this.mode = mode == null ? VoltaConfig.TenancyConfig.Mode.SINGLE : mode;
+        this.creationPolicy = creationPolicy == null
+                ? VoltaConfig.TenancyConfig.defaults().creationPolicy()
+                : creationPolicy;
     }
 
     public VoltaConfig.TenancyConfig.Mode mode() {
         return mode;
+    }
+
+    public VoltaConfig.TenancyConfig.CreationPolicy creationPolicy() {
+        return creationPolicy;
+    }
+
+    /** True when any authenticated user may create a new tenant (policy=AUTO). */
+    public boolean allowsSelfServiceCreation() {
+        return creationPolicy == VoltaConfig.TenancyConfig.CreationPolicy.AUTO;
     }
 
     public boolean isSingle() {

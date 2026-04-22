@@ -52,4 +52,18 @@ class TenancyPolicyTest {
         TenancyPolicy p = new TenancyPolicy((VoltaConfig.TenancyConfig.Mode) null);
         assertTrue(p.isSingle());
     }
+
+    @Test
+    void creationPolicyExposedForDiscoveryUi() {
+        // Phase 2 item 2: tenant-select.jte reads the policy to decide
+        // what empty-state CTA to show. Verify the plumbing.
+        String yaml = "tenancy:\n  mode: multi\n  creation_policy: auto\n";
+        TenancyPolicy p = new TenancyPolicy(ConfigLoader.parse(yaml));
+        assertEquals(VoltaConfig.TenancyConfig.CreationPolicy.AUTO, p.creationPolicy());
+        assertTrue(p.allowsSelfServiceCreation());
+
+        TenancyPolicy disabled = new TenancyPolicy(VoltaConfig.empty());
+        assertEquals(VoltaConfig.TenancyConfig.CreationPolicy.DISABLED, disabled.creationPolicy());
+        assertFalse(disabled.allowsSelfServiceCreation());
+    }
 }

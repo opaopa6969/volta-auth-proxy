@@ -101,9 +101,14 @@ public final class SqlStore {
     }
 
     public List<UserTenantInfo> findTenantInfosByUser(UUID userId) {
+        // AUTH-014 Phase 2 item 2: Discovery UI needs richer metadata per
+        // tenant. We join a COUNT of active memberships and pull plan +
+        // email_domain straight off the tenant row.
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     SELECT t.id, t.name, t.slug, m.role
+                     SELECT t.id, t.name, t.slug, m.role, t.plan, t.email_domain,
+                            (SELECT COUNT(*) FROM memberships m2
+                              WHERE m2.tenant_id = t.id AND m2.is_active = true) AS member_count
                      FROM memberships m
                      JOIN tenants t ON t.id = m.tenant_id
                      WHERE m.user_id = ? AND m.is_active = true AND t.is_active = true
@@ -117,7 +122,10 @@ public final class SqlStore {
                             rs.getObject("id", UUID.class),
                             rs.getString("name"),
                             rs.getString("slug"),
-                            rs.getString("role")
+                            rs.getString("role"),
+                            rs.getString("plan"),
+                            rs.getInt("member_count"),
+                            rs.getString("email_domain")
                     ));
                 }
             }
@@ -1143,7 +1151,12 @@ public final class SqlStore {
     public record SigningKeyMeta(String kid, String status, Instant createdAt, Instant rotatedAt, Instant expiresAt) {
     }
 
-    public record UserTenantInfo(UUID id, String name, String slug, String role) {
+    public record UserTenantInfo(UUID id, String name, String slug, String role,
+                                 String plan, int memberCount, String emailDomain) {
+        // Backward-compat constructor used by older call sites / tests.
+        public UserTenantInfo(UUID id, String name, String slug, String role) {
+            this(id, name, slug, role, "FREE", 0, null);
+        }
     }
 
     public record TenantDetailRecord(

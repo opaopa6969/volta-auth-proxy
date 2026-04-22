@@ -288,23 +288,49 @@ public final class AuthRouter {
             List<SqlStore.UserTenantInfo> infos = store.findTenantInfosByUser(principal.userId());
             List<Map<String, Object>> tenants = new ArrayList<>();
             for (SqlStore.UserTenantInfo info : infos) {
-                tenants.add(Map.of(
-                        "id", info.id().toString(),
-                        "name", info.name(),
-                        "slug", info.slug(),
-                        "role", info.role(),
-                        "isLast", info.id().equals(principal.tenantId())
-                ));
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", info.id().toString());
+                row.put("name", info.name());
+                row.put("slug", info.slug());
+                row.put("role", info.role());
+                row.put("plan", info.plan() == null ? "FREE" : info.plan());
+                row.put("memberCount", info.memberCount());
+                row.put("emailDomain", info.emailDomain() == null ? "" : info.emailDomain());
+                row.put("isLast", info.id().equals(principal.tenantId()));
+                tenants.add(row);
+            }
+            // AUTH-014 Phase 2 item 2: empty-state CTA depends on creation_policy.
+            // AUTO  → self-service "Create org" button
+            // INVITE_ONLY → exists-admin-of-another-tenant may create
+            // ADMIN_ONLY  → OWNER of another tenant may create
+            // DISABLED → "Contact your admin" copy only
+            boolean canCreateOrg = false;
+            String creationPolicy = tenancy.creationPolicy().name();
+            switch (tenancy.creationPolicy()) {
+                case AUTO -> canCreateOrg = true;
+                case INVITE_ONLY -> canCreateOrg = store.hasAdminRoleAnyTenant(principal.userId());
+                case ADMIN_ONLY -> canCreateOrg = store.hasOwnerRoleAnyTenant(principal.userId());
+                case DISABLED -> canCreateOrg = false;
             }
             ctx.render("auth/tenant-select.jte", model(
                     "title", "Tenant Select",
                     "tenants", tenants,
+                    "userEmail", principal.email() == null ? "" : principal.email(),
+                    "creationPolicy", creationPolicy,
+                    "canCreateOrg", canCreateOrg,
                     "returnTo", ctx.queryParam("return_to"),
                     "csrfToken", currentCsrfToken(ctx, sessionStore)
             ));
         });
 
         app.post("/auth/switch-tenant", ctx -> {
+            // AUTH-014 Phase 2: no tenant switching in single-tenant mode.
+            // Returning 403 rather than 404 so automated clients can tell
+            // "feature disabled" from "endpoint missing".
+            if (tenancy.isSingle()) {
+                throw new ApiException(403, "TENANT_SWITCH_DISABLED",
+                        "Tenant switching is disabled in single-tenant mode.");
+            }
             AuthPrincipal principal = requireAuth(ctx, authService);
             String oldSessionRaw = ctx.cookie(AuthService.SESSION_COOKIE);
             JsonNode body = objectMapper.readTree(ctx.body());

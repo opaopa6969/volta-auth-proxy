@@ -111,12 +111,16 @@ final class OutboxWorker implements AutoCloseable {
                             payload.path("magicLink").asText());
                 }
                 case "notification.new_device" -> {
+                    // AUTH-004-v2: pass the optional revoke URL through.
+                    // Older payloads without the field still work via empty string.
+                    String revokeUrl = payload.path("revokeUrl").asText("");
                     notificationService.sendNewDeviceEmail(
                             payload.path("to").asText(),
                             payload.path("displayName").asText(),
                             payload.path("device").asText(),
                             payload.path("ip").asText(),
-                            payload.path("timestamp").asText());
+                            payload.path("timestamp").asText(),
+                            revokeUrl.isBlank() ? null : revokeUrl);
                 }
                 default -> { /* unknown notification type */ }
             }

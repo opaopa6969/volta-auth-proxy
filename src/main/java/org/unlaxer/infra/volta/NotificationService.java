@@ -16,10 +16,21 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
 
-interface NotificationService {
+public interface NotificationService {
     void sendInvitationEmail(String to, String inviteLink, String tenantName, String role, String inviterName);
     void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp);
     void sendMagicLinkEmail(String to, String magicLink);
+
+    /**
+     * AUTH-004-v2: extended variant that includes a one-click revoke URL.
+     * Default implementation ignores the URL and calls the legacy method so
+     * existing overrides keep working; SMTP / SendGrid implementations
+     * override this to embed the link.
+     */
+    default void sendNewDeviceEmail(String to, String displayName, String device, String ip,
+                                    String timestamp, String revokeUrl) {
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp);
+    }
 
     static NotificationService create(AppConfig config) {
         return switch (config.notificationChannel().toLowerCase()) {
@@ -81,6 +92,11 @@ final class SmtpNotificationService implements NotificationService {
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp) {
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, null);
+    }
+
+    @Override
+    public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp, String revokeUrl) {
         if (to == null || to.isBlank()) return;
         try {
             Properties props = new Properties();
@@ -103,6 +119,9 @@ final class SmtpNotificationService implements NotificationService {
             msg.setFrom(new InternetAddress(config.smtpFrom()));
             msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
             msg.setSubject("[" + config.baseUrl().replaceAll("https?://", "") + "] 新しいデバイスからのログイン");
+            // AUTH-004-v2: prepend a one-click "this wasn't me" link when available.
+            String revokeBlock = (revokeUrl == null || revokeUrl.isBlank()) ? ""
+                    : "\n心当たりがなければ以下からこのデバイスを取り消してください:\n  " + revokeUrl + "\n";
             msg.setText("""
                     %s さん、
 
@@ -111,12 +130,12 @@ final class SmtpNotificationService implements NotificationService {
                       デバイス: %s
                       IP: %s
                       日時: %s
-
-                    心当たりがない場合は、以下からセッションを確認してください:
-                      %s/settings/sessions
+                    %s
+                    セッション確認: %s/settings/sessions
+                    デバイス一覧:   %s/settings/devices
 
                     ※ このメールに返信しても届きません。
-                    """.formatted(displayName, device, ip, timestamp, config.baseUrl()));
+                    """.formatted(displayName, device, ip, timestamp, revokeBlock, config.baseUrl(), config.baseUrl()));
             Transport.send(msg);
         } catch (Exception e) {
             throw new RuntimeException("SMTP send failed: " + e.getMessage(), e);
@@ -197,10 +216,19 @@ final class SendGridNotificationService implements NotificationService {
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp) {
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, null);
+    }
+
+    @Override
+    public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp, String revokeUrl) {
         if (to == null || to.isBlank() || config.sendgridApiKey().isBlank()) return;
         String domain = config.baseUrl().replaceAll("https?://", "");
-        String text = "%s さん、\\n\\n新しいデバイスからのログインがありました。\\n\\n  デバイス: %s\\n  IP: %s\\n  日時: %s\\n\\n心当たりがない場合は %s/settings/sessions を確認してください。"
-                .formatted(displayName, device, ip, timestamp, config.baseUrl());
+        String revokeLine = (revokeUrl == null || revokeUrl.isBlank()) ? ""
+                : "\\n心当たりがなければ即時に取り消し: " + revokeUrl.replace("\"", "\\\"");
+        String text = ("%s さん、\\n\\n新しいデバイスからのログインがありました。\\n\\n  デバイス: %s\\n  IP: %s\\n  日時: %s"
+                + revokeLine
+                + "\\n\\nセッション確認: %s/settings/sessions\\nデバイス一覧: %s/settings/devices")
+                .formatted(displayName, device, ip, timestamp, config.baseUrl(), config.baseUrl());
         String payload = """
                 {"personalizations":[{"to":[{"email":"%s"}]}],
                  "from":{"email":"%s"},

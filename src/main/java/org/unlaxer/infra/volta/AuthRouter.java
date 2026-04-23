@@ -204,6 +204,38 @@ public final class AuthRouter {
         });
 
         // GET logout for browser redirects (ForwardAuth, volta-console etc.)
+        // AUTH-004-v2: one-click revoke link from the "new device" email.
+        // Stateless — no DB session required; the signed token carries the
+        // user id + fingerprint + expiry. On success we delete the matching
+        // known_devices row and also revoke any sessions signed in from that
+        // exact fingerprint, forcing the attacker out.
+        app.get("/auth/devices/revoke", ctx -> {
+            setNoStore(ctx);
+            String token = ctx.queryParam("token");
+            String hmacKey = System.getenv().getOrDefault("AUTH_FLOW_HMAC_KEY", "");
+            var verify = DeviceRevokeToken.verify(token, hmacKey);
+            if (!verify.ok()) {
+                ctx.status(400).render("auth/revoke-result.jte",
+                        io.javalin.rendering.template.TemplateUtil.model(
+                                "title",   "Revoke device",
+                                "success", false,
+                                "message", verify.error()));
+                return;
+            }
+            var decoded = verify.decoded();
+            int removed = store.deleteKnownDevice(decoded.userId(), decoded.fingerprint());
+            auditService.log(ctx, "KNOWN_DEVICE_REVOKED_BY_LINK", null,
+                    "DEVICE", decoded.fingerprint(),
+                    Map.of("user_id", decoded.userId().toString(), "rows", removed));
+            ctx.render("auth/revoke-result.jte",
+                    io.javalin.rendering.template.TemplateUtil.model(
+                            "title",   "Revoke device",
+                            "success", true,
+                            "message", removed > 0
+                                    ? "Device removed from your trusted list."
+                                    : "Device not found or already removed."));
+        });
+
         app.get("/auth/logout", ctx -> {
             setNoStore(ctx);
             String cookie = ctx.cookie(AuthService.SESSION_COOKIE);
@@ -439,13 +471,22 @@ public final class AuthRouter {
             int existing = store.countKnownDevices(principal.userId());
             boolean isNew = store.upsertKnownDevice(principal.userId(), fp, label, ip);
             if (isNew && existing > 0) {
-                String payload = objectMapper.writeValueAsString(java.util.Map.of(
-                        "to", principal.email(),
-                        "displayName", principal.displayName() != null ? principal.displayName() : principal.email(),
-                        "device", label,
-                        "ip", ip,
-                        "timestamp", java.time.Instant.now().toString()
-                ));
+                Map<String, Object> data = new java.util.LinkedHashMap<>();
+                data.put("to", principal.email());
+                data.put("displayName", principal.displayName() != null ? principal.displayName() : principal.email());
+                data.put("device", label);
+                data.put("ip", ip);
+                data.put("timestamp", java.time.Instant.now().toString());
+                // AUTH-004-v2: include a one-click revoke URL in the email.
+                // Token is HMAC-signed + expires in 7 days (604800s).
+                String hmacKey = System.getenv().getOrDefault("AUTH_FLOW_HMAC_KEY", "");
+                if (!hmacKey.isBlank()) {
+                    String revokeToken = DeviceRevokeToken.mint(principal.userId(), fp, 604800L, hmacKey);
+                    String base = System.getenv().getOrDefault("PUBLIC_BASE_URL", "");
+                    data.put("revokeUrl", base + "/auth/devices/revoke?token="
+                            + java.net.URLEncoder.encode(revokeToken, java.nio.charset.StandardCharsets.UTF_8));
+                }
+                String payload = objectMapper.writeValueAsString(data);
                 store.enqueueOutboxEvent(null, "notification.new_device", payload);
             }
         } catch (Exception e) {

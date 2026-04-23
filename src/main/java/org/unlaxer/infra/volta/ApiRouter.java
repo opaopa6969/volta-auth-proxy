@@ -120,6 +120,30 @@ public final class ApiRouter {
             ));
         });
 
+        // AUTH-004-v2: user-facing known-devices management page. The REST
+        // API is already live at /api/v1/users/me/known-devices (8c8fe3d);
+        // this page just renders + wires delete-buttons.
+        app.get("/settings/devices", ctx -> {
+            Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
+            if (principalOpt.isEmpty()) {
+                if (Boolean.TRUE.equals(ctx.attribute("wantsJson"))) {
+                    throw new ApiException(401, "AUTHENTICATION_REQUIRED", "Authentication required");
+                }
+                ctx.redirect("/login?return_to=" + java.net.URLEncoder.encode(ctx.fullUrl(), java.nio.charset.StandardCharsets.UTF_8));
+                return;
+            }
+            AuthPrincipal principal = principalOpt.get();
+            List<Map<String, Object>> devices = store.listKnownDevices(principal.userId());
+            String flashMessage = popFlashCookie(ctx);
+            ctx.render("settings/devices.jte", io.javalin.rendering.template.TemplateUtil.model(
+                    "title", "Known devices",
+                    "userEmail", principal.email() == null ? "" : principal.email(),
+                    "devices", devices,
+                    "csrfToken", AuthRouter.currentCsrfToken(ctx, sessionStore),
+                    "flashMessage", flashMessage
+            ));
+        });
+
         app.get("/settings/sessions", ctx -> {
             Optional<AuthPrincipal> principalOpt = authService.authenticate(ctx);
             if (principalOpt.isEmpty()) {

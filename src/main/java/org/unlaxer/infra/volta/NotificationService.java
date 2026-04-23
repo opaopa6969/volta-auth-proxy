@@ -51,6 +51,17 @@ public interface NotificationService {
      */
     default void sendNewDeviceEmail(String to, String displayName, String device, String ip,
                                     String timestamp, String revokeUrl, String locale) {
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, revokeUrl, locale, null);
+    }
+
+    /**
+     * AUTH-004-v2 + GeoIP: variant that includes an optional location
+     * label (e.g. {@code "Tokyo, JP"}). Default implementation drops the
+     * location to keep back-compat; SMTP / SendGrid implementations
+     * override this to emit a "Location:" line in the email.
+     */
+    default void sendNewDeviceEmail(String to, String displayName, String device, String ip,
+                                    String timestamp, String revokeUrl, String locale, String location) {
         sendNewDeviceEmail(to, displayName, device, ip, timestamp);
     }
 
@@ -123,39 +134,31 @@ final class SmtpNotificationService implements NotificationService {
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp) {
-        sendNewDeviceEmail(to, displayName, device, ip, timestamp, null, null);
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, null, null, null);
     }
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp, String revokeUrl) {
-        sendNewDeviceEmail(to, displayName, device, ip, timestamp, revokeUrl, null);
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, revokeUrl, null, null);
     }
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp, String revokeUrl, String locale) {
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, revokeUrl, locale, null);
+    }
+
+    @Override
+    public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp,
+                                   String revokeUrl, String locale, String location) {
         if (to == null || to.isBlank()) return;
         try {
-            Properties props = new Properties();
-            props.put("mail.smtp.host", config.smtpHost());
-            props.put("mail.smtp.port", String.valueOf(config.smtpPort()));
-            props.put("mail.smtp.auth", !config.smtpUser().isBlank());
-            props.put("mail.smtp.starttls.enable", "true");
-            Session session;
-            if (!config.smtpUser().isBlank()) {
-                session = Session.getInstance(props, new Authenticator() {
-                    @Override
-                    protected PasswordAuthentication getPasswordAuthentication() {
-                        return new PasswordAuthentication(config.smtpUser(), config.smtpPassword());
-                    }
-                });
-            } else {
-                session = Session.getInstance(props);
-            }
             // AUTH-004-v2 + i18n: build the body from messages_<locale>.properties
             // so translations live in resource bundles, not Java source.
             Messages msg = Messages.forLocale(locale);
             String host = config.baseUrl().replaceAll("https?://", "");
             String subject = msg.get("email.newDevice.subject", host);
+            String locBlock = (location == null || location.isBlank()) ? ""
+                    : "  " + msg.get("email.newDevice.field.location", location) + "\n";
             String revokeBlock = (revokeUrl == null || revokeUrl.isBlank()) ? ""
                     : "\n" + msg.get("email.newDevice.revokePrompt") + "\n  " + revokeUrl + "\n";
             String body = String.join("\n",
@@ -165,13 +168,13 @@ final class SmtpNotificationService implements NotificationService {
                     "",
                     "  " + msg.get("email.newDevice.field.device", device),
                     "  " + msg.get("email.newDevice.field.ip", ip),
-                    "  " + msg.get("email.newDevice.field.time", timestamp),
+                    locBlock + "  " + msg.get("email.newDevice.field.time", timestamp),
                     revokeBlock,
                     msg.get("email.newDevice.sessionLink", config.baseUrl()),
                     msg.get("email.newDevice.devicesLink", config.baseUrl()),
                     "",
                     msg.get("email.newDevice.footer"));
-            Message mime = new MimeMessage(session);
+            Message mime = new MimeMessage(buildSession());
             mime.setFrom(new InternetAddress(config.smtpFrom()));
             mime.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
             mime.setSubject(subject);
@@ -263,42 +266,51 @@ final class SendGridNotificationService implements NotificationService {
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp) {
-        sendNewDeviceEmail(to, displayName, device, ip, timestamp, null, null);
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, null, null, null);
     }
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp, String revokeUrl) {
-        sendNewDeviceEmail(to, displayName, device, ip, timestamp, revokeUrl, null);
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, revokeUrl, null, null);
     }
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp, String revokeUrl, String locale) {
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, revokeUrl, locale, null);
+    }
+
+    @Override
+    public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp,
+                                   String revokeUrl, String locale, String location) {
         if (to == null || to.isBlank() || config.sendgridApiKey().isBlank()) return;
         String domain = config.baseUrl().replaceAll("https?://", "");
         // AUTH-004-v2 + i18n: resource-bundle lookup.
         Messages m = Messages.forLocale(locale);
         String subject = m.get("email.newDevice.subject", domain);
+        String locationLine = (location == null || location.isBlank()) ? null
+                : "  " + m.get("email.newDevice.field.location", location);
         String revokeLine = (revokeUrl == null || revokeUrl.isBlank()) ? ""
                 : "\\n" + m.get("email.newDevice.revokePrompt").replace("\"", "\\\"")
                 + "\\n  " + revokeUrl.replace("\"", "\\\"");
-        // SendGrid JSON payload needs \n escaped. Compose per-line then join.
-        String[] lines = {
+        // Compose lines; null entries are dropped below.
+        java.util.List<String> lineList = new java.util.ArrayList<>(java.util.Arrays.asList(
                 m.get("email.newDevice.greeting", displayName),
                 "",
                 m.get("email.newDevice.intro"),
                 "",
                 "  " + m.get("email.newDevice.field.device", device),
-                "  " + m.get("email.newDevice.field.ip", ip),
+                "  " + m.get("email.newDevice.field.ip", ip)));
+        if (locationLine != null) lineList.add(locationLine);
+        lineList.addAll(java.util.Arrays.asList(
                 "  " + m.get("email.newDevice.field.time", timestamp),
                 revokeLine,
                 "",
                 m.get("email.newDevice.sessionLink", config.baseUrl()),
                 m.get("email.newDevice.devicesLink", config.baseUrl()),
                 "",
-                m.get("email.newDevice.footer")
-        };
+                m.get("email.newDevice.footer")));
         String text = String.join("\\n",
-                java.util.Arrays.stream(lines).map(s -> s.replace("\"", "\\\"")).toArray(String[]::new));
+                lineList.stream().map(s -> s.replace("\"", "\\\"")).toArray(String[]::new));
         String payload = """
                 {"personalizations":[{"to":[{"email":"%s"}]}],
                  "from":{"email":"%s"},

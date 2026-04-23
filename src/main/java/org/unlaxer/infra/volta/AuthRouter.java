@@ -485,6 +485,16 @@ public final class AuthRouter {
                 data.put("displayName", principal.displayName() != null ? principal.displayName() : principal.email());
                 data.put("device", label);
                 data.put("ip", ip);
+                // AUTH-004-v2: optional GeoIP enrichment. GeoIpResolver
+                // defaults to NOOP unless GEOIP_API_URL is set; private IPs
+                // are skipped automatically. Pure enrichment — no failure
+                // in the resolver should block the notification.
+                try {
+                    GeoIpResolver.fromEnv().lookup(ip).ifPresent(geo -> {
+                        String loc = geo.label();
+                        if (!loc.isBlank()) data.put("location", loc);
+                    });
+                } catch (Exception ignored) { /* keep email flowing */ }
                 data.put("timestamp", java.time.Instant.now().toString());
                 // i18n: carry the user's stored locale (V20 users.locale)
                 // so the notification email renders in their preferred

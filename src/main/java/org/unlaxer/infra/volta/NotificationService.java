@@ -21,6 +21,17 @@ public interface NotificationService {
     void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp);
     void sendMagicLinkEmail(String to, String magicLink);
 
+    /** i18n: invitation email variant that picks a locale. */
+    default void sendInvitationEmail(String to, String inviteLink, String tenantName, String role,
+                                     String inviterName, String locale) {
+        sendInvitationEmail(to, inviteLink, tenantName, role, inviterName);
+    }
+
+    /** i18n: magic-link email variant that picks a locale. */
+    default void sendMagicLinkEmail(String to, String magicLink, String locale) {
+        sendMagicLinkEmail(to, magicLink);
+    }
+
     /**
      * AUTH-004-v2: extended variant that includes a one-click revoke URL.
      * Default implementation ignores the URL and calls the legacy method so
@@ -65,40 +76,49 @@ final class SmtpNotificationService implements NotificationService {
 
     @Override
     public void sendInvitationEmail(String to, String inviteLink, String tenantName, String role, String inviterName) {
-        if (to == null || to.isBlank()) {
-            return;
-        }
+        sendInvitationEmail(to, inviteLink, tenantName, role, inviterName, null);
+    }
+
+    @Override
+    public void sendInvitationEmail(String to, String inviteLink, String tenantName, String role,
+                                    String inviterName, String locale) {
+        if (to == null || to.isBlank()) return;
         try {
-            Properties props = new Properties();
-            props.put("mail.smtp.host", config.smtpHost());
-            props.put("mail.smtp.port", String.valueOf(config.smtpPort()));
-            props.put("mail.smtp.auth", !config.smtpUser().isBlank());
-            props.put("mail.smtp.starttls.enable", "true");
-            Session session;
-            if (!config.smtpUser().isBlank()) {
-                session = Session.getInstance(props, new Authenticator() {
-                    @Override
-                    protected PasswordAuthentication getPasswordAuthentication() {
-                        return new PasswordAuthentication(config.smtpUser(), config.smtpPassword());
-                    }
-                });
-            } else {
-                session = Session.getInstance(props);
-            }
-            Message msg = new MimeMessage(session);
-            msg.setFrom(new InternetAddress(config.smtpFrom()));
-            msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
-            msg.setSubject("招待: " + tenantName + " に参加");
-            msg.setText("""
-                    %s さんから %s に招待されました。
-                    Role: %s
-                    以下のリンクから参加してください:
-                    %s
-                    """.formatted(inviterName == null ? "メンバー" : inviterName, tenantName, role, inviteLink));
-            Transport.send(msg);
+            Session session = buildSession();
+            Messages m = Messages.forLocale(locale);
+            String inviter = (inviterName == null || inviterName.isBlank())
+                    ? m.get("email.invite.defaultInviter")
+                    : inviterName;
+            Message mime = new MimeMessage(session);
+            mime.setFrom(new InternetAddress(config.smtpFrom()));
+            mime.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
+            mime.setSubject(m.get("email.invite.subject", tenantName));
+            mime.setText(String.join("\n",
+                    m.get("email.invite.body", inviter, tenantName, role, inviteLink),
+                    "",
+                    m.get("email.invite.footer")));
+            Transport.send(mime);
         } catch (Exception e) {
             throw new RuntimeException("SMTP send failed: " + e.getMessage(), e);
         }
+    }
+
+    // AUTH-004-v2 i18n refactor: common SMTP Session builder so i18n-aware
+    // overloads don't repeat the auth plumbing.
+    private Session buildSession() {
+        Properties props = new Properties();
+        props.put("mail.smtp.host", config.smtpHost());
+        props.put("mail.smtp.port", String.valueOf(config.smtpPort()));
+        props.put("mail.smtp.auth", !config.smtpUser().isBlank());
+        props.put("mail.smtp.starttls.enable", "true");
+        if (!config.smtpUser().isBlank()) {
+            return Session.getInstance(props, new Authenticator() {
+                @Override protected PasswordAuthentication getPasswordAuthentication() {
+                    return new PasswordAuthentication(config.smtpUser(), config.smtpPassword());
+                }
+            });
+        }
+        return Session.getInstance(props);
     }
 
     @Override
@@ -164,26 +184,23 @@ final class SmtpNotificationService implements NotificationService {
 
     @Override
     public void sendMagicLinkEmail(String to, String magicLink) {
+        sendMagicLinkEmail(to, magicLink, null);
+    }
+
+    @Override
+    public void sendMagicLinkEmail(String to, String magicLink, String locale) {
         if (to == null || to.isBlank()) return;
         try {
-            Properties props = new Properties();
-            props.put("mail.smtp.host", config.smtpHost());
-            props.put("mail.smtp.port", String.valueOf(config.smtpPort()));
-            props.put("mail.smtp.auth", !config.smtpUser().isBlank());
-            props.put("mail.smtp.starttls.enable", "true");
-            Session session = !config.smtpUser().isBlank()
-                    ? Session.getInstance(props, new Authenticator() {
-                        @Override protected PasswordAuthentication getPasswordAuthentication() {
-                            return new PasswordAuthentication(config.smtpUser(), config.smtpPassword());
-                        }
-                    })
-                    : Session.getInstance(props);
-            Message msg = new MimeMessage(session);
-            msg.setFrom(new InternetAddress(config.smtpFrom()));
-            msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
-            msg.setSubject("ログインリンク");
-            msg.setText("以下のリンクをクリックしてログインしてください:\n\n" + magicLink + "\n\nこのリンクは10分間有効です。\n心当たりがない場合は無視してください。");
-            Transport.send(msg);
+            Messages m = Messages.forLocale(locale);
+            Message mime = new MimeMessage(buildSession());
+            mime.setFrom(new InternetAddress(config.smtpFrom()));
+            mime.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
+            mime.setSubject(m.get("email.magicLink.subject"));
+            mime.setText(String.join("\n",
+                    m.get("email.magicLink.body", magicLink),
+                    "",
+                    m.get("email.magicLink.footer")));
+            Transport.send(mime);
         } catch (Exception e) {
             throw new RuntimeException("SMTP send failed: " + e.getMessage(), e);
         }
@@ -200,20 +217,30 @@ final class SendGridNotificationService implements NotificationService {
 
     @Override
     public void sendInvitationEmail(String to, String inviteLink, String tenantName, String role, String inviterName) {
+        sendInvitationEmail(to, inviteLink, tenantName, role, inviterName, null);
+    }
+
+    @Override
+    public void sendInvitationEmail(String to, String inviteLink, String tenantName, String role,
+                                    String inviterName, String locale) {
         if (to == null || to.isBlank() || config.sendgridApiKey().isBlank()) {
             return;
         }
-        String text = "%s さんから %s に招待されました。\nRole: %s\n参加リンク: %s"
-                .formatted(inviterName == null ? "メンバー" : inviterName, tenantName, role, inviteLink);
+        Messages m = Messages.forLocale(locale);
+        String inviter = (inviterName == null || inviterName.isBlank())
+                ? m.get("email.invite.defaultInviter") : inviterName;
+        String subject = m.get("email.invite.subject", tenantName);
+        String text = (m.get("email.invite.body", inviter, tenantName, role, inviteLink)
+                + "\n\n" + m.get("email.invite.footer")).replace("\n", "\\n");
         String payload = """
                 {"personalizations":[{"to":[{"email":"%s"}]}],
                  "from":{"email":"%s"},
-                 "subject":"招待: %s に参加",
+                 "subject":"%s",
                  "content":[{"type":"text/plain","value":"%s"}]}
                 """.formatted(
                 to.replace("\"", ""),
                 config.smtpFrom().replace("\"", ""),
-                tenantName.replace("\"", ""),
+                subject.replace("\"", "\\\""),
                 text.replace("\"", "\\\"")
         );
         try {
@@ -303,14 +330,26 @@ final class SendGridNotificationService implements NotificationService {
 
     @Override
     public void sendMagicLinkEmail(String to, String magicLink) {
+        sendMagicLinkEmail(to, magicLink, null);
+    }
+
+    @Override
+    public void sendMagicLinkEmail(String to, String magicLink, String locale) {
         if (to == null || to.isBlank() || config.sendgridApiKey().isBlank()) return;
-        String text = "以下のリンクをクリックしてログインしてください:\\n\\n" + magicLink + "\\n\\nこのリンクは10分間有効です。";
+        Messages m = Messages.forLocale(locale);
+        String subject = m.get("email.magicLink.subject");
+        String text = (m.get("email.magicLink.body", magicLink)
+                + "\n\n" + m.get("email.magicLink.footer")).replace("\n", "\\n");
         String payload = """
                 {"personalizations":[{"to":[{"email":"%s"}]}],
                  "from":{"email":"%s"},
-                 "subject":"ログインリンク",
+                 "subject":"%s",
                  "content":[{"type":"text/plain","value":"%s"}]}
-                """.formatted(to.replace("\"", ""), config.smtpFrom().replace("\"", ""), text.replace("\"", "\\\""));
+                """.formatted(
+                to.replace("\"", ""),
+                config.smtpFrom().replace("\"", ""),
+                subject.replace("\"", "\\\""),
+                text.replace("\"", "\\\""));
         try {
             HttpRequest req = HttpRequest.newBuilder(URI.create("https://api.sendgrid.com/v3/mail/send"))
                     .timeout(Duration.ofSeconds(5))

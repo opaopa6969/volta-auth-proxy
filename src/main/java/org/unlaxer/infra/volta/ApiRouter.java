@@ -619,13 +619,20 @@ public final class ApiRouter {
             if (email != null && !email.isBlank()) {
                 String tenantName = store.findTenantById(tenantId).map(TenantRecord::name).orElse("Workspace");
                 String inviterName = store.findUserById(p.userId()).map(UserRecord::displayName).orElse(p.displayName());
-                String emailPayload = objectMapper.writeValueAsString(Map.of(
-                        "to", email,
-                        "inviteLink", config.baseUrl() + "/invite/" + code,
-                        "tenantName", tenantName,
-                        "role", role,
-                        "inviterName", inviterName == null ? "メンバー" : inviterName
-                ));
+                // i18n: use the invitee's locale when they already have an
+                // account; otherwise fall back to the inviter's locale so the
+                // email matches who triggered it. `null` → default locale.
+                String locale = store.getUserLocaleByEmail(email)
+                        .or(() -> store.getUserLocale(p.userId()))
+                        .orElse(null);
+                Map<String, Object> invData = new java.util.LinkedHashMap<>();
+                invData.put("to", email);
+                invData.put("inviteLink", config.baseUrl() + "/invite/" + code);
+                invData.put("tenantName", tenantName);
+                invData.put("role", role);
+                invData.put("inviterName", inviterName == null ? "" : inviterName);
+                if (locale != null && !locale.isBlank()) invData.put("locale", locale);
+                String emailPayload = objectMapper.writeValueAsString(invData);
                 store.enqueueOutboxEvent(tenantId, "notification.invitation", emailPayload);
             }
             ctx.status(201).json(Map.of(

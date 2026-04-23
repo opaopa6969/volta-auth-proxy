@@ -68,7 +68,16 @@ public final class AuthRouter {
             }
             String token = store.createMagicLink(email, 10);
             String link = config.baseUrl() + "/auth/magic-link/verify?token=" + token;
-            String payload = objectMapper.writeValueAsString(Map.of("to", email, "magicLink", link));
+            // i18n: prefer the account's stored locale; fall back to the
+            // request's Accept-Language so first-time users still get a
+            // localised email.
+            String locale = store.getUserLocaleByEmail(email)
+                    .orElseGet(() -> Messages.resolve(null, ctx.header("Accept-Language")).locale());
+            Map<String, Object> mlData = new java.util.LinkedHashMap<>();
+            mlData.put("to", email);
+            mlData.put("magicLink", link);
+            if (locale != null && !locale.isBlank()) mlData.put("locale", locale);
+            String payload = objectMapper.writeValueAsString(mlData);
             store.enqueueOutboxEvent(null, "notification.magic_link", payload);
             var response = new java.util.LinkedHashMap<String, Object>();
             response.put("ok", true);

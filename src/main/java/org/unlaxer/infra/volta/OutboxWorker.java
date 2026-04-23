@@ -98,17 +98,23 @@ final class OutboxWorker implements AutoCloseable {
             com.fasterxml.jackson.databind.JsonNode payload = new com.fasterxml.jackson.databind.ObjectMapper().readTree(outbox.payload());
             switch (outbox.eventType()) {
                 case "notification.invitation" -> {
+                    // i18n: optional `locale` field in the payload picks the
+                    // resource bundle; absent → default locale.
+                    String invLocale = payload.path("locale").asText("");
                     notificationService.sendInvitationEmail(
                             payload.path("to").asText(),
                             payload.path("inviteLink").asText(),
                             payload.path("tenantName").asText(),
                             payload.path("role").asText(),
-                            payload.path("inviterName").asText());
+                            payload.path("inviterName").asText(),
+                            invLocale.isBlank() ? null : invLocale);
                 }
                 case "notification.magic_link" -> {
+                    String mlLocale = payload.path("locale").asText("");
                     notificationService.sendMagicLinkEmail(
                             payload.path("to").asText(),
-                            payload.path("magicLink").asText());
+                            payload.path("magicLink").asText(),
+                            mlLocale.isBlank() ? null : mlLocale);
                 }
                 case "notification.new_device" -> {
                     // AUTH-004-v2: pass the optional revoke URL through.

@@ -1918,6 +1918,23 @@ public final class SqlStore {
         }
     }
 
+    /** Same as {@link #getUserLocale(UUID)} but keyed by email. */
+    public Optional<String> getUserLocaleByEmail(String email) {
+        if (email == null || email.isBlank()) return Optional.empty();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT locale FROM users WHERE lower(email) = lower(?) LIMIT 1")) {
+            ps.setString(1, email);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                String loc = rs.getString("locale");
+                return (loc == null || loc.isBlank()) ? Optional.empty() : Optional.of(loc);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public int setUserLocale(UUID userId, String locale) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

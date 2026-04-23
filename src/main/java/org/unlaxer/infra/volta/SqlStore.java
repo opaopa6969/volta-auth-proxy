@@ -1900,6 +1900,24 @@ public final class SqlStore {
         }
     }
 
+    /**
+     * Look up a user's preferred locale. Returns empty when unset so the
+     * caller can fall back to Accept-Language / default.
+     */
+    public Optional<String> getUserLocale(UUID userId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT locale FROM users WHERE id = ?")) {
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                String loc = rs.getString("locale");
+                return (loc == null || loc.isBlank()) ? Optional.empty() : Optional.of(loc);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public int setUserLocale(UUID userId, String locale) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

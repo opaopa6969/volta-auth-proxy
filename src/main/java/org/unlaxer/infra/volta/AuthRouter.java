@@ -477,6 +477,10 @@ public final class AuthRouter {
                 data.put("device", label);
                 data.put("ip", ip);
                 data.put("timestamp", java.time.Instant.now().toString());
+                // i18n: carry the user's stored locale (V20 users.locale)
+                // so the notification email renders in their preferred
+                // language. Null / empty → default locale in NotificationService.
+                store.getUserLocale(principal.userId()).ifPresent(loc -> data.put("locale", loc));
                 // AUTH-004-v2: include a one-click revoke URL in the email.
                 // Token is HMAC-signed + expires in 7 days (604800s).
                 String hmacKey = System.getenv().getOrDefault("AUTH_FLOW_HMAC_KEY", "");

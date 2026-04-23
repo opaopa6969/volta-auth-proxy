@@ -113,14 +113,18 @@ final class OutboxWorker implements AutoCloseable {
                 case "notification.new_device" -> {
                     // AUTH-004-v2: pass the optional revoke URL through.
                     // Older payloads without the field still work via empty string.
+                    // i18n: locale is looked up in AuthRouter from users.locale
+                    // and included in the payload. Empty → default locale.
                     String revokeUrl = payload.path("revokeUrl").asText("");
+                    String locale    = payload.path("locale").asText("");
                     notificationService.sendNewDeviceEmail(
                             payload.path("to").asText(),
                             payload.path("displayName").asText(),
                             payload.path("device").asText(),
                             payload.path("ip").asText(),
                             payload.path("timestamp").asText(),
-                            revokeUrl.isBlank() ? null : revokeUrl);
+                            revokeUrl.isBlank() ? null : revokeUrl,
+                            locale.isBlank() ? null : locale);
                 }
                 default -> { /* unknown notification type */ }
             }

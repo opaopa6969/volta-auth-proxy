@@ -29,6 +29,17 @@ public interface NotificationService {
      */
     default void sendNewDeviceEmail(String to, String displayName, String device, String ip,
                                     String timestamp, String revokeUrl) {
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, revokeUrl, null);
+    }
+
+    /**
+     * AUTH-004-v2 + i18n: variant that resolves email text from the
+     * {@code messages_<locale>.properties} bundle. Falls back to the
+     * revoke-URL variant (which falls back to the legacy variant) when
+     * implementations don't override.
+     */
+    default void sendNewDeviceEmail(String to, String displayName, String device, String ip,
+                                    String timestamp, String revokeUrl, String locale) {
         sendNewDeviceEmail(to, displayName, device, ip, timestamp);
     }
 
@@ -92,11 +103,16 @@ final class SmtpNotificationService implements NotificationService {
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp) {
-        sendNewDeviceEmail(to, displayName, device, ip, timestamp, null);
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, null, null);
     }
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp, String revokeUrl) {
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, revokeUrl, null);
+    }
+
+    @Override
+    public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp, String revokeUrl, String locale) {
         if (to == null || to.isBlank()) return;
         try {
             Properties props = new Properties();
@@ -115,28 +131,32 @@ final class SmtpNotificationService implements NotificationService {
             } else {
                 session = Session.getInstance(props);
             }
-            Message msg = new MimeMessage(session);
-            msg.setFrom(new InternetAddress(config.smtpFrom()));
-            msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
-            msg.setSubject("[" + config.baseUrl().replaceAll("https?://", "") + "] 新しいデバイスからのログイン");
-            // AUTH-004-v2: prepend a one-click "this wasn't me" link when available.
+            // AUTH-004-v2 + i18n: build the body from messages_<locale>.properties
+            // so translations live in resource bundles, not Java source.
+            Messages msg = Messages.forLocale(locale);
+            String host = config.baseUrl().replaceAll("https?://", "");
+            String subject = msg.get("email.newDevice.subject", host);
             String revokeBlock = (revokeUrl == null || revokeUrl.isBlank()) ? ""
-                    : "\n心当たりがなければ以下からこのデバイスを取り消してください:\n  " + revokeUrl + "\n";
-            msg.setText("""
-                    %s さん、
-
-                    新しいデバイスからのログインがありました。
-
-                      デバイス: %s
-                      IP: %s
-                      日時: %s
-                    %s
-                    セッション確認: %s/settings/sessions
-                    デバイス一覧:   %s/settings/devices
-
-                    ※ このメールに返信しても届きません。
-                    """.formatted(displayName, device, ip, timestamp, revokeBlock, config.baseUrl(), config.baseUrl()));
-            Transport.send(msg);
+                    : "\n" + msg.get("email.newDevice.revokePrompt") + "\n  " + revokeUrl + "\n";
+            String body = String.join("\n",
+                    msg.get("email.newDevice.greeting", displayName),
+                    "",
+                    msg.get("email.newDevice.intro"),
+                    "",
+                    "  " + msg.get("email.newDevice.field.device", device),
+                    "  " + msg.get("email.newDevice.field.ip", ip),
+                    "  " + msg.get("email.newDevice.field.time", timestamp),
+                    revokeBlock,
+                    msg.get("email.newDevice.sessionLink", config.baseUrl()),
+                    msg.get("email.newDevice.devicesLink", config.baseUrl()),
+                    "",
+                    msg.get("email.newDevice.footer"));
+            Message mime = new MimeMessage(session);
+            mime.setFrom(new InternetAddress(config.smtpFrom()));
+            mime.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
+            mime.setSubject(subject);
+            mime.setText(body);
+            Transport.send(mime);
         } catch (Exception e) {
             throw new RuntimeException("SMTP send failed: " + e.getMessage(), e);
         }
@@ -216,28 +236,51 @@ final class SendGridNotificationService implements NotificationService {
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp) {
-        sendNewDeviceEmail(to, displayName, device, ip, timestamp, null);
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, null, null);
     }
 
     @Override
     public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp, String revokeUrl) {
+        sendNewDeviceEmail(to, displayName, device, ip, timestamp, revokeUrl, null);
+    }
+
+    @Override
+    public void sendNewDeviceEmail(String to, String displayName, String device, String ip, String timestamp, String revokeUrl, String locale) {
         if (to == null || to.isBlank() || config.sendgridApiKey().isBlank()) return;
         String domain = config.baseUrl().replaceAll("https?://", "");
+        // AUTH-004-v2 + i18n: resource-bundle lookup.
+        Messages m = Messages.forLocale(locale);
+        String subject = m.get("email.newDevice.subject", domain);
         String revokeLine = (revokeUrl == null || revokeUrl.isBlank()) ? ""
-                : "\\n心当たりがなければ即時に取り消し: " + revokeUrl.replace("\"", "\\\"");
-        String text = ("%s さん、\\n\\n新しいデバイスからのログインがありました。\\n\\n  デバイス: %s\\n  IP: %s\\n  日時: %s"
-                + revokeLine
-                + "\\n\\nセッション確認: %s/settings/sessions\\nデバイス一覧: %s/settings/devices")
-                .formatted(displayName, device, ip, timestamp, config.baseUrl(), config.baseUrl());
+                : "\\n" + m.get("email.newDevice.revokePrompt").replace("\"", "\\\"")
+                + "\\n  " + revokeUrl.replace("\"", "\\\"");
+        // SendGrid JSON payload needs \n escaped. Compose per-line then join.
+        String[] lines = {
+                m.get("email.newDevice.greeting", displayName),
+                "",
+                m.get("email.newDevice.intro"),
+                "",
+                "  " + m.get("email.newDevice.field.device", device),
+                "  " + m.get("email.newDevice.field.ip", ip),
+                "  " + m.get("email.newDevice.field.time", timestamp),
+                revokeLine,
+                "",
+                m.get("email.newDevice.sessionLink", config.baseUrl()),
+                m.get("email.newDevice.devicesLink", config.baseUrl()),
+                "",
+                m.get("email.newDevice.footer")
+        };
+        String text = String.join("\\n",
+                java.util.Arrays.stream(lines).map(s -> s.replace("\"", "\\\"")).toArray(String[]::new));
         String payload = """
                 {"personalizations":[{"to":[{"email":"%s"}]}],
                  "from":{"email":"%s"},
-                 "subject":"[%s] 新しいデバイスからのログイン",
+                 "subject":"%s",
                  "content":[{"type":"text/plain","value":"%s"}]}
                 """.formatted(
                 to.replace("\"", ""),
                 config.smtpFrom().replace("\"", ""),
-                domain.replace("\"", ""),
+                subject.replace("\"", "\\\""),
                 text.replace("\"", "\\\"")
         );
         try {

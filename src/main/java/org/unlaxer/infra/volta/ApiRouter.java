@@ -937,6 +937,55 @@ public final class ApiRouter {
             ctx.json(out);
         });
 
+        // SAAS-008: usage metering
+        // Record a billable event. Services self-report — e.g. Traefik sidecar
+        // increments "api_call", ttyd launcher increments "session_hours".
+        app.post("/api/v1/tenants/{tenantId}/billing/usage", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            policy.enforceTenantMatch(p, tenantId);
+            // Any tenant member can record usage for their own tenant; the
+            // header-injection path means the caller is already trusted. We
+            // still gate on membership (enforceTenantMatch above).
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String metric = body.path("metric").asText("");
+            if (metric.isBlank() || metric.length() > 64 || !metric.matches("^[a-z0-9_.-]+$")) {
+                throw new ApiException(400, "BAD_REQUEST", "metric must be 1-64 chars of [a-z0-9_.-]");
+            }
+            long quantity = body.path("quantity").asLong(1L);
+            if (quantity < 0 || quantity > 1_000_000_000L) {
+                throw new ApiException(400, "BAD_REQUEST", "quantity out of range (0..1e9)");
+            }
+            JsonNode meta = body.path("meta");
+            String metaJson = meta.isMissingNode() || meta.isNull() ? null : meta.toString();
+            store.recordUsage(tenantId, metric, quantity, metaJson);
+            ctx.status(202).json(Map.of("ok", true));
+        });
+
+        // SAAS-008: aggregated usage query. Returns { metric: totalQuantity }.
+        // `from` / `to` are optional ISO-8601 instants (epoch / now by default).
+        app.get("/api/v1/tenants/{tenantId}/billing/usage", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
+            Instant from = parseInstantOrNull(ctx.queryParam("from"));
+            Instant to   = parseInstantOrNull(ctx.queryParam("to"));
+            Map<String, Long> agg = store.aggregateUsage(tenantId, from, to);
+            Map<String, Instant> last = store.lastUsageByMetric(tenantId);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("tenant_id", tenantId.toString());
+            result.put("window", Map.of(
+                    "from", from == null ? null : from.toString(),
+                    "to",   to   == null ? null : to.toString()
+            ));
+            result.put("totals", agg);
+            Map<String, String> lastStr = new LinkedHashMap<>();
+            last.forEach((k, v) -> lastStr.put(k, v.toString()));
+            result.put("last_recorded_at", lastStr);
+            ctx.json(result);
+        });
+
         app.post("/api/v1/tenants/{tenantId}/billing/subscription", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
@@ -1159,6 +1208,18 @@ public final class ApiRouter {
             throw new ApiException(403, "FORBIDDEN", "Service token cannot access admin keys");
         }
         policy.enforceMinRole(principal, "OWNER");
+    }
+
+    /**
+     * Parse an ISO-8601 instant query parameter, returning {@code null} for
+     * empty / invalid values. Used by SAAS-008 billing usage endpoints.
+     */
+    private static Instant parseInstantOrNull(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try { return Instant.parse(raw); }
+        catch (java.time.format.DateTimeParseException e) {
+            throw new ApiException(400, "BAD_REQUEST", "invalid ISO-8601 instant: " + raw);
+        }
     }
 
     private static boolean isAllowedOrigin(String origin) {

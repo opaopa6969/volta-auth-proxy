@@ -22,6 +22,21 @@ public final class AuditService {
             "LOGIN_SUCCESS", "LOGOUT", "SESSION_EXPIRED"
     );
 
+    // SAAS-008: map audit events to billing metrics. Unmapped events are
+    // ignored so we don't count every internal bookkeeping action.
+    private static final Map<String, String> USAGE_METRICS = Map.of(
+            "LOGIN_SUCCESS",      "auth.login",
+            "LOGIN_FAILED",       "auth.login_failed",
+            "LOGOUT",             "auth.logout",
+            "SESSION_EXPIRED",    "auth.session_expired",
+            "MFA_CHALLENGE",      "auth.mfa_challenge",
+            "MFA_VERIFIED",       "auth.mfa_verified",
+            "INVITE_CREATED",     "tenant.invite_sent",
+            "MEMBER_ADDED",       "tenant.member_added",
+            "WEBHOOK_DELIVERED",  "webhook.delivered",
+            "WEBHOOK_FAILED",     "webhook.failed"
+    );
+
     public AuditService(SqlStore store, AuditSink sink) {
         this(store, sink, null, null);
     }
@@ -60,6 +75,15 @@ public final class AuditService {
             // Publish auth events to Redis for real-time Auth Monitor
             if (authEventJedis != null && AUTH_EVENT_TYPES.contains(eventType)) {
                 publishAuthEvent(eventType, actor, targetId, requestId);
+            }
+
+            // SAAS-008: opportunistically record billing usage for events we
+            // care about. We only record when we have a tenant to scope to
+            // (anonymous / login-failure events without a principal yield no
+            // row). recordUsage swallows its own DB failures.
+            String metric = USAGE_METRICS.get(eventType);
+            if (metric != null && actor != null && actor.tenantId() != null) {
+                store.recordUsage(actor.tenantId(), metric, 1L, null);
             }
         } catch (Exception ignored) {
         }

@@ -1798,6 +1798,88 @@ public final class SqlStore {
         }
     }
 
+    // ── SAAS-008: usage metering ───────────────────────────────────────────
+
+    /**
+     * Record a billable usage event. Small payloads; callers should avoid
+     * stuffing large objects into {@code meta}. Quantity defaults to 1 for
+     * "happened once" events; set higher for batched reports.
+     */
+    public void recordUsage(UUID tenantId, String metric, long quantity, String metaJson) {
+        if (metric == null || metric.isBlank()) return;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     INSERT INTO billing_usage(tenant_id, metric, quantity, meta)
+                     VALUES (?, ?, ?, ?::jsonb)
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, metric);
+            ps.setLong(3, quantity);
+            ps.setString(4, metaJson);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            // Usage metering failures must never break the auth hot path.
+            System.getLogger("volta.billing").log(System.Logger.Level.WARNING,
+                    "recordUsage failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Aggregate usage per metric over a time window. Returns
+     * {@code metric → total quantity}. Use this for per-tenant billing
+     * dashboards and quota enforcement checks.
+     *
+     * @param from inclusive lower bound; null = epoch
+     * @param to   exclusive upper bound; null = now
+     */
+    public Map<String, Long> aggregateUsage(UUID tenantId, Instant from, Instant to) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT metric, COALESCE(SUM(quantity), 0) AS total "
+                + "FROM billing_usage WHERE tenant_id = ?");
+        List<Object> params = new ArrayList<>();
+        params.add(tenantId);
+        if (from != null) { sql.append(" AND recorded_at >= ?"); params.add(Timestamp.from(from)); }
+        if (to   != null) { sql.append(" AND recorded_at <  ?"); params.add(Timestamp.from(to)); }
+        sql.append(" GROUP BY metric ORDER BY metric");
+
+        Map<String, Long> out = new LinkedHashMap<>();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            for (int i = 0; i < params.size(); i++) ps.setObject(i + 1, params.get(i));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.put(rs.getString("metric"), rs.getLong("total"));
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return out;
+    }
+
+    /** Latest per-metric timestamp — useful to detect staleness. */
+    public Map<String, Instant> lastUsageByMetric(UUID tenantId) {
+        Map<String, Instant> out = new LinkedHashMap<>();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT metric, MAX(recorded_at) AS last
+                     FROM billing_usage
+                     WHERE tenant_id = ?
+                     GROUP BY metric
+                     """)) {
+            ps.setObject(1, tenantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Timestamp ts = rs.getTimestamp("last");
+                    if (ts != null) out.put(rs.getString("metric"), ts.toInstant());
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return out;
+    }
+
     public UUID upsertSubscription(UUID tenantId, String planId, String status, Instant expiresAt) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""

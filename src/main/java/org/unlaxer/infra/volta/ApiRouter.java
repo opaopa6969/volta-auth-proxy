@@ -993,6 +993,70 @@ public final class ApiRouter {
             ctx.json(result);
         });
 
+        // SAAS-008: Stripe Checkout — user starts a subscription / upgrade.
+        // The returned URL is short-lived and owned by Stripe; the frontend
+        // simply 302s to it. Source of truth for state remains the webhook.
+        app.post("/api/v1/tenants/{tenantId}/billing/checkout-session", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "OWNER");
+            StripeClient stripe = new StripeClient(config.stripeSecretKey());
+            if (!stripe.isConfigured()) {
+                throw new ApiException(503, "STRIPE_NOT_CONFIGURED",
+                        "Stripe is not enabled on this server.");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String priceId = body.path("price_id").asText("");
+            if (priceId.isBlank() || !priceId.startsWith("price_")) {
+                throw new ApiException(400, "BAD_REQUEST", "price_id must start with price_");
+            }
+            String success = firstNonBlank(
+                    body.path("success_url").asText(""),
+                    config.stripeCheckoutSuccessUrl(),
+                    config.baseUrl() + "/billing?status=success");
+            String cancel = firstNonBlank(
+                    body.path("cancel_url").asText(""),
+                    config.stripeCheckoutCancelUrl(),
+                    config.baseUrl() + "/billing?status=cancel");
+            String url = stripe.createCheckoutSession(priceId, success, cancel,
+                    tenantId.toString(), p.email());
+            auditService.log(ctx, "CHECKOUT_SESSION_STARTED", p, "TENANT", tenantId.toString(),
+                    Map.of("price_id", priceId));
+            ctx.status(201).json(Map.of("url", url));
+        });
+
+        // SAAS-008: Stripe Customer Portal — user manages their existing
+        // subscription (cancel, update card, view invoices).
+        app.post("/api/v1/tenants/{tenantId}/billing/portal", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "OWNER");
+            StripeClient stripe = new StripeClient(config.stripeSecretKey());
+            if (!stripe.isConfigured()) {
+                throw new ApiException(503, "STRIPE_NOT_CONFIGURED",
+                        "Stripe is not enabled on this server.");
+            }
+            var sub = store.findSubscription(tenantId);
+            if (sub.isEmpty() || sub.get().stripeSubId() == null || sub.get().stripeSubId().isBlank()) {
+                throw new ApiException(409, "NO_STRIPE_SUBSCRIPTION",
+                        "No Stripe subscription linked to this tenant. Complete checkout first.");
+            }
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String customerId = body.path("customer_id").asText("");
+            if (customerId.isBlank() || !customerId.startsWith("cus_")) {
+                throw new ApiException(400, "BAD_REQUEST", "customer_id must start with cus_");
+            }
+            String returnUrl = firstNonBlank(
+                    body.path("return_url").asText(""),
+                    config.stripePortalReturnUrl(),
+                    config.baseUrl() + "/billing");
+            String url = stripe.createPortalSession(customerId, returnUrl);
+            auditService.log(ctx, "BILLING_PORTAL_OPENED", p, "TENANT", tenantId.toString(), Map.of());
+            ctx.status(201).json(Map.of("url", url));
+        });
+
         app.post("/api/v1/tenants/{tenantId}/billing/subscription", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
@@ -1215,6 +1279,18 @@ public final class ApiRouter {
             throw new ApiException(403, "FORBIDDEN", "Service token cannot access admin keys");
         }
         policy.enforceMinRole(principal, "OWNER");
+    }
+
+    /**
+     * Return the first non-blank string from the list. Used for Stripe URL
+     * resolution where caller → server default → base-url fallback are
+     * tried in order.
+     */
+    private static String firstNonBlank(String... candidates) {
+        for (String c : candidates) {
+            if (c != null && !c.isBlank()) return c;
+        }
+        return "";
     }
 
     /**

@@ -26,6 +26,21 @@ public final class Main {
         AppConfig config = AppConfig.fromEnv();
         HikariDataSource dataSource = Database.createDataSource(config);
         Database.migrate(dataSource);
+        // AUTH-014 Phase 4 item 4: bring tenant_<slug> schemas up to date.
+        // One tenant's failure is logged but does not abort boot — the app
+        // degrades gracefully to "that tenant temporarily offline".
+        try {
+            TenantSchemaManager tenantSchemas = new TenantSchemaManager(dataSource);
+            TenantSchemaManager.MigrationReport report = tenantSchemas.migrateAllActive(dataSource);
+            if (!report.allOk()) {
+                System.getLogger("volta.tenancy").log(System.Logger.Level.WARNING,
+                        "Tenant schema migration: %d ok, %d failed: %s".formatted(
+                                report.succeeded().size(), report.failed().size(), report.failed()));
+            }
+        } catch (java.sql.SQLException e) {
+            System.getLogger("volta.tenancy").log(System.Logger.Level.WARNING,
+                    "Tenant schema enumeration failed — continuing", e);
+        }
         SqlStore store = new SqlStore(dataSource);
         SessionStore sessionStore = SessionStore.create(config, store);
         JwtService jwtService = new JwtService(config, store);

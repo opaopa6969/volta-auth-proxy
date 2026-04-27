@@ -78,11 +78,18 @@ public final class OidcFlowDef {
 
     /** Simple processor that clears error state for retry. */
     private static final class RetryProcessor implements StateProcessor {
+        // issue-hub#97: surface RETRIABLE_ERROR → INIT retries in the audit
+        // trail. The transition is the only loop in the OIDC graph and is
+        // otherwise invisible above the engine; logging it gives operators
+        // a per-flow trace when investigating reported login loops.
+        private static final System.Logger LOG = System.getLogger(RetryProcessor.class.getName());
+
         @Override public String name() { return "RetryProcessor"; }
         @Override public Set<Class<?>> requires() { return Set.of(); }
         @Override public Set<Class<?>> produces() { return Set.of(); }
         @Override public void process(FlowContext ctx) {
-            // No-op — retry starts a fresh INIT cycle
+            LOG.log(System.Logger.Level.INFO,
+                    "[oidc-retry] RETRIABLE_ERROR → INIT flowId={0}", ctx.flowId());
         }
     }
 }

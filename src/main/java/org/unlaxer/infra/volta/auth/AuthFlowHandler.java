@@ -35,6 +35,22 @@ public class AuthFlowHandler {
     private static final System.Logger LOG = System.getLogger("volta.auth");
     private static final String MFA_FLOW_COOKIE = "__volta_mfa_flow";
 
+    // issue-hub#97: response header that explains why /auth/verify returned a
+    // non-200. Lets infra/console correlate a redirect or 401 with the actual
+    // cause when the user reports a loop — without leaking it into the body.
+    private static final String AUTH_REASON_HEADER = "X-Volta-Auth-Reason";
+
+    // issue-hub#97: flag a client that retriggers startOidc within 30s of the
+    // previous attempt as a likely orphan — the previous flow expired without
+    // a callback, which is a strong signal of Set-Cookie loss, browser
+    // pre-fetch, or Back/Forward navigation. Cap the tracked set so a busy
+    // node can't grow it unbounded; the cap is generous (typical login QPS
+    // is well under this) and entries fall out of the window quickly anyway.
+    private static final long ORPHAN_DETECT_WINDOW_MS = 30_000L;
+    private static final int ORPHAN_TRACK_MAX = 2_048;
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> recentOidcStarts =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     // ── 共通サービス ──
     private final AuthService authService;
     private final AppConfig appConfig;
@@ -139,6 +155,7 @@ public class AuthFlowHandler {
                     ? proto + "://" + fwdHost + fwdUri
                     : "/";
             LOG.log(System.Logger.Level.INFO, "[verify] MFA pending, redirecting to challenge. returnTo={0}", returnTo);
+            ctx.header(AUTH_REASON_HEADER, "mfa_pending");
             ctx.redirect(appConfig.baseUrl() + "/mfa/challenge?return_to="
                     + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8));
             return;
@@ -156,11 +173,13 @@ public class AuthFlowHandler {
             String forwardedHost = ctx.header("X-Forwarded-Host");
             Optional<AppRegistry.AppPolicy> appPolicy = appRegistry.resolve(appId, forwardedHost);
             if (appId != null && !appId.isBlank() && appPolicy.isEmpty()) {
+                ctx.header(AUTH_REASON_HEADER, "app_policy_unknown_app");
                 ctx.status(401);
                 return;
             }
             if (appPolicy.isPresent()
                     && Collections.disjoint(principal.roles(), appPolicy.get().allowedRoles())) {
+                ctx.header(AUTH_REASON_HEADER, "app_policy_role_denied");
                 ctx.status(401);
                 return;
             }
@@ -192,6 +211,7 @@ public class AuthFlowHandler {
             if (urlLabel != null) {
                 if (urlTenantOpt.isEmpty()) {
                     LOG.log(System.Logger.Level.INFO, "[verify] tenant route unknown label={0}", urlLabel);
+                    ctx.header(AUTH_REASON_HEADER, "tenant_route_unknown");
                     ctx.status(404);
                     return;
                 }
@@ -203,6 +223,7 @@ public class AuthFlowHandler {
                     LOG.log(System.Logger.Level.INFO,
                             "[verify] tenant route denied: user={0} label={1}",
                             principal.email(), urlLabel);
+                    ctx.header(AUTH_REASON_HEADER, "tenant_route_denied");
                     ctx.status(403);
                     return;
                 }
@@ -226,6 +247,7 @@ public class AuthFlowHandler {
 
         // Suspended tenant check
         if (isSuspendedTenantSession(ctx)) {
+            ctx.header(AUTH_REASON_HEADER, "tenant_suspended");
             ctx.status(403);
             return;
         }
@@ -248,11 +270,13 @@ public class AuthFlowHandler {
             String proto = fwdProto != null && !"http".equals(fwdProto) ? fwdProto : baseScheme;
             String returnTo = proto + "://" + fwdHost + fwdUri;
             LOG.log(System.Logger.Level.INFO, "[verify] no session → redirecting to login. returnTo={0}", returnTo);
+            ctx.header(AUTH_REASON_HEADER, "cookie_absent_redirect");
             ctx.redirect(appConfig.baseUrl() + "/login?return_to="
                     + java.net.URLEncoder.encode(returnTo, java.nio.charset.StandardCharsets.UTF_8));
             return;
         }
         LOG.log(System.Logger.Level.INFO, "[verify] no session, no X-Forwarded-Host/Uri → 401");
+        ctx.header(AUTH_REASON_HEADER, "cookie_absent_401");
         ctx.status(401);
     }
 
@@ -314,9 +338,13 @@ public class AuthFlowHandler {
         String inviteCode = ctx.queryParam("invite");
         String provider = ctx.queryParam("provider");
 
+        String clientIp = HttpSupport.clientIp(ctx);
+        String userAgent = ctx.userAgent();
+        detectOrphanStart(clientIp, userAgent, provider);
+
         OidcRequest request = new OidcRequest(
                 provider, returnTo, inviteCode,
-                HttpSupport.clientIp(ctx), ctx.userAgent()
+                clientIp, userAgent
         );
 
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -329,6 +357,30 @@ public class AuthFlowHandler {
         LOG.log(System.Logger.Level.INFO, "[startOidc] flow={0} state={1} redirecting to IdP",
                 flow.id(), flow.currentState());
         ctx.redirect(redirect.authorizationUrl());
+    }
+
+    /**
+     * issue-hub#97: warn when the same client repeats startOidc within
+     * {@link #ORPHAN_DETECT_WINDOW_MS}. The previous flow probably never saw
+     * its callback (orphan) — useful for spotting Set-Cookie loss, browser
+     * pre-fetch, or Back/Forward re-firing the login link.
+     */
+    private void detectOrphanStart(String clientIp, String userAgent, String provider) {
+        String fingerprint = (clientIp == null ? "-" : clientIp)
+                + "|" + (userAgent == null ? "-" : Integer.toHexString(userAgent.hashCode()))
+                + "|" + (provider == null ? "-" : provider);
+        long now = System.currentTimeMillis();
+        Long prev = recentOidcStarts.put(fingerprint, now);
+        if (prev != null && now - prev < ORPHAN_DETECT_WINDOW_MS) {
+            LOG.log(System.Logger.Level.WARNING,
+                    "[startOidc] possible orphan flow: client repeated startOidc {0}ms after previous (window={1}ms, ip={2}, provider={3}). " +
+                            "Likely cookie-loss / pre-fetch / Back-Forward.",
+                    now - prev, ORPHAN_DETECT_WINDOW_MS, clientIp, provider);
+        }
+        if (recentOidcStarts.size() > ORPHAN_TRACK_MAX) {
+            long cutoff = now - ORPHAN_DETECT_WINDOW_MS * 4;
+            recentOidcStarts.entrySet().removeIf(e -> e.getValue() < cutoff);
+        }
     }
 
     // ================================================================
@@ -528,7 +580,15 @@ public class AuthFlowHandler {
                 flow.currentState(), flow.isCompleted(), flow.exitState());
 
         if (!flow.isCompleted()) {
-            throw new ApiException(500, "FLOW_INCOMPLETE", "OIDC flow did not complete");
+            // issue-hub#97: include flowId + currentState so the operator can
+            // pinpoint the stuck flow in auth-proxy.log without grepping by
+            // timestamp alone.
+            LOG.log(System.Logger.Level.ERROR,
+                    "[completeCallback] FLOW_INCOMPLETE: flowId={0} currentState={1} exitState={2}",
+                    flow.id(), flow.currentState(), flow.exitState());
+            throw new ApiException(500, "FLOW_INCOMPLETE",
+                    "OIDC flow did not complete: flowId=" + flow.id()
+                            + " currentState=" + flow.currentState());
         }
 
         if ("TERMINAL_ERROR".equals(flow.exitState()) || "EXPIRED".equals(flow.exitState())) {

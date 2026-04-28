@@ -32,6 +32,8 @@ public final class PasskeyVerifyProcessor implements StateProcessor {
         this.store = store;
     }
 
+    private static final System.Logger LOG = System.getLogger(PasskeyVerifyProcessor.class.getName());
+
     @Override public String name() { return "PasskeyVerifyProcessor"; }
     @Override public Set<Class<?>> requires() { return Set.of(PasskeyAssertion.class, PasskeyChallenge.class); }
     @Override public Set<Class<?>> produces() { return Set.of(PasskeyVerifiedUser.class); }
@@ -76,7 +78,15 @@ public final class PasskeyVerifyProcessor implements StateProcessor {
                 serverProperty, authenticator, null, false);
 
         var manager = WebAuthnManager.createNonStrictWebAuthnManager();
-        var result = manager.validate(authRequest, authParams);
+        AuthenticationData result;
+        try {
+            result = manager.validate(authRequest, authParams);
+        } catch (Exception e) {
+            LOG.log(System.Logger.Level.WARNING,
+                    "PasskeyVerifyProcessor: WebAuthn validation failed: {0} — {1}",
+                    e.getClass().getSimpleName(), e.getMessage());
+            throw new FlowException("PASSKEY_VERIFY_FAILED", "WebAuthn assertion verification failed: " + e.getMessage(), e);
+        }
 
         // Update sign count
         long newSignCount = result.getAuthenticatorData().getSignCount();

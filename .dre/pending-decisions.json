@@ -161,6 +161,48 @@
       "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/README.ja.md",
       "line": 707,
       "text": "| [XXE](docs/glossary/xxe.md) | 不要な XML パースを無効化、外部エンティティ解決をブロック |"
+    },
+    {
+      "timestamp": "2026-04-14T03:02:11Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/decisions/003-accept-local-network-bypass.md",
+      "line": 19,
+      "text": "002 は「VPN内だからvoltaの認証を飛ばす」という汎用バイパスを却下した。"
+    },
+    {
+      "timestamp": "2026-04-14T03:02:15Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/decisions/002-reject-trusted-network-bypass.md",
+      "line": 37,
+      "text": "**開発用途は既存の仕組みで十分。**"
+    },
+    {
+      "timestamp": "2026-04-14T03:05:20Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/decisions/004-accept-tenant-scoped-mfa.md",
+      "line": 19,
+      "text": "| **(a)** carry-over を維持 | 「MFA は人を証明する、テナントではない」として現状維持。ADR で明文化 | 却下 |"
+    },
+    {
+      "timestamp": "2026-04-14T03:05:20Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/decisions/004-accept-tenant-scoped-mfa.md",
+      "line": 20,
+      "text": "| **(b)** 設定可能にする | `tenancy.mfa.scope: session \\| tenant` で切り替え | 却下 — 複雑さに見合わない |"
+    },
+    {
+      "timestamp": "2026-04-14T03:05:20Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/decisions/004-accept-tenant-scoped-mfa.md",
+      "line": 23,
+      "text": "## なぜ (c) を採用したか"
+    },
+    {
+      "timestamp": "2026-04-14T03:05:20Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/decisions/004-accept-tenant-scoped-mfa.md",
+      "line": 30,
+      "text": "## なぜ (a) を却下したか"
+    },
+    {
+      "timestamp": "2026-04-14T03:05:20Z",
+      "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/decisions/004-accept-tenant-scoped-mfa.md",
+      "line": 36,
+      "text": "## なぜ (b) を却下したか"
     }
   ]
 }

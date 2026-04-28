@@ -393,15 +393,9 @@ public final class AuthRouter {
                     false
             );
             UUID sessionId = authService.issueSession(switched, null, HttpSupport.clientIp(ctx), ctx.userAgent());
-            // Carry over MFA verification from old session
             if (oldSessionRaw != null) {
                 try {
-                    UUID oldSessionId = UUID.fromString(oldSessionRaw);
-                    SessionRecord oldSession = sessionStore.findSession(oldSessionId).orElse(null);
-                    if (oldSession != null && oldSession.mfaVerifiedAt() != null) {
-                        authService.markMfaVerified(sessionId);
-                    }
-                    sessionStore.revokeSession(oldSessionId);
+                    sessionStore.revokeSession(UUID.fromString(oldSessionRaw));
                 } catch (IllegalArgumentException ignored) {
                 }
             }

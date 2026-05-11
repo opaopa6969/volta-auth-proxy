@@ -49,23 +49,23 @@ Redirects are the glue that holds multi-step web flows together.
 
 volta uses redirects extensively in the [authentication](authentication-vs-authorization.md) flow:
 
-```
-  Step 1: User visits protected page
-  Browser ──GET /dashboard──> Reverse Proxy ──ForwardAuth──> volta
-                                                              │
-  Step 2: volta says "not authenticated"                      │
-  volta responds: 302 Location: /auth/login?redirect_to=/dashboard
-                                                              │
-  Step 3: volta redirects to Google                           │
-  Browser ──GET /auth/login──> volta                          │
-  volta responds: 302 Location: https://accounts.google.com/...
-                                                              │
-  Step 4: Google redirects back                               │
-  Browser ──GET /auth/callback?code=abc──> volta              │
-                                                              │
-  Step 5: volta redirects to original page                    │
-  volta responds: 302 Location: /dashboard                    │
-  Browser ──GET /dashboard──> (now authenticated!)
+```text
+Step 1: User visits protected page
+Browser   GET /dashboard  > Reverse Proxy   ForwardAuth  > volta
+
+Step 2: volta says "not authenticated"
+volta responds: 302 Location: /auth/login?redirect_to=/dashboard
+
+Step 3: volta redirects to Google
+Browser   GET /auth/login  > volta
+volta responds: 302 Location: https://accounts.google.com/...
+
+Step 4: Google redirects back
+Browser   GET /auth/callback?code=abc  > volta
+
+Step 5: volta redirects to original page
+volta responds: 302 Location: /dashboard
+Browser   GET /dashboard  > (now authenticated!)
 ```
 
 **Security: Redirect URI validation**

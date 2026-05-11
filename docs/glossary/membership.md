@@ -30,60 +30,50 @@ Memberships are the foundation of multi-tenant authorization. Without them:
 
 ### The membership data model
 
-```
-  ┌─────────────────────────────────────────────────────┐
-  │ tenant_members table                                │
-  │                                                     │
-  │ id:         uuid (primary key)                      │
-  │ user_id:    uuid → users.id                         │
-  │ tenant_id:  uuid → tenants.id                       │
-  │ role:       enum [OWNER, ADMIN, MEMBER, VIEWER]     │
-  │ is_active:  boolean                                 │
-  │ joined_at:  timestamp                               │
-  │ invited_by: uuid → users.id (nullable)              │
-  │                                                     │
-  │ UNIQUE constraint: (user_id, tenant_id)             │
-  │ A user can only have ONE membership per tenant.     │
-  └─────────────────────────────────────────────────────┘
+```text
+tenant_members table
+
+id:         uuid (primary key)
+user_id:    uuid → users.id
+tenant_id:  uuid → tenants.id
+role:       enum [OWNER, ADMIN, MEMBER, VIEWER]
+is_active:  boolean
+joined_at:  timestamp
+invited_by: uuid → users.id (nullable)
+
+UNIQUE constraint: (user_id, tenant_id)
+A user can only have ONE membership per tenant.
 ```
 
 ### Many-to-many relationship
 
-```
-  Users                  Memberships              Tenants
-  ┌──────────┐          ┌──────────────┐         ┌──────────┐
-  │ Alice    │─────────►│ ADMIN        │◄────────│ Acme     │
-  │          │          └──────────────┘         │          │
-  │          │─────────►│ VIEWER       │◄────────│ Side LLC │
-  └──────────┘          └──────────────┘         └──────────┘
-  ┌──────────┐          ┌──────────────┐
-  │ Bob      │─────────►│ OWNER        │◄────────┐
-  │          │          └──────────────┘         │ Acme
-  │          │─────────►│ MEMBER       │◄────────┘
-  └──────────┘          └──────────────┘         ┌──────────┐
-                        │ MEMBER       │◄────────│ OpenOrg  │
-                        └──────────────┘         └──────────┘
+```text
+Users                  Memberships              Tenants
+
+  Alice              >  ADMIN         <          Acme
+
+                     >  VIEWER        <          Side LLC
+
+  Bob                >  OWNER         <
+                                                 Acme
+                     >  MEMBER        <
+
+                        MEMBER        <          OpenOrg
 ```
 
 ### Membership lifecycle
 
-```
-  ┌──────────────┐    Invitation     ┌──────────────┐
-  │ No membership│ ─────────────────►│ Active member│
-  │              │    accepted        │ (is_active=  │
-  └──────────────┘                   │  true)       │
-                                     └──────┬───────┘
-                                            │
-                              ┌──────────────┤
-                              │              │
-                         Role change    Removed by admin
-                              │              │
-                              ▼              ▼
-                     ┌──────────────┐ ┌──────────────┐
-                     │ Active member│ │ Deactivated  │
-                     │ (new role)   │ │ (is_active=  │
-                     └──────────────┘ │  false)       │
-                                      └──────────────┘
+```text
+                  Invitation
+No membership                   >  Active member
+                  accepted          (is_active=
+                                    true)
+
+                     Role change    Removed by admin
+
+                   Active member    Deactivated
+                   (new role)       (is_active=
+                                     false)
 ```
 
 ---

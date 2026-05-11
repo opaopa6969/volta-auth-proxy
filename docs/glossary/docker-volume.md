@@ -41,28 +41,22 @@ Volumes solve this by separating the lifecycle of data from the lifecycle of con
 
 ### How volumes work
 
-```
-  Host machine filesystem
-  ┌──────────────────────────────────────────┐
-  │                                          │
-  │  /var/lib/docker/volumes/               │
-  │  └── volta-data/                        │
-  │      └── _data/                         │
-  │          └── volta.db  (SQLite file)    │
-  │                                          │
-  └──────────────────────────────────────────┘
-           │
-           │  mounted at
-           ▼
-  Container filesystem
-  ┌──────────────────────────────────────────┐
-  │                                          │
-  │  /app/                                   │
-  │  ├── volta-auth-proxy.jar  (read-only)  │
-  │  └── data/                              │
-  │      └── volta.db  ← volume mount       │
-  │                                          │
-  └──────────────────────────────────────────┘
+```text
+Host machine filesystem
+
+   /var/lib/docker/volumes/
+       volta-data/
+           _data/
+               volta.db  (SQLite file)
+
+            mounted at
+
+Container filesystem
+
+   /app/
+       volta-auth-proxy.jar  (read-only)
+       data/
+           volta.db  ← volume mount
 ```
 
 ### Docker volume commands
@@ -101,27 +95,22 @@ Volumes solve this by separating the lifecycle of data from the lifecycle of con
 
 ### Volume lifecycle
 
-```
-  Create container with volume
-       │
-       ▼
-  Container writes data to /app/data/volta.db
-       │
-       ▼
-  Container stops / restarts
-  (Data in volume is SAFE)
-       │
-       ▼
-  Container is deleted (docker rm)
-  (Data in volume is STILL SAFE)
-       │
-       ▼
-  New container created with same volume
-  (Data is available immediately)
-       │
-       ▼
-  Volume explicitly deleted (docker volume rm)
-  (NOW the data is gone)
+```text
+Create container with volume
+
+Container writes data to /app/data/volta.db
+
+Container stops / restarts
+(Data in volume is SAFE)
+
+Container is deleted (docker rm)
+(Data in volume is STILL SAFE)
+
+New container created with same volume
+(Data is available immediately)
+
+Volume explicitly deleted (docker volume rm)
+(NOW the data is gone)
 ```
 
 ---

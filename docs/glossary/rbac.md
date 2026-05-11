@@ -29,43 +29,39 @@ RBAC simplifies all of this. You manage a small number of roles, and users inher
 
 ### The basic model
 
-```
-  ┌─────────────────────────────────────────────────────────┐
-  │                       RBAC Model                         │
-  │                                                          │
-  │  Users ────── have ────── Roles ────── grant ────── Permissions │
-  │                                                          │
-  │  Taro ──────── ADMIN ──────── can manage members          │
-  │                                can invite users           │
-  │                                can change settings        │
-  │                                                          │
-  │  Hanako ────── MEMBER ─────── can view content            │
-  │                                can edit own content       │
-  │                                                          │
-  │  Guest ──────── VIEWER ────── can view content only       │
-  └─────────────────────────────────────────────────────────┘
+```text
+                     RBAC Model
+
+Users        have        Roles        grant        Permissions
+
+Taro          ADMIN          can manage members
+                              can invite users
+                              can change settings
+
+Hanako        MEMBER         can view content
+                              can edit own content
+
+Guest          VIEWER        can view content only
 ```
 
 ### volta's 4-role hierarchy
 
 volta uses a simple, ordered hierarchy of 4 roles:
 
-```
-  OWNER > ADMIN > MEMBER > VIEWER
+```text
+OWNER > ADMIN > MEMBER > VIEWER
 
-  ┌─────────┐
-  │  OWNER  │  Can do everything. Delete tenant, transfer ownership.
-  │         │  One tenant must always have at least one OWNER.
-  ├─────────┤
-  │  ADMIN  │  Can manage people: invite members, change roles (up to ADMIN),
-  │         │  remove members, change tenant settings.
-  ├─────────┤
-  │  MEMBER │  Normal usage. Can use all apps that allow MEMBER role.
-  │         │  Cannot manage other users.
-  ├─────────┤
-  │  VIEWER │  Read-only access. Can view content but not modify it.
-  │         │  Enforcement is up to individual apps.
-  └─────────┘
+   OWNER     Can do everything. Delete tenant, transfer ownership.
+             One tenant must always have at least one OWNER.
+
+   ADMIN     Can manage people: invite members, change roles (up to ADMIN),
+             remove members, change tenant settings.
+
+   MEMBER    Normal usage. Can use all apps that allow MEMBER role.
+             Cannot manage other users.
+
+   VIEWER    Read-only access. Can view content but not modify it.
+             Enforcement is up to individual apps.
 ```
 
 ### Role hierarchy means "higher includes lower"
@@ -83,33 +79,27 @@ volta uses a simple, ordered hierarchy of 4 roles:
 
 In volta, roles are **per tenant**, not global. A user can have different roles in different tenants:
 
-```
-  User: taro@example.com
+```text
+User: taro@example.com
 
-  ┌─────────────────────────────────┐
-  │ Tenant: ACME Corp               │
-  │ Role: OWNER                     │
-  │                                 │
-  │ Taro created ACME. He owns it.  │
-  │ Full control over everything.   │
-  └─────────────────────────────────┘
+  Tenant: ACME Corp
+  Role: OWNER
 
-  ┌─────────────────────────────────┐
-  │ Tenant: Globex Inc              │
-  │ Role: MEMBER                    │
-  │                                 │
-  │ Taro was invited to Globex.     │
-  │ He can use apps but cannot      │
-  │ manage members.                 │
-  └─────────────────────────────────┘
+  Taro created ACME. He owns it.
+  Full control over everything.
 
-  ┌─────────────────────────────────┐
-  │ Tenant: Initech                 │
-  │ Role: VIEWER                    │
-  │                                 │
-  │ Taro has read-only access.      │
-  │ He can view but not edit.       │
-  └─────────────────────────────────┘
+  Tenant: Globex Inc
+  Role: MEMBER
+
+  Taro was invited to Globex.
+  He can use apps but cannot
+  manage members.
+
+  Tenant: Initech
+  Role: VIEWER
+
+  Taro has read-only access.
+  He can view but not edit.
 ```
 
 This is stored in the `memberships` table:

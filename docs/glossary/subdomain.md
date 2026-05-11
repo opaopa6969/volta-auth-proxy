@@ -45,14 +45,14 @@ Subdomains give you unlimited organization under one domain, with built-in brows
 
 Subdomains are central to volta's multi-tenant design:
 
-```
-  example.com                    (base domain)
-  ├── auth.example.com           (volta-auth-proxy)
-  ├── app.example.com            (your SaaS app)
-  │   ├── acme.app.example.com   (tenant: ACME Corp)
-  │   ├── globex.app.example.com (tenant: Globex Inc)
-  │   └── initech.app.example.com(tenant: Initech)
-  └── api.example.com            (API server)
+```text
+example.com                    (base domain)
+    auth.example.com           (volta-auth-proxy)
+    app.example.com            (your SaaS app)
+        acme.app.example.com   (tenant: ACME Corp)
+        globex.app.example.com (tenant: Globex Inc)
+        initech.app.example.com(tenant: Initech)
+    api.example.com            (API server)
 ```
 
 **Tenant resolution by subdomain:**

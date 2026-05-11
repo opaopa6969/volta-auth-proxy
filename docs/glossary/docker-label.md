@@ -64,23 +64,17 @@ Without labels, adding a new service requires: updating the Traefik config file,
 
 Traefik is a reverse proxy that reads Docker labels to configure routing. This eliminates the need for a separate Traefik configuration file.
 
-```
-  Internet
-     │
-     ▼
-  ┌──────────────────────────────────┐
-  │  Traefik (reverse proxy)         │
-  │  Watches Docker for labels       │
-  └──────────────────────────────────┘
-     │         │            │
-     ▼         ▼            ▼
-  ┌──────┐  ┌──────┐  ┌────────────┐
-  │ App A │  │ App B │  │ volta-auth │
-  │       │  │       │  │ -proxy     │
-  │ label:│  │ label:│  │ label:     │
-  │ Host  │  │ Host  │  │ Host       │
-  │ (a.co)│  │ (b.co)│  │ (auth.co)  │
-  └──────┘  └──────┘  └────────────┘
+```text
+Internet
+
+   Traefik (reverse proxy)
+   Watches Docker for labels
+
+  App A      App B      volta-auth
+                        -proxy
+  label:     label:     label:
+  Host       Host       Host
+  (a.co)     (b.co)     (auth.co)
 ```
 
 ### How Traefik reads labels
@@ -163,29 +157,28 @@ volta uses Docker labels primarily for Traefik reverse proxy configuration. The 
 
 ### The full deployment picture
 
-```
-  docker-compose.yml
-  ┌──────────────────────────────────────────┐
-  │  services:                               │
-  │    traefik:                              │
-  │      image: traefik:v3                   │
-  │      ports: ["80:80", "443:443"]         │
-  │      volumes:                            │
-  │        - /var/run/docker.sock:/var/run/  │
-  │          docker.sock                     │
-  │                                          │
-  │    volta-auth-proxy:                     │
-  │      image: volta-auth-proxy:latest      │
-  │      labels:                             │
-  │        traefik.enable: true              │
-  │        traefik.http.routers.volta.rule:  │
-  │          Host(`auth.example.com`)        │
-  │      volumes:                            │
-  │        - volta-data:/app/data            │
-  │                                          │
-  │  volumes:                                │
-  │    volta-data:                           │
-  └──────────────────────────────────────────┘
+```text
+docker-compose.yml
+
+   services:
+     traefik:
+       image: traefik:v3
+       ports: ["80:80", "443:443"]
+       volumes:
+         - /var/run/docker.sock:/var/run/
+           docker.sock
+
+     volta-auth-proxy:
+       image: volta-auth-proxy:latest
+       labels:
+         traefik.enable: true
+         traefik.http.routers.volta.rule:
+           Host(`auth.example.com`)
+       volumes:
+         - volta-data:/app/data
+
+   volumes:
+     volta-data:
 ```
 
 Labels + volumes + health checks form the complete deployment configuration, all in one Compose file.

@@ -38,51 +38,49 @@ With delegation to volta:
 
 ### The delegation pattern
 
-```
-  WITHOUT delegation:
-  ┌──────────┐  ┌──────────┐  ┌──────────┐
-  │ App A    │  │ App B    │  │ App C    │
-  │ ┌──────┐ │  │ ┌──────┐ │  │ ┌──────┐ │
-  │ │Login │ │  │ │Login │ │  │ │Login │ │
-  │ │Session│ │  │ │Session│ │  │ │Session│ │
-  │ │Roles │ │  │ │Roles │ │  │ │Roles │ │
-  │ └──────┘ │  │ └──────┘ │  │ └──────┘ │
-  │ Business │  │ Business │  │ Business │
-  │ Logic    │  │ Logic    │  │ Logic    │
-  └──────────┘  └──────────┘  └──────────┘
-  3x the work, 3x the bugs, 3x the attack surface
+```text
+WITHOUT delegation:
 
-  WITH delegation:
-  ┌──────────────────────────────────┐
-  │ volta-auth-proxy                 │
-  │ ┌──────┐ ┌──────┐ ┌──────┐     │
-  │ │Login │ │Session│ │Roles │     │
-  │ └──────┘ └──────┘ └──────┘     │
-  └────────────┬─────────────────────┘
-               │ X-Volta-* headers
-  ┌────────────┼────────────┬────────────┐
-  │ App A      │ App B      │ App C      │
-  │ Business   │ Business   │ Business   │
-  │ Logic only │ Logic only │ Logic only │
-  └────────────┘────────────┘────────────┘
-  1x the work, 1x the bugs, 1x the attack surface
+  App A         App B         App C
+
+   Login         Login         Login
+   Session        Session        Session
+   Roles         Roles         Roles
+
+  Business      Business      Business
+  Logic         Logic         Logic
+
+3x the work, 3x the bugs, 3x the attack surface
+
+WITH delegation:
+
+  volta-auth-proxy
+
+   Login    Session   Roles
+
+               X-Volta-* headers
+
+  App A        App B        App C
+  Business     Business     Business
+  Logic only   Logic only   Logic only
+
+1x the work, 1x the bugs, 1x the attack surface
 ```
 
 ### Trust boundary
 
 Delegation creates a trust boundary. Apps behind volta trust the [headers](header.md) volta sends:
 
-```
-  Trust boundary
-  ─────────────────────────────────
-  Internet │ volta         │ Internal network
-           │               │
-  User ───►│ Authenticate  │──► X-Volta-User-Id: uuid
-           │ Authorize     │──► X-Volta-Roles: ADMIN
-           │ Session mgmt  │──► X-Volta-Tenant-Id: uuid
-           │               │
-  ─────────────────────────────────
-  Untrusted │ Gateway      │ Trusted (apps trust volta)
+```text
+Trust boundary
+
+Internet   volta           Internal network
+
+User    >  Authenticate     > X-Volta-User-Id: uuid
+           Authorize        > X-Volta-Roles: ADMIN
+           Session mgmt     > X-Volta-Tenant-Id: uuid
+
+Untrusted   Gateway        Trusted (apps trust volta)
 ```
 
 ### What is delegated vs what is not
@@ -115,16 +113,15 @@ The app never participates in the auth decision. It receives pre-verified identi
 
 Apps can also delegate user management operations via volta's [internal API](internal-api.md):
 
-```
-  App needs to list team members:
-  ┌──────────┐                          ┌──────────────────┐
-  │ App      │── GET /api/v1/tenants/   │ volta-auth-proxy │
-  │          │   {tid}/members          │                  │
-  │          │   Authorization: Bearer  │  Validates JWT   │
-  │          │   {user_jwt}      ──────►│  Checks role     │
-  │          │                          │  Queries DB      │
-  │          │◄── 200 [{members}] ──────│  Returns data    │
-  └──────────┘                          └──────────────────┘
+```text
+App needs to list team members:
+
+  App          GET /api/v1/tenants/     volta-auth-proxy
+               {tid}/members
+               Authorization: Bearer     Validates JWT
+               {user_jwt}            >   Checks role
+                                         Queries DB
+            <   200 [{members}]          Returns data
 ```
 
 The app delegates member listing to volta instead of maintaining its own user database.

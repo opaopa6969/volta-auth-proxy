@@ -26,28 +26,27 @@ volta-auth-proxy was designed with a minimal dependency philosophy: **PostgreSQL
 
 Every dependency is something you must:
 
-```
-  Per dependency:
-  ┌──────────────────────────────────────┐
-  │ ✓ Install and configure              │
-  │ ✓ Monitor for health                 │
-  │ ✓ Keep updated (security patches)    │
-  │ ✓ Back up (if stateful)              │
-  │ ✓ Troubleshoot when it breaks        │
-  │ ✓ Learn its failure modes            │
-  │ ✓ Plan capacity                      │
-  │ ✓ Handle version upgrades            │
-  └──────────────────────────────────────┘
+```text
+Per dependency:
 
-  Dependencies × Cost per dependency = Total operational burden
+  ✓ Install and configure
+  ✓ Monitor for health
+  ✓ Keep updated (security patches)
+  ✓ Back up (if stateful)
+  ✓ Troubleshoot when it breaks
+  ✓ Learn its failure modes
+  ✓ Plan capacity
+  ✓ Handle version upgrades
 
-  Keycloak stack:    Keycloak + Postgres + JVM       = 3 things to manage
-  Ory stack:         Oathkeeper + Kratos + Hydra
-                     + Keto + Postgres               = 5 things to manage
-  ZITADEL stack:     ZITADEL + CockroachDB           = 2 things to manage
-  Auth0:             Auth0 (cloud)                   = 1 thing (but no control)
+Dependencies × Cost per dependency = Total operational burden
 
-  volta stack:       volta + Postgres                = 2 things to manage
+Keycloak stack:    Keycloak + Postgres + JVM       = 3 things to manage
+Ory stack:         Oathkeeper + Kratos + Hydra
+                   + Keto + Postgres               = 5 things to manage
+ZITADEL stack:     ZITADEL + CockroachDB           = 2 things to manage
+Auth0:             Auth0 (cloud)                   = 1 thing (but no control)
+
+volta stack:       volta + Postgres                = 2 things to manage
 ```
 
 ### Failure multiplication
@@ -73,15 +72,12 @@ When a dependency releases a new version, you must evaluate whether to upgrade. 
 
 volta's production deployment requires exactly two components:
 
-```
-  volta's dependencies:
-  ┌──────────────────────────────┐
-  │ volta-auth-proxy             │  Your auth service (you control this)
-  └──────────┬───────────────────┘
-             │
-  ┌──────────▼───────────────────┐
-  │ PostgreSQL                   │  The ONLY external dependency
-  └──────────────────────────────┘
+```text
+volta's dependencies:
+
+  volta-auth-proxy                Your auth service (you control this)
+
+  PostgreSQL                      The ONLY external dependency
 ```
 
 ### Why PostgreSQL and nothing else

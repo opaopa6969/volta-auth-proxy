@@ -16,26 +16,20 @@ It's OK not to know this! Encryption protects you every day -- when you shop onl
 
 Think of a diary with a lock:
 
-```
-  ┌────────────────────────────────────────────────────┐
-  │                                                    │
-  │  Your diary (original):    "I like pizza"          │
-  │                                                    │
-  │         │                                          │
-  │         ▼  LOCK (encrypt with a key)               │
-  │                                                    │
-  │  Locked diary:             "xK9$mQ2!pL"            │
-  │                                                    │
-  │  Someone finds it:         "What does xK9$mQ2!pL   │
-  │                             mean?? I have no idea!" │
-  │                                                    │
-  │         │                                          │
-  │         ▼  UNLOCK (decrypt with the key)           │
-  │                                                    │
-  │  Your friend (has key):    "I like pizza"           │
-  │                            "Ah, got it!"           │
-  │                                                    │
-  └────────────────────────────────────────────────────┘
+```text
+Your diary (original):    "I like pizza"
+
+  v  LOCK (encrypt with a key)
+
+Locked diary:             "xK9$mQ2!pL"
+
+Someone finds it:         "What does xK9$mQ2!pL
+                           mean?? I have no idea!"
+
+  v  UNLOCK (decrypt with the key)
+
+Your friend (has key):    "I like pizza"
+                          "Ah, got it!"
 ```
 
 - **Encryption** = locking the diary (turning readable text into gibberish)

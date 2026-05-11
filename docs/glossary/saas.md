@@ -71,20 +71,18 @@ This is exactly what volta-auth-proxy does. It sits in front of your SaaS applic
 
 When you are building a SaaS product, volta-auth-proxy acts as the front door:
 
-```
-  A user visits your SaaS app:
+```text
+A user visits your SaaS app:
 
-  User's Browser
-       │
-       ▼
-  volta-auth-proxy ← "Who are you? Which company? What role?"
-       │
-       │  (verified! adds identity info to the request)
-       ▼
-  Your App ← "Ah, this is Taro from ACME Corp, he's an ADMIN"
-       │
-       ▼
-  Shows only ACME Corp's data to Taro
+User's Browser
+
+volta-auth-proxy ← "Who are you? Which company? What role?"
+
+        (verified! adds identity info to the request)
+
+Your App ← "Ah, this is Taro from ACME Corp, he's an ADMIN"
+
+Shows only ACME Corp's data to Taro
 ```
 
 Without volta, your app would have to build all of this login, tenant, and role logic from scratch. volta lets you skip that and focus on building the features your customers actually pay for.

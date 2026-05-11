@@ -18,23 +18,15 @@ OAuth 2.0の世界では、M2M通信は[Client Credentials](client-credentials.m
 
 現代のSaaSアプリケーションはモノリスではなく、多くのサービスで構成されています：
 
-```
-  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-  │  課金         │    │  通知         │    │  分析         │
-  │  サービス     │    │  サービス     │    │  サービス     │
-  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
-         │                   │                   │
-         ▼                   ▼                   ▼
-  ┌─────────────────────────────────────────────────────┐
-  │              volta-auth-proxy                        │
-  │         （すべてのM2Mコールを認証）                    │
-  └─────────────────────────────────────────────────────┘
-         │                   │                   │
-         ▼                   ▼                   ▼
-  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-  │  ユーザー     │    │  テナント     │    │  ロール       │
-  │  API         │    │  API         │    │  API         │
-  └──────────────┘    └──────────────┘    └──────────────┘
+```text
+課金                 通知                 分析
+サービス             サービス             サービス
+
+            volta-auth-proxy
+       （すべてのM2Mコールを認証）
+
+ユーザー             テナント             ロール
+API                 API                 API
 ```
 
 M2M認証がないと：
@@ -52,54 +44,46 @@ M2M認証がないと：
 
 ### M2M認証フロー
 
-```
-  課金サービス                          volta-auth-proxy
-  ============                          ================
+```text
+課金サービス                          volta-auth-proxy
+============                          ================
 
-  1. テナントデータを読みたい。
-     ユーザーコンテキストがない。私はマシン。
+1. テナントデータを読みたい。
+   ユーザーコンテキストがない。私はマシン。
 
-  2. POST /oauth/token
-     grant_type=client_credentials
-     &client_id=billing-service
-     &client_secret=my-secret-key
-     &scope=read:tenants read:billing
+2. POST /oauth/token
+   grant_type=client_credentials
+   &client_id=billing-service
+   &client_secret=my-secret-key
+   &scope=read:tenants read:billing
 
-  ─────────────────────────────────────────────────►
+                                      3. 認証情報を検証：
+                                         - client_id登録済み？ ✓
+                                         - client_secret一致？ ✓
+                                         - スコープ許可？ ✓
 
-                                        3. 認証情報を検証：
-                                           - client_id登録済み？ ✓
-                                           - client_secret一致？ ✓
-                                           - スコープ許可？ ✓
+                                      4. M2M JWTを発行：
+                                         {
+                                           "sub": "billing-svc-uuid",
+                                           "volta_client": true,
+                                           "volta_client_id":
+                                             "billing-service",
+                                           "volta_tid": "acme-uuid",
+                                           "volta_roles": [
+                                             "read:tenants",
+                                             "read:billing"
+                                           ],
+                                           "exp": +5分
+                                         }
 
-                                        4. M2M JWTを発行：
-                                           {
-                                             "sub": "billing-svc-uuid",
-                                             "volta_client": true,
-                                             "volta_client_id":
-                                               "billing-service",
-                                             "volta_tid": "acme-uuid",
-                                             "volta_roles": [
-                                               "read:tenants",
-                                               "read:billing"
-                                             ],
-                                             "exp": +5分
-                                           }
+5. トークンを使ってAPIを呼ぶ：
+   GET /api/v1/tenants/acme-uuid
+   Authorization: Bearer eyJhbGci...
 
-  ◄─────────────────────────────────────────────────
-
-  5. トークンを使ってAPIを呼ぶ：
-     GET /api/v1/tenants/acme-uuid
-     Authorization: Bearer eyJhbGci...
-
-  ─────────────────────────────────────────────────►
-
-                                        6. JWTを検証：
-                                           - volta_client=true → M2M
-                                           - スコープにread:tenants含む
-                                           - テナントデータを返す
-
-  ◄─────────────────────────────────────────────────
+                                      6. JWTを検証：
+                                         - volta_client=true → M2M
+                                         - スコープにread:tenants含む
+                                         - テナントデータを返す
 ```
 
 ### M2M vs 人間の認証
@@ -117,18 +101,16 @@ M2M認証がないと：
 
 M2Mトークンは短命ですが、APIコールのたびに新しいトークンをリクエストするのは無駄です。サービスはトークンをキャッシュし、期限切れ時のみ再認証すべきです：
 
-```
-  ┌─────────────────────────────────────────────┐
-  │  トークンキャッシュ戦略                       │
-  │                                              │
-  │  1. キャッシュで有効なトークンを確認            │
-  │  2. トークンがあり未期限切れ → 使用            │
-  │  3. 期限切れまたは未取得：                      │
-  │     a. POST /oauth/token                     │
-  │     b. 新しいトークンをキャッシュ               │
-  │     c. キャッシュTTL = expires_in - 30秒       │
-  │  4. キャッシュしたトークンを使用                │
-  └─────────────────────────────────────────────┘
+```text
+トークンキャッシュ戦略
+
+1. キャッシュで有効なトークンを確認
+2. トークンがあり未期限切れ → 使用
+3. 期限切れまたは未取得：
+   a. POST /oauth/token
+   b. 新しいトークンをキャッシュ
+   c. キャッシュTTL = expires_in - 30秒
+4. キャッシュしたトークンを使用
 ```
 
 `-30秒`のバッファにより、トークンが実際に期限切れになる前にリフレッシュされ、レースコンディションを回避します。

@@ -12,15 +12,13 @@ Think of it like a hospital with backup generators. The main power grid can fail
 
 High availability is measured in "nines" -- the percentage of time a system is operational:
 
-```
-  ┌────────────┬─────────────────┬──────────────────┐
-  │ Nines      │ Uptime %        │ Downtime / year  │
-  ├────────────┼─────────────────┼──────────────────┤
-  │ Two 9s     │ 99%             │ 3.65 days        │
-  │ Three 9s   │ 99.9%           │ 8.76 hours       │
-  │ Four 9s    │ 99.99%          │ 52.6 minutes     │
-  │ Five 9s    │ 99.999%         │ 5.26 minutes     │
-  └────────────┴─────────────────┴──────────────────┘
+```text
+Nines        Uptime %          Downtime / year
+
+Two 9s       99%               3.65 days
+Three 9s     99.9%             8.76 hours
+Four 9s      99.99%            52.6 minutes
+Five 9s      99.999%           5.26 minutes
 ```
 
 ---
@@ -39,89 +37,62 @@ High availability is measured in "nines" -- the percentage of time a system is o
 
 ### The three pillars of high availability
 
-```
-  ┌───────────────────────────────────────────────────────┐
-  │              High Availability                        │
-  │                                                        │
-  │  ┌─────────────┐ ┌──────────────┐ ┌───────────────┐  │
-  │  │ Redundancy  │ │  Failover    │ │  Monitoring   │  │
-  │  │             │ │              │ │               │  │
-  │  │ Multiple    │ │ Automatic    │ │ Detect        │  │
-  │  │ copies of   │ │ switch to   │ │ failures      │  │
-  │  │ everything  │ │ backup when │ │ before users  │  │
-  │  │             │ │ primary     │ │ notice        │  │
-  │  │             │ │ fails       │ │               │  │
-  │  └─────────────┘ └──────────────┘ └───────────────┘  │
-  └───────────────────────────────────────────────────────┘
+```text
+          High Availability
+
+Redundancy       Failover         Monitoring
+
+Multiple        Automatic        Detect
+copies of       switch to       failures
+everything      backup when     before users
+                primary         notice
+                fails
 ```
 
 ### Single points of failure
 
 A single point of failure (SPOF) is any component that, if it fails, takes down the entire system:
 
+```mermaid
+flowchart LR
+    subgraph SPOF["SPOF example (Phase 1)"]
+        C1[Client] --> V1["volta (1)<br/>SPOF"] --> PG1["Postgres<br/>SPOF"]
+    end
+    subgraph HA["HA example (Phase 2)"]
+        C2[Client] --> LB[Load Balancer]
+        LB --> Va[volta-1]
+        LB --> Vb[volta-2]
+        LB --> Vc[volta-3]
+        Va --> PGP[PG Primary]
+        Vb --> PGP
+        Vc --> PGP
+        PGP --> PGR[PG Replica]
+    end
 ```
-  SPOF example (Phase 1):
-  ┌──────┐    ┌──────────┐    ┌──────────┐
-  │Client│───▶│volta (1) │───▶│Postgres  │
-  └──────┘    └──────────┘    └──────────┘
-                  ↑ SPOF          ↑ SPOF
-              If this dies,    If this dies,
-              everything       everything
-              stops.           stops.
 
-  HA example (Phase 2):
-  ┌──────┐    ┌──────────────┐    ┌──────────────┐
-  │Client│───▶│Load Balancer │───▶│volta-1       │
-  └──────┘    │              │    │volta-2       │
-              │              │    │volta-3       │
-              └──────────────┘    └──────────────┘
-                                       │
-                                  ┌────┴────┐
-                                  ▼         ▼
-                            ┌──────┐  ┌──────┐
-                            │PG    │  │PG    │
-                            │Primary│  │Replica│
-                            └──────┘  └──────┘
-              Any single instance can die.
-              System keeps running.
-```
+In the Phase 1 SPOF setup, if volta or Postgres dies, everything stops. In the Phase 2 HA setup, any single instance can die and the system keeps running.
 
 ### Health checks
 
 The load balancer needs to know which instances are healthy:
 
-```
-  Load Balancer sends health checks:
+```text
+Load Balancer sends health checks:
 
-  GET /health → volta-1 → 200 OK     ✓ Keep sending traffic
-  GET /health → volta-2 → 200 OK     ✓ Keep sending traffic
-  GET /health → volta-3 → timeout    ✗ Stop sending traffic
-
-  ┌──────────────┐
-  │Load Balancer │
-  └──┬─────┬─────┘
-     │     │
-     ▼     ▼
-  ┌─────┐ ┌─────┐ ┌─────┐
-  │ v1  │ │ v2  │ │ v3  │
-  │ ✓   │ │ ✓   │ │ ✗   │ ← removed from pool
-  └─────┘ └─────┘ └─────┘
+GET /health -> volta-1 -> 200 OK   (Keep sending traffic)
+GET /health -> volta-2 -> 200 OK   (Keep sending traffic)
+GET /health -> volta-3 -> timeout  (Stop sending traffic; removed from pool)
 ```
 
 ### Database high availability
 
 PostgreSQL HA typically uses primary-replica replication:
 
-```
-  ┌───────────────┐    replication    ┌───────────────┐
-  │ PG Primary    │ ──────────────▶  │ PG Replica    │
-  │ (read/write)  │                  │ (read-only)    │
-  └───────────────┘                  └───────────────┘
-         │                                  │
-         └── If primary fails ──────────────┘
-                                    ↓
-                          Replica promoted
-                          to primary
+```mermaid
+flowchart LR
+    PGP["PG Primary<br/>(read/write)"] -->|replication| PGR["PG Replica<br/>(read-only)"]
+    PGP -.->|If primary fails| Prom[Replica promoted to primary]
+    PGR -.-> Prom
 ```
 
 ---
@@ -134,32 +105,20 @@ In Phase 1, volta is a [single process](single-process.md). If it goes down, aut
 
 ### Phase 2: HA architecture (planned)
 
-```
-  ┌──────────────────────────────────────────────────┐
-  │                  HA Architecture                  │
-  │                                                    │
-  │  ┌────────────────────────────┐                   │
-  │  │    Traefik (Load Balancer)  │                   │
-  │  │    Health checks every 10s  │                   │
-  │  └────┬─────────┬─────────┬──┘                   │
-  │       │         │         │                       │
-  │       ▼         ▼         ▼                       │
-  │  ┌────────┐ ┌────────┐ ┌────────┐               │
-  │  │volta-1 │ │volta-2 │ │volta-3 │  ← min 2      │
-  │  └───┬────┘ └───┬────┘ └───┬────┘    for HA     │
-  │      │          │          │                     │
-  │      ▼          ▼          ▼                     │
-  │  ┌──────────────────────────────┐                │
-  │  │         Redis Sentinel       │                │
-  │  │  (auto-failover for Redis)   │                │
-  │  └──────────────────────────────┘                │
-  │      │          │          │                     │
-  │      ▼          ▼          ▼                     │
-  │  ┌──────────────────────────────┐                │
-  │  │  PostgreSQL Primary/Replica   │                │
-  │  │  (streaming replication)      │                │
-  │  └──────────────────────────────┘                │
-  └──────────────────────────────────────────────────┘
+```text
+               HA Architecture
+
+    Traefik (Load Balancer)
+    Health checks every 10s
+
+volta-1    volta-2    volta-3    ← min 2
+                                   for HA
+
+         Redis Sentinel
+  (auto-failover for Redis)
+
+  PostgreSQL Primary/Replica
+  (streaming replication)
 ```
 
 ### What HA means for volta users

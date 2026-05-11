@@ -51,28 +51,20 @@ Handles [authentication](docs/glossary/authentication-vs-authorization.md), [ten
 
 ### Option A: Traefik + volta-auth-proxy
 
-```
-Browser ──→ Traefik ──────────────────────────────────→ App
-                  │                                      ↑
-                  └──→ volta (ForwardAuth check) ────────┘
-                                  │
-                         auth + tenant resolution
-                                  │
-                      X-Volta-User-Id: abc123
-                      X-Volta-Tenant-Id: t456
-                      X-Volta-Role: MEMBER
+```mermaid
+flowchart LR
+    Browser --> Traefik
+    Traefik -->|ForwardAuth check| Volta[volta-auth-proxy]
+    Volta -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| Traefik
+    Traefik --> App
 ```
 
 ### Option B: volta-gateway (built-in auth)
 
-```
-Browser ──→ volta-gateway (auth built-in) ────────────→ App
-                         │
-                auth + tenant resolution
-                         │
-              X-Volta-User-Id: abc123
-              X-Volta-Tenant-Id: t456
-              X-Volta-Role: MEMBER
+```mermaid
+flowchart LR
+    Browser --> Gateway[volta-gateway<br/>auth built-in]
+    Gateway -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| App
 ```
 
 [volta-gateway](https://github.com/opaopa6969/volta-gateway) is a Rust-based [reverse proxy](docs/glossary/reverse-proxy.md) that includes a volta-auth-proxy compatible auth server. No separate auth-proxy needed.
@@ -429,44 +421,32 @@ java -jar target/volta-auth-proxy-0.3.0-SNAPSHOT.jar
 
 **What happens at [runtime](docs/glossary/runtime.md)** (once configured):
 
-```
-  Browser          Traefik         volta-auth-proxy        Google
-     │                │                   │                   │
-     │  GET /dashboard│                   │                   │
-     │───────────────►│                   │                   │
-     │                │  GET /auth/verify │                   │
-     │                │──────────────────►│                   │
-     │                │   401 (no session)│                   │
-     │                │◄──────────────────│                   │
-     │  302 → /login  │                   │                   │
-     │◄───────────────│                   │                   │
-     │                                    │                   │
-     │  GET /login                        │                   │
-     │───────────────────────────────────►│                   │
-     │  302 → accounts.google.com         │                   │
-     │  (with state + nonce + PKCE)       │                   │
-     │◄───────────────────────────────────│                   │
-     │                                                        │
-     │  GET /callback?code=...&state=...  │  (Google redirects back)
-     │───────────────────────────────────►│                   │
-     │                                    │  POST /token      │
-     │                                    │──────────────────►│
-     │                                    │  id_token + access│
-     │                                    │◄──────────────────│
-     │                                    │  verify nonce,    │
-     │                                    │  create session,  │
-     │                                    │  issue JWT        │
-     │  302 → /dashboard (session cookie) │                   │
-     │◄───────────────────────────────────│                   │
-     │                                    │                   │
-     │  GET /dashboard│                   │                   │
-     │───────────────►│                   │                   │
-     │                │  GET /auth/verify │                   │
-     │                │──────────────────►│                   │
-     │                │  200 + X-Volta-*  │                   │
-     │                │◄──────────────────│                   │
-     │  200 + page    │                   │                   │
-     │◄───────────────│                   │                   │
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Traefik
+    participant Volta as volta-auth-proxy
+    participant Google
+
+    Browser->>Traefik: GET /dashboard
+    Traefik->>Volta: GET /auth/verify
+    Volta-->>Traefik: 401 (no session)
+    Traefik-->>Browser: 302 -> /login
+
+    Browser->>Volta: GET /login
+    Volta-->>Browser: 302 -> accounts.google.com<br/>(with state + nonce + PKCE)
+
+    Browser->>Volta: GET /callback?code=...&state=...
+    Note over Browser,Volta: Google redirects back
+    Volta->>Google: POST /token
+    Google-->>Volta: id_token + access_token
+    Note over Volta: verify nonce,<br/>create session,<br/>issue JWT
+    Volta-->>Browser: 302 -> /dashboard (session cookie)
+
+    Browser->>Traefik: GET /dashboard
+    Traefik->>Volta: GET /auth/verify
+    Volta-->>Traefik: 200 + X-Volta-*
+    Traefik-->>Browser: 200 + page
 ```
 
 **One-time setup in [Google Cloud Console](docs/glossary/google-cloud-console.md):**
@@ -629,22 +609,24 @@ app.get("/app/team", ctx -> {
 
 ### Overview
 
-```
-                    ┌─────────────────────────────────────────────┐
-                    │            volta-auth-proxy                  │
-                    │                                             │
-  Browser ──────── │  [UI]  login / signup / invite / admin       │
-       ↑           │  [Auth] Google OIDC / session / JWT          │
-       │           │  [ForwardAuth] GET /auth/verify              │ ◄── Traefik asks
-       │           │  [Internal API] /api/v1/*                    │ ◄── Apps call
-       │           │  [DB] Postgres (users/tenants/sessions/...)  │
-       │           └─────────────────────────────────────────────┘
-       │                              │
-       │                    ┌─────────┴─────────┐
-       │                    │                   │
-       │               ┌────▼────┐         ┌────▼────┐
-       └───────────────┤  App A  │         │  App B  │  ...
-                       └─────────┘         └─────────┘
+```mermaid
+flowchart TB
+    Browser["Browser"]
+    subgraph Volta["volta-auth-proxy"]
+        UI["[UI] login / signup / invite / admin"]
+        Auth["[Auth] Google OIDC / session / JWT"]
+        FA["[ForwardAuth] GET /auth/verify (Traefik asks)"]
+        API["[Internal API] /api/v1/* (Apps call)"]
+        DB["[DB] Postgres (users/tenants/sessions/...)"]
+    end
+    AppA["App A"]
+    AppB["App B"]
+
+    Browser <--> Volta
+    Volta --> AppA
+    Volta --> AppB
+    Browser --> AppA
+    Browser --> AppB
 ```
 
 ### How Requests Flow [📊 full screen transition map](dge/specs/ui-flow.md#full-screen-transition-map)
@@ -653,55 +635,36 @@ There are 3 types of traffic:
 
 #### Type 1: Browser -> [App](docs/glossary/downstream-app.md) (normal page/[API](docs/glossary/api.md) access)
 
-```
-Browser ─── GET /dashboard ───► Traefik
-                                   │
-                        ┌──────────▼──────────┐
-                        │  ForwardAuth check   │
-                        │  GET /auth/verify    │
-                        │  to volta-auth-proxy │
-                        └──────────┬──────────┘
-                                   │
-                    ┌──── 200 OK ──┴── 401 NG ────┐
-                    │                              │
-                    ▼                              ▼
-          Traefik forwards               Browser redirected
-          to App with headers:           to /login
-          X-Volta-User-Id
-          X-Volta-Tenant-Id
-          X-Volta-Roles
-          X-Volta-JWT
-                    │
-                    ▼
-               App renders
-               (reads headers)
+```mermaid
+flowchart TD
+    Browser["Browser"] -->|GET /dashboard| Traefik
+    Traefik --> FA["ForwardAuth check<br/>GET /auth/verify<br/>to volta-auth-proxy"]
+    FA -->|200 OK| Forward["Traefik forwards to App with headers:<br/>X-Volta-User-Id<br/>X-Volta-Tenant-Id<br/>X-Volta-Roles<br/>X-Volta-JWT"]
+    FA -->|401 NG| Redirect["Browser redirected to /login"]
+    Forward --> Render["App renders (reads headers)"]
 ```
 
 **Key point:** volta-auth-proxy never sees the [request body](docs/glossary/request-body.md). [Traefik](docs/glossary/reverse-proxy.md) only asks "is this user [authenticated](docs/glossary/authentication-vs-authorization.md)?" and gets [headers](docs/glossary/header.md) back. The actual request goes directly from [Traefik](docs/glossary/traefik.md) to the [App](docs/glossary/downstream-app.md). (→ [see ForwardAuth flow diagram](dge/specs/ui-flow.md#flow-2-returning-user---session-valid))
 
 #### Type 2: [App](docs/glossary/downstream-app.md) -> volta-auth-proxy (CRUD delegation)
 
-```
-App ─── GET /api/v1/tenants/{tid}/members ───► volta-auth-proxy
-        Authorization: Bearer <user-jwt>              │
-                                                      ▼
-                                              Validate JWT
-                                              Check tenant match
-                                              Check role
-                                                      │
-                                                      ▼
-                                              Return member list
+```mermaid
+flowchart LR
+    App -->|"GET /api/v1/tenants/{tid}/members<br/>Authorization: Bearer &lt;user-jwt&gt;"| Volta[volta-auth-proxy]
+    Volta --> Validate["Validate JWT<br/>Check tenant match<br/>Check role"]
+    Validate --> Return["Return member list"]
 ```
 
 [Apps](docs/glossary/downstream-app.md) delegate user/[tenant](docs/glossary/tenant.md)/member operations to the proxy. Apps never access the users/[tenant](docs/glossary/tenant.md)s DB directly.
 
 #### Type 3: Browser -> volta-auth-proxy (auth UI)
 
-```
-Browser ─── GET /login ──────────────────► volta-auth-proxy
-Browser ─── GET /invite/{code} ──────────► volta-auth-proxy
-Browser ─── GET /admin/members ──────────► volta-auth-proxy
-Browser ─── GET /settings/sessions ──────► volta-auth-proxy
+```mermaid
+flowchart LR
+    Browser -->|GET /login| Volta[volta-auth-proxy]
+    Browser -->|"GET /invite/{code}"| Volta
+    Browser -->|GET /admin/members| Volta
+    Browser -->|GET /settings/sessions| Volta
 ```
 
 All auth-related UI ([login](docs/glossary/login.md), invite, admin, [sessions](docs/glossary/session.md)) is served directly by volta-auth-proxy using [jte](docs/glossary/jte.md) [template](docs/glossary/template.md)s.
@@ -710,27 +673,29 @@ All auth-related UI ([login](docs/glossary/login.md), invite, admin, [sessions](
 
 [Apps](docs/glossary/downstream-app.md) have exactly 2 responsibilities:
 
-```
-1. Read identity from headers (ForwardAuth)
-   ┌──────────────────────────────────────┐
-   │  X-Volta-User-Id: u_abc123           │
-   │  X-Volta-Tenant-Id: t_xyz789         │
-   │  X-Volta-Roles: ADMIN,MEMBER         │
-   │  X-Volta-JWT: eyJhbGci...            │
-   └──────────────────────────────────────┘
-   App reads these headers on every request.
-   For maximum security, verify X-Volta-JWT signature.
+**1. Read identity from headers (ForwardAuth)**
 
-2. Call Internal API for user/tenant data
-   ┌──────────────────────────────────────┐
-   │  GET  /api/v1/users/me               │
-   │  GET  /api/v1/tenants/{tid}/members   │
-   │  POST /api/v1/tenants/{tid}/invitations│
-   │  ...                                  │
-   └──────────────────────────────────────┘
-   App forwards the user's JWT as Authorization header.
-   volta-auth-proxy handles all auth logic.
 ```
+X-Volta-User-Id: u_abc123
+X-Volta-Tenant-Id: t_xyz789
+X-Volta-Roles: ADMIN,MEMBER
+X-Volta-JWT: eyJhbGci...
+```
+
+App reads these headers on every request.
+For maximum security, verify `X-Volta-JWT` signature.
+
+**2. Call Internal API for user/tenant data**
+
+```
+GET  /api/v1/users/me
+GET  /api/v1/tenants/{tid}/members
+POST /api/v1/tenants/{tid}/invitations
+...
+```
+
+App forwards the user's JWT as `Authorization` header.
+volta-auth-proxy handles all auth logic.
 
 [Apps](docs/glossary/downstream-app.md) do NOT:
 
@@ -742,28 +707,21 @@ All auth-related UI ([login](docs/glossary/login.md), invite, admin, [sessions](
 
 ### Connecting a New [App](docs/glossary/downstream-app.md)
 
-```
-  What you configure              What you get at runtime
-  ══════════════════              ═══════════════════════
-
-  volta-config.yaml               Browser
-  ┌──────────────────┐              │
-  │ apps:            │              ▼
-  │  - id: my-app    │           Traefik
-  │    url: http://  │     ┌────────┴────────────────────┐
-  │    allowed_roles │     │  ForwardAuth middleware      │
-  └──────────────────┘     │  → GET /auth/verify         │
-           │               └────────────┬────────────────┘
-           ▼                            │ 200 OK
-  Traefik auto-config              X-Volta-User-Id
-  (generated by volta)             X-Volta-Tenant-Id    ──► Your App
-                                   X-Volta-Roles             reads
-  src/main/resources/              X-Volta-JWT               headers
-  public/js/volta.js
-  ┌──────────────────┐
-  │ Volta.fetch()    │◄── Your frontend uses this
-  │ Volta.logout()   │    instead of fetch()
-  └──────────────────┘
+```mermaid
+flowchart TB
+    subgraph Config["What you configure"]
+        YAML["volta-config.yaml<br/>apps:<br/>- id: my-app<br/>  url: http://...<br/>  allowed_roles: [...]"]
+        TraefikGen["Traefik auto-config<br/>(generated by volta)"]
+        JS["src/main/resources/public/js/volta.js<br/>Volta.fetch() / Volta.logout()<br/>(your frontend uses these)"]
+    end
+    subgraph Runtime["What you get at runtime"]
+        Browser2["Browser"]
+        Traefik2["Traefik"]
+        FA2["ForwardAuth middleware<br/>-> GET /auth/verify"]
+        App2["Your App<br/>reads headers:<br/>X-Volta-User-Id<br/>X-Volta-Tenant-Id<br/>X-Volta-Roles<br/>X-Volta-JWT"]
+    end
+    YAML --> TraefikGen
+    Browser2 --> Traefik2 --> FA2 -->|200 OK + headers| App2
 ```
 
 **Step 1:** Register in `volta-config.yaml`
@@ -982,16 +940,17 @@ volta-auth-proxy/
 
 9 tables + 2 support tables:
 
-```
-users ──┐
-        ├── memberships ──── tenants ──── tenant_domains
-        ├── sessions
-        └── invitations (created_by)
-             └── invitation_usages
-
-signing_keys (independent)
-audit_logs (independent)
-oidc_flows (OIDC state/nonce tracking)
+```mermaid
+flowchart LR
+    users --> memberships
+    users --> sessions
+    users --> invitations["invitations (created_by)"]
+    memberships --> tenants
+    tenants --> tenant_domains
+    invitations --> invitation_usages
+    signing_keys["signing_keys (independent)"]
+    audit_logs["audit_logs (independent)"]
+    oidc_flows["oidc_flows (OIDC state/nonce tracking)"]
 ```
 
 | Table | Purpose |
@@ -1388,11 +1347,11 @@ volta-auth-proxy treats [multi-tenancy](docs/glossary/multi-tenant.md) as a firs
 
 ### User - Membership - Tenant
 
-```
-User ──── Membership ──── Tenant
-            │
-            ├── role: OWNER | ADMIN | MEMBER | VIEWER
-            └── joined_at
+```mermaid
+flowchart LR
+    User --- Membership --- Tenant
+    Membership --- Role["role: OWNER | ADMIN | MEMBER | VIEWER"]
+    Membership --- JoinedAt["joined_at"]
 ```
 
 - A single [user](docs/glossary/user.md) can belong to **multiple [tenants](docs/glossary/tenant.md)** with different [roles](docs/glossary/role.md) in each

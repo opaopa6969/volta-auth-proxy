@@ -37,41 +37,22 @@ voltaの世界では、インテグレーションとは：volta-auth-proxyがTr
 
 ### voltaのインテグレーションフロー
 
-```
-  ┌──────┐     ┌──────────┐     ┌───────────────┐     ┌──────────┐
-  │ブラウザ│────▶│  Traefik  │────▶│ volta-auth-   │────▶│  Google   │
-  │      │     │          │     │  proxy         │     │  OIDC     │
-  │      │◀────│          │◀────│               │◀────│          │
-  └──────┘     └─────┬────┘     └───────┬───────┘     └──────────┘
-                     │                  │
-                     │                  ▼
-                     │          ┌───────────────┐
-                     │          │  PostgreSQL    │
-                     ▼          └───────────────┘
-               ┌──────────┐
-               │ あなたの  │
-               │ アプリ    │
-               │(X-Volta-*│
-               │ を読む)   │
-               └──────────┘
+```mermaid
+flowchart LR
+    Browser[ブラウザ] --> Traefik --> Volta[volta-auth-proxy] --> Google[Google OIDC]
+    Volta --> PG[PostgreSQL]
+    Traefik --> App["あなたのアプリ<br/>(X-Volta-* を読む)"]
 ```
 
 ### インテグレーションポイント1：Traefik ForwardAuth
 
 Traefikはアプリへのすべてのリクエストをインターセプトし、voltaに「このユーザーは許可されているか？」と尋ねます。
 
-```
-  ブラウザ → Traefik → volta (ForwardAuthチェック)
-                         │
-                    ┌────┴────┐
-                    │         │
-                 200 OK    401/403
-                    │         │
-                    ▼         ▼
-            Traefikがアプリに   Traefikがブラウザに
-            ルーティング       エラーを返す
-            X-Volta-*ヘッダー
-            付きで
+```mermaid
+flowchart LR
+    Browser[ブラウザ] --> Traefik --> Volta["volta (ForwardAuthチェック)"]
+    Volta -->|200 OK| Route["Traefik がアプリにルーティング<br/>X-Volta-* ヘッダー付き"]
+    Volta -->|401/403| Err[Traefik がブラウザにエラーを返す]
 ```
 
 Traefik設定（簡略化）：
@@ -121,12 +102,9 @@ String role     = request.getHeader("X-Volta-Role");
 
 サーバー間統合のために、voltaは[Internal API](internal-api.ja.md)を公開します：
 
-```
-  あなたのバックエンド ──HTTP──▶ volta Internal API
-                                  │
-                                  ├─ GET /internal/users/{id}
-                                  ├─ GET /internal/tenants/{id}/members
-                                  └─ POST /internal/invitations
+```mermaid
+flowchart LR
+    Backend[あなたのバックエンド] -->|HTTP| API["volta Internal API<br/>GET /internal/users/{id}<br/>GET /internal/tenants/{id}/members<br/>POST /internal/invitations"]
 ```
 
 ---
@@ -135,29 +113,22 @@ String role     = request.getHeader("X-Volta-Role");
 
 ### インテグレーションマップ
 
-```
-  ┌─────────────────────────────────────────────────┐
-  │              volta-auth-proxy                    │
-  │                                                  │
-  │  統合先:                                         │
-  │                                                  │
-  │  ┌─────────────┐  ┌─────────────┐              │
-  │  │ Google OIDC  │  │ PostgreSQL  │              │
-  │  │ (ログイン)   │  │ (ストレージ) │              │
-  │  └─────────────┘  └─────────────┘              │
-  │                                                  │
-  │  ┌─────────────┐  ┌─────────────┐              │
-  │  │ Traefik      │  │ あなたのアプリ│              │
-  │  │ (ForwardAuth)│  │ (ヘッダー/   │              │
-  │  │              │  │  Int. API)  │              │
-  │  └─────────────┘  └─────────────┘              │
-  │                                                  │
-  │  Phase 2:                                       │
-  │  ┌─────────────┐                                │
-  │  │ Redis        │                                │
-  │  │ (セッション)  │                                │
-  │  └─────────────┘                                │
-  └─────────────────────────────────────────────────┘
+```text
+            volta-auth-proxy
+
+統合先:
+
+  Google OIDC       PostgreSQL
+  (ログイン)        (ストレージ)
+
+  Traefik           あなたのアプリ
+  (ForwardAuth)     (ヘッダー/
+                     Int. API)
+
+Phase 2:
+
+  Redis
+  (セッション)
 ```
 
 ### voltaと統合するためにアプリが必要なもの

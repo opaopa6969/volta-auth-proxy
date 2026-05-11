@@ -18,34 +18,30 @@ Webhooks are the backbone of event-driven integration. Payment processors like S
 
 Without webhooks, systems must poll each other constantly:
 
-```
-  Polling (wasteful):
-  ┌────────┐   "Any new events?"    ┌────────────────┐
-  │  Your  │ ─────────────────────► │ volta-auth-    │
-  │  App   │ ◄───────────────────── │ proxy          │
-  │        │   "Nope."              │                │
-  │        │                        │                │
-  │        │   "Any new events?"    │                │
-  │        │ ─────────────────────► │                │
-  │        │ ◄───────────────────── │                │
-  │        │   "Nope."              │                │
-  │        │                        │                │
-  │        │   "Any new events?"    │                │
-  │        │ ─────────────────────► │                │
-  │        │ ◄───────────────────── │                │
-  │        │   "Yes! User signed up"│                │
-  └────────┘                        └────────────────┘
+```text
+Polling (wasteful):
+             "Any new events?"
+   Your                         >   volta-auth-
+   App     <                        proxy
+             "Nope."
 
-  Webhook (efficient):
-  ┌────────┐                        ┌────────────────┐
-  │  Your  │                        │ volta-auth-    │
-  │  App   │                        │ proxy          │
-  │        │   (silence...)         │                │
-  │        │                        │ (user signs up)│
-  │        │   POST /your/webhook   │                │
-  │        │ ◄───────────────────── │                │
-  │        │   "User signed up!"    │                │
-  └────────┘                        └────────────────┘
+             "Any new events?"
+
+             "Nope."
+
+             "Any new events?"
+
+             "Yes! User signed up"
+
+Webhook (efficient):
+
+   Your                             volta-auth-
+   App                              proxy
+             (silence...)
+                                    (user signs up)
+             POST /your/webhook
+
+             "User signed up!"
 ```
 
 Key benefits:

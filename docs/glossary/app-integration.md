@@ -14,17 +14,12 @@ How does an application connect to an authentication system? This question sound
 
 The auth logic lives inside your application. Your app directly handles login forms, password checking, session management, and token validation.
 
-```
-  ┌──────────────────────────────────────────────┐
-  │ Your Application                              │
-  │                                                │
-  │  ┌──────────────┐  ┌──────────────────────┐  │
-  │  │ Business logic│  │ Auth logic           │  │
-  │  │ (your code)   │  │ (Spring Security,    │  │
-  │  │               │  │  Passport.js, etc.)  │  │
-  │  └──────────────┘  └──────────────────────┘  │
-  │                                                │
-  └────────────────────────────────────────────────┘
+```text
+Your Application
+
+   Business logic     Auth logic
+   (your code)        (Spring Security,
+                       Passport.js, etc.)
 ```
 
 **Examples:** Spring Security in a Java app. Passport.js in a Node.js app. Django's auth module. Laravel's authentication.
@@ -46,13 +41,12 @@ This model works for a single application. It fails for a multi-service architec
 
 The app redirects users to a separate auth server for login. After authentication, the server redirects back with a token.
 
-```
-  ┌──────────┐    redirect     ┌──────────────┐
-  │ Your App  │ ──────────────► │ Keycloak /   │
-  │           │                 │ Auth0 /      │
-  │           │ ◄────────────── │ volta login  │
-  │           │    token        └──────────────┘
-  └──────────┘
+```text
+              redirect
+Your App                  >   Keycloak /
+                              Auth0 /
+            <                 volta login
+               token
 ```
 
 **Examples:** OAuth2/OIDC with Keycloak, Auth0's Universal Login, any "Login with Google" flow.
@@ -74,15 +68,13 @@ This model is better than embedded, but it still puts auth burden on each applic
 
 A reverse proxy handles authentication before the request reaches your app. Your app receives identity information via HTTP headers, with zero auth code.
 
-```
-  ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
-  │ Browser   │────►│ Traefik   │────►│ volta    │     │ Your App │
-  │           │     │ (proxy)   │     │ (auth)   │     │ (NO auth │
-  │           │     │           │◄────│          │     │  code!)  │
-  │           │◄────│           │─────┤          ├────►│          │
-  └──────────┘     └──────────┘     └──────────┘     └──────────┘
-                   Adds X-Volta-*                     Reads headers
-                   headers
+```text
+Browser        >  Traefik        >  volta            Your App
+                  (proxy)           (auth)           (NO auth
+                             <                        code!)
+
+               Adds X-Volta-*                     Reads headers
+               headers
 ```
 
 **Examples:** volta-auth-proxy with Traefik ForwardAuth, Ory Oathkeeper, oauth2-proxy.

@@ -31,13 +31,13 @@ Without UUIDs, you would typically use sequential integers (1, 2, 3, ...) as IDs
 
 A UUID is 32 hexadecimal characters (0-9, a-f) grouped into 5 sections separated by hyphens:
 
-```
-  550e8400-e29b-41d4-a716-446655440000
-  ├──────┤ ├──┤ ├──┤ ├──┤ ├──────────┤
-  8 chars  4    4    4    12 chars
-           chars chars chars
+```text
+550e8400-e29b-41d4-a716-446655440000
 
-  Total: 32 hex chars = 128 bits = 16 bytes
+8 chars  4    4    4    12 chars
+         chars chars chars
+
+Total: 32 hex chars = 128 bits = 16 bytes
 ```
 
 ### UUID versions
@@ -121,14 +121,14 @@ SELECT * FROM users WHERE id = '550e8400-e29b-41d4-a716-446655440000';
 
 volta uses UUIDs for every entity ID:
 
-```
-  Entity              Example UUID                           Column
-  ──────              ────────────                           ──────
-  User ID             550e8400-e29b-41d4-a716-446655440000  users.id
-  Tenant ID           abcd1234-5678-9012-3456-789012345678  tenants.id
-  Member ID           11111111-2222-3333-4444-555555555555  members.id
-  Invitation token    aaaabbbb-cccc-dddd-eeee-ffffffffffff  invitations.token
-  JWT ID (jti)        12345678-1234-1234-1234-123456789012  (in JWT payload)
+```text
+Entity              Example UUID                           Column
+
+User ID             550e8400-e29b-41d4-a716-446655440000  users.id
+Tenant ID           abcd1234-5678-9012-3456-789012345678  tenants.id
+Member ID           11111111-2222-3333-4444-555555555555  members.id
+Invitation token    aaaabbbb-cccc-dddd-eeee-ffffffffffff  invitations.token
+JWT ID (jti)        12345678-1234-1234-1234-123456789012  (in JWT payload)
 ```
 
 ### UUIDs in the API

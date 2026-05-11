@@ -35,45 +35,42 @@ Type safety catches these bugs at compile time:
 
 ### Static types vs. dynamic types
 
-```
-  Static typing (Java - type-safe):
-  ─────────────────────────────────
-  String name = "Taro";
-  int age = 30;
+```text
+Static typing (Java - type-safe):
 
-  name = 42;          // ✗ COMPILE ERROR: incompatible types
-  age = "thirty";     // ✗ COMPILE ERROR: incompatible types
+String name = "Taro";
+int age = 30;
 
-  // The compiler catches these BEFORE the program runs.
+name = 42;          // ✗ COMPILE ERROR: incompatible types
+age = "thirty";     // ✗ COMPILE ERROR: incompatible types
 
+// The compiler catches these BEFORE the program runs.
 
-  Dynamic typing (JavaScript - not type-safe):
-  ─────────────────────────────────────────────
-  let name = "Taro";
-  let age = 30;
+Dynamic typing (JavaScript - not type-safe):
 
-  name = 42;          // ✓ no error (name is now a number)
-  age = "thirty";     // ✓ no error (age is now a string)
+let name = "Taro";
+let age = 30;
 
-  // These "work" until something downstream expects a specific type.
+name = 42;          // ✓ no error (name is now a number)
+age = "thirty";     // ✓ no error (age is now a string)
+
+// These "work" until something downstream expects a specific type.
 ```
 
 ### How the compiler uses types
 
-```
-  Source code                    Compiler                     Result
-  ───────────                    ────────                     ──────
+```text
+Source code                    Compiler                     Result
 
-  void greet(String name) {     Checks: is "Taro"            ✓ Compiles
-      print("Hi " + name);     a String? Yes.
-  }
-  greet("Taro");
+void greet(String name) {     Checks: is "Taro"            ✓ Compiles
+    print("Hi " + name);     a String? Yes.
+}
+greet("Taro");
 
-
-  void greet(String name) {     Checks: is 42                ✗ Error:
-      print("Hi " + name);     a String? NO.                "int cannot
-  }                                                          be converted
-  greet(42);                                                 to String"
+void greet(String name) {     Checks: is 42                ✗ Error:
+    print("Hi " + name);     a String? NO.                "int cannot
+}                                                          be converted
+greet(42);                                                 to String"
 ```
 
 ### Type safety in Java records
@@ -102,20 +99,20 @@ new Tenant("not-a-uuid", "ACME Corp", "acme", "2024-01-01");
 
 This is where type safety makes the biggest practical difference for volta:
 
-```
-  Traditional template (Thymeleaf, FreeMarker):
-  ─────────────────────────────────────────────
-  Template:   <h1>${user.nmae}</h1>          ← typo
-  Compile:    ✓ (template not checked)
-  Runtime:    ✗ ERROR when page is rendered
-  Discovery:  User reports "page is broken"
+```text
+Traditional template (Thymeleaf, FreeMarker):
 
-  Type-safe template (jte):
-  ─────────────────────────
-  Template:   <h1>${user.nmae}</h1>          ← typo
-  Compile:    ✗ ERROR: cannot find symbol "nmae" in record User
-  Runtime:    never reached
-  Discovery:  Developer sees error immediately during build
+Template:   <h1>${user.nmae}</h1>          ← typo
+Compile:    ✓ (template not checked)
+Runtime:    ✗ ERROR when page is rendered
+Discovery:  User reports "page is broken"
+
+Type-safe template (jte):
+
+Template:   <h1>${user.nmae}</h1>          ← typo
+Compile:    ✗ ERROR: cannot find symbol "nmae" in record User
+Runtime:    never reached
+Discovery:  Developer sees error immediately during build
 ```
 
 ### The cost of type safety

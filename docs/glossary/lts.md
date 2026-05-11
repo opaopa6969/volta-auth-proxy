@@ -30,30 +30,28 @@ volta-auth-proxy uses **Java 21 LTS**, which receives security updates until at 
 
 Oracle releases a new Java version every 6 months. Only every 4th release (every 2 years) is designated LTS:
 
-```
-  Java Release Timeline:
-  ──────────────────────────────────────────────────────▶ time
+```text
+Java Release Timeline:
+                                                      > time
 
-  2021    2022    2023    2024    2025    2026    2027
-   │       │       │       │       │       │       │
-   17      18      19      20      21      22      23
-   LTS     │       │       │       LTS     │       │
-   │       │       │       │       │       │       │
-   │       6mo     6mo     6mo     │       6mo     6mo
-   │     support support support   │     support support
-   │                               │
-   └── Supported until             └── Supported until
-       Sep 2029                        Sep 2031 (est.)
+2021    2022    2023    2024    2025    2026    2027
 
-  Non-LTS (18, 19, 20, 22, 23):
-  ┌──────────────────┐
-  │ 6 months support │ → then you MUST upgrade
-  └──────────────────┘
+ 17      18      19      20      21      22      23
+ LTS                             LTS
 
-  LTS (17, 21, 25):
-  ┌──────────────────────────────────────────────┐
-  │ 5+ years of security patches                 │
-  └──────────────────────────────────────────────┘
+         6mo     6mo     6mo             6mo     6mo
+       support support support         support support
+
+     Supported until                 Supported until
+     Sep 2029                        Sep 2031 (est.)
+
+Non-LTS (18, 19, 20, 22, 23):
+
+  6 months support   → then you MUST upgrade
+
+LTS (17, 21, 25):
+
+  5+ years of security patches
 ```
 
 ### What LTS includes
@@ -82,23 +80,21 @@ LTS is not just a Java concept. Many projects follow the same pattern:
 
 ### The LTS upgrade path
 
-```
-  volta on Java 17 LTS (current support until Sep 2029)
-       │
-       │  When Java 25 LTS releases (Sep 2025):
-       │  - Test volta on Java 25
-       │  - Verify dependencies work
-       │  - Migrate at your pace
-       │  - Java 21 still supported
-       │
-       ▼
-  volta on Java 21 LTS ← current
-       │
-       │  When Java 29 LTS releases (~2027):
-       │  - Same process
-       │
-       ▼
-  volta on Java 25 LTS (future)
+```text
+volta on Java 17 LTS (current support until Sep 2029)
+
+        When Java 25 LTS releases (Sep 2025):
+        - Test volta on Java 25
+        - Verify dependencies work
+        - Migrate at your pace
+        - Java 21 still supported
+
+volta on Java 21 LTS ← current
+
+        When Java 29 LTS releases (~2027):
+        - Same process
+
+volta on Java 25 LTS (future)
 ```
 
 ---
@@ -109,19 +105,17 @@ LTS is not just a Java concept. Many projects follow the same pattern:
 
 volta-auth-proxy requires Java 21, which was released in September 2023 as an LTS version. This gives volta:
 
-```
-  ┌────────────────────────────────────────────────┐
-  │  Java 21 LTS Benefits for volta                │
-  │                                                 │
-  │  Security patches:    Until Sep 2029+           │
-  │  Virtual threads:     Better concurrency        │
-  │  Pattern matching:    Cleaner code              │
-  │  Record classes:      Less boilerplate          │
-  │  Text blocks:         Readable SQL/templates    │
-  │  Sealed classes:      Type safety               │
-  │  Library support:     All major libs tested     │
-  │  Docker images:       eclipse-temurin:21-jre    │
-  └────────────────────────────────────────────────┘
+```text
+Java 21 LTS Benefits for volta
+
+Security patches:    Until Sep 2029+
+Virtual threads:     Better concurrency
+Pattern matching:    Cleaner code
+Record classes:      Less boilerplate
+Text blocks:         Readable SQL/templates
+Sealed classes:      Type safety
+Library support:     All major libs tested
+Docker images:       eclipse-temurin:21-jre
 ```
 
 ### pom.xml configuration

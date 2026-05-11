@@ -34,12 +34,12 @@
 
 エンドポイントは3つのもので定義されます：
 
-```
-  HTTPメソッド  +   URLパス                =   エンドポイント
-  ───────────      ──────────────────         ─────────────────────
-  GET              /api/v1/users/me           「現在のユーザーを取得」
-  POST             /api/v1/tenants            「テナントを作成」
-  DELETE           /api/v1/admin/members/:id  「メンバーを削除」
+```text
+HTTPメソッド  +   URLパス                =   エンドポイント
+
+GET              /api/v1/users/me           「現在のユーザーを取得」
+POST             /api/v1/tenants            「テナントを作成」
+DELETE           /api/v1/admin/members/:id  「メンバーを削除」
 ```
 
 **同じパス**で**異なるメソッド**は別のエンドポイントになります：
@@ -80,26 +80,24 @@
 
 完全なエンドポイントのやり取り：
 
-```
-  クライアント                                  サーバー（volta）
-  ──────                                       ──────────────
-  GET /api/v1/users/me
-  ヘッダー:
-    Cookie: JSESSIONID=abc123
-    Accept: application/json
-                          ─────────────────────>
+```text
+クライアント                                  サーバー（volta）
 
-                          <─────────────────────
-  HTTP/1.1 200 OK
-  ヘッダー:
-    Content-Type: application/json
-  ボディ:
-    {
-      "userId": "550e8400-...",
-      "displayName": "Taro Yamada",
-      "tenantId": "abcd1234-...",
-      "roles": ["ADMIN"]
-    }
+GET /api/v1/users/me
+ヘッダー:
+  Cookie: JSESSIONID=abc123
+  Accept: application/json
+
+HTTP/1.1 200 OK
+ヘッダー:
+  Content-Type: application/json
+ボディ:
+  {
+    "userId": "550e8400-...",
+    "displayName": "Taro Yamada",
+    "tenantId": "abcd1234-...",
+    "roles": ["ADMIN"]
+  }
 ```
 
 ### RESTエンドポイントの慣習
@@ -118,31 +116,31 @@
 
 エンドポイントは論理的なグループに整理されることが多いです：
 
-```
-  volta-auth-proxyエンドポイント
-  │
-  ├── 認証エンドポイント（ブラウザ向け、HTMLレスポンス）
-  │   ├── GET  /auth/login
-  │   ├── GET  /auth/callback
-  │   ├── POST /auth/logout
-  │   └── POST /auth/refresh
-  │
-  ├── APIエンドポイント（JSONレスポンス、認証必須）
-  │   ├── GET  /api/v1/users/me
-  │   ├── GET  /api/v1/tenants
-  │   ├── POST /api/v1/tenants
-  │   └── ...
-  │
-  ├── 管理エンドポイント（ADMINまたはOWNERロールが必要）
-  │   ├── GET  /api/v1/admin/members
-  │   ├── POST /api/v1/admin/members/invite
-  │   └── ...
-  │
-  ├── 内部エンドポイント（Traefikが呼ぶ、ユーザーは呼ばない）
-  │   └── GET  /forwardauth
-  │
-  └── Well-knownエンドポイント（公開、認証不要）
-      └── GET  /.well-known/jwks.json
+```text
+volta-auth-proxyエンドポイント
+
+    認証エンドポイント（ブラウザ向け、HTMLレスポンス）
+        GET  /auth/login
+        GET  /auth/callback
+        POST /auth/logout
+        POST /auth/refresh
+
+    APIエンドポイント（JSONレスポンス、認証必須）
+        GET  /api/v1/users/me
+        GET  /api/v1/tenants
+        POST /api/v1/tenants
+        ...
+
+    管理エンドポイント（ADMINまたはOWNERロールが必要）
+        GET  /api/v1/admin/members
+        POST /api/v1/admin/members/invite
+        ...
+
+    内部エンドポイント（Traefikが呼ぶ、ユーザーは呼ばない）
+        GET  /forwardauth
+
+    Well-knownエンドポイント（公開、認証不要）
+        GET  /.well-known/jwks.json
 ```
 
 ---
@@ -182,15 +180,15 @@ app.get("/.well-known/jwks.json", ctx -> jwksController.jwks(ctx));
 
 エンドポイントごとに異なるセキュリティ要件があり、[ミドルウェア](middleware.md)で強制されます：
 
-```
-  エンドポイント                      認証必須？      ロール必須？
-  ────────────────────────────────  ──────────────  ──────────────
-  GET  /auth/login                  不要            不要
-  GET  /.well-known/jwks.json       不要            不要
-  GET  /api/v1/users/me             必要(セッション) 不要(任意のロール)
-  GET  /api/v1/tenants              必要(セッション) 不要(任意のロール)
-  POST /api/v1/admin/members/invite 必要(セッション) ADMINまたはOWNER
-  GET  /forwardauth                 必要(セッション) 不要(内部用)
+```text
+エンドポイント                      認証必須？      ロール必須？
+
+GET  /auth/login                  不要            不要
+GET  /.well-known/jwks.json       不要            不要
+GET  /api/v1/users/me             必要(セッション) 不要(任意のロール)
+GET  /api/v1/tenants              必要(セッション) 不要(任意のロール)
+POST /api/v1/admin/members/invite 必要(セッション) ADMINまたはOWNER
+GET  /forwardauth                 必要(セッション) 不要(内部用)
 ```
 
 ### エンドポイントのAPIバージョニング

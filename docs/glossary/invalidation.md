@@ -30,61 +30,60 @@ Invalidation gives you active control over the authentication lifecycle. It is t
 
 ### Types of invalidation
 
-```
-  ┌────────────────────────────────────────────────────┐
-  │  Type              How                  Speed      │
-  │  ──────────────────────────────────────────────── │
-  │  Session delete    DELETE FROM sessions  Instant    │
-  │  Session logout    Set status=revoked    Instant    │
-  │  Key rotation      Mark key retired      Instant*   │
-  │  JWT expiry        Wait for exp claim    Up to TTL  │
-  │  Cookie clear      Remove from browser   Client-side│
-  │  Token blocklist   Add jti to blocklist  Instant    │
-  └────────────────────────────────────────────────────┘
-  * Key rotation is instant for new tokens, but existing
-    tokens remain valid until their exp.
+```text
+   Type              How                  Speed
+
+   Session delete    DELETE FROM sessions  Instant
+   Session logout    Set status=revoked    Instant
+   Key rotation      Mark key retired      Instant*
+   JWT expiry        Wait for exp claim    Up to TTL
+   Cookie clear      Remove from browser   Client-side
+   Token blocklist   Add jti to blocklist  Instant
+
+* Key rotation is instant for new tokens, but existing
+  tokens remain valid until their exp.
 ```
 
 ### Session invalidation flow
 
-```
-  Active session:
-  ┌─────────────────┐     ┌──────────────────────┐
-  │  Browser        │     │  Database             │
-  │  Cookie: abc123 │ ──► │  sessions:            │
-  │                 │     │  id=abc123 ✓ ACTIVE   │
-  └─────────────────┘     └──────────────────────┘
-  Request accepted.
+```text
+Active session:
 
-  After invalidation:
-  ┌─────────────────┐     ┌──────────────────────┐
-  │  Browser        │     │  Database             │
-  │  Cookie: abc123 │ ──► │  sessions:            │
-  │  (still exists) │     │  (abc123 DELETED)     │
-  └─────────────────┘     └──────────────────────┘
-  Request rejected → 401 → login page.
+   Browser                 Database
+   Cookie: abc123     >    sessions:
+                           id=abc123 ✓ ACTIVE
+
+Request accepted.
+
+After invalidation:
+
+   Browser                 Database
+   Cookie: abc123     >    sessions:
+   (still exists)          (abc123 DELETED)
+
+Request rejected → 401 → login page.
 ```
 
 ### Cascade invalidation
 
-```
-  User invalidation:
-  Invalidate user account
-       │
-       ├── Delete ALL sessions for this user
-       │   └── All devices logged out instantly
-       │
-       └── Existing JWTs still valid for up to 5 min
-           └── Then all access fully terminated
+```text
+User invalidation:
+Invalidate user account
 
-  Tenant invalidation:
-  Invalidate entire tenant
-       │
-       ├── Delete ALL sessions for ALL users in tenant
-       │   └── Every user in tenant logged out
-       │
-       └── Existing JWTs expire within 5 min
-           └── Tenant fully isolated
+         Delete ALL sessions for this user
+             All devices logged out instantly
+
+         Existing JWTs still valid for up to 5 min
+             Then all access fully terminated
+
+Tenant invalidation:
+Invalidate entire tenant
+
+         Delete ALL sessions for ALL users in tenant
+             Every user in tenant logged out
+
+         Existing JWTs expire within 5 min
+             Tenant fully isolated
 ```
 
 ---
@@ -95,14 +94,13 @@ Invalidation gives you active control over the authentication lifecycle. It is t
 
 When a user logs out, volta deletes the session from the database:
 
-```
-  POST /api/v1/auth/logout
-       │
-       ▼
-  1. Read __volta_session cookie → session ID
-  2. DELETE FROM sessions WHERE id = session_id
-  3. Set-Cookie: __volta_session=; Max-Age=0  (clear cookie)
-  4. Return 200 OK
+```text
+POST /api/v1/auth/logout
+
+1. Read __volta_session cookie → session ID
+2. DELETE FROM sessions WHERE id = session_id
+3. Set-Cookie: __volta_session=; Max-Age=0  (clear cookie)
+4. Return 200 OK
 ```
 
 This invalidation is instant on the server side. Even if the browser still has the cookie, the next request will fail because the session no longer exists in the database.
@@ -115,18 +113,17 @@ JWTs cannot be directly invalidated (they are self-contained). volta handles thi
 2. **Short TTL**: Existing JWTs expire within 5 minutes maximum
 3. **[Key rotation](key-rotation.md)**: In emergency, rotate the signing key to invalidate ALL tokens
 
-```
-  Invalidation propagation timeline:
-  ┌──────────────────────────────────────────────┐
-  │  T+0:00  Session invalidated (logout)        │
-  │  T+0:00  New JWT requests → 401 (no session) │
-  │  T+0:01  Old JWT still works (4:59 left)     │
-  │  T+5:00  Old JWT expired. Fully invalidated. │
-  │                                              │
-  │  Gap: 0-5 minutes of residual JWT validity   │
-  │  This is volta's trade-off: stateless JWT    │
-  │  verification vs. instant invalidation.      │
-  └──────────────────────────────────────────────┘
+```text
+Invalidation propagation timeline:
+
+   T+0:00  Session invalidated (logout)
+   T+0:00  New JWT requests → 401 (no session)
+   T+0:01  Old JWT still works (4:59 left)
+   T+5:00  Old JWT expired. Fully invalidated.
+
+   Gap: 0-5 minutes of residual JWT validity
+   This is volta's trade-off: stateless JWT
+   verification vs. instant invalidation.
 ```
 
 ### Cookie invalidation

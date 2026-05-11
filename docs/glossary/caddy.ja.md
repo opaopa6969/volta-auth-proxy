@@ -53,11 +53,11 @@ app.example.com {
 
 `forward_auth`ディレクティブは、TraefikのForwardAuthミドルウェアやnginxの`auth_request`モジュールに相当するCaddyの機能です。
 
-```
-  ブラウザ ──► Caddy ──► forward_auth ──► volta-auth-proxy
-                           │
-                           ├── 200 OK → ヘッダーコピー → reverse_proxy → バックエンド
-                           └── 401/302 → ブラウザに返す
+```text
+ブラウザ   > Caddy   > forward_auth   > volta-auth-proxy
+
+                             200 OK → ヘッダーコピー → reverse_proxy → バックエンド
+                             401/302 → ブラウザに返す
 ```
 
 設定オプション：

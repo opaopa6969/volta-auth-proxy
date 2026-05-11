@@ -18,34 +18,32 @@ ABAC is more flexible than simple [role](role.md)-based access control (RBAC). W
 
 RBAC works for simple scenarios, but real-world access control is rarely simple:
 
+```mermaid
+flowchart TD
+    A[User has role ADMIN?] -->|YES| B[Allow everything]
+    A -->|NO| C[Deny]
 ```
-  RBAC (simple, but limited):
-  ┌─────────────────────────────────────┐
-  │  User has role ADMIN?               │
-  │    YES → Allow everything           │
-  │    NO  → Deny                       │
-  └─────────────────────────────────────┘
 
-  ABAC (flexible, context-aware):
-  ┌─────────────────────────────────────────────────────┐
-  │  User attributes:                                    │
-  │    department = "engineering"                         │
-  │    clearance  = "confidential"                       │
-  │                                                      │
-  │  Resource attributes:                                │
-  │    tenant_id  = "acme-uuid"                          │
-  │    sensitivity = "confidential"                      │
-  │                                                      │
-  │  Context attributes:                                 │
-  │    time       = 14:30 (business hours)               │
-  │    ip_range   = "10.0.0.0/8" (corporate)            │
-  │                                                      │
-  │  Policy: ALLOW if                                    │
-  │    user.department == "engineering" AND               │
-  │    user.clearance >= resource.sensitivity AND         │
-  │    context.time IN business_hours AND                 │
-  │    context.ip IN corporate_range                      │
-  └─────────────────────────────────────────────────────┘
+```text
+ABAC (flexible, context-aware):
+
+User attributes:
+  department = "engineering"
+  clearance  = "confidential"
+
+Resource attributes:
+  tenant_id   = "acme-uuid"
+  sensitivity = "confidential"
+
+Context attributes:
+  time     = 14:30 (business hours)
+  ip_range = "10.0.0.0/8" (corporate)
+
+Policy: ALLOW if
+  user.department == "engineering" AND
+  user.clearance  >= resource.sensitivity AND
+  context.time    IN business_hours AND
+  context.ip      IN corporate_range
 ```
 
 Key benefits:
@@ -61,31 +59,17 @@ Key benefits:
 
 ### ABAC components
 
-```
-  ┌──────────────────────────────────────────────────────┐
-  │                   ABAC Decision                       │
-  │                                                       │
-  │  Subject          Action         Resource    Context  │
-  │  (Who?)           (What?)        (On what?)  (When?)  │
-  │  ┌──────────┐   ┌──────────┐   ┌──────────┐ ┌──────┐│
-  │  │ user_id  │   │ read     │   │ tenant_id│ │ time ││
-  │  │ roles    │   │ write    │   │ owner_id │ │ ip   ││
-  │  │ dept     │   │ delete   │   │ type     │ │ device│
-  │  │ clearance│   │ approve  │   │ sensitiv.│ │ risk ││
-  │  └──────────┘   └──────────┘   └──────────┘ └──────┘│
-  │         │              │              │          │    │
-  │         ▼              ▼              ▼          ▼    │
-  │  ┌──────────────────────────────────────────────────┐│
-  │  │              Policy Engine                        ││
-  │  │                                                   ││
-  │  │  IF subject.dept == "engineering"                  ││
-  │  │  AND action == "read"                             ││
-  │  │  AND resource.tenant_id == subject.tenant_id      ││
-  │  │  AND context.time IN "09:00-18:00"                ││
-  │  │  THEN → ALLOW                                     ││
-  │  │  ELSE → DENY                                      ││
-  │  └──────────────────────────────────────────────────┘│
-  └──────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    S["Subject (Who?)<br/>user_id, roles, dept, clearance"]
+    A["Action (What?)<br/>read, write, delete, approve"]
+    R["Resource (On what?)<br/>tenant_id, owner_id, type, sensitivity"]
+    C["Context (When?)<br/>time, ip, device, risk"]
+    P["Policy Engine<br/>IF subject.dept == 'engineering'<br/>AND action == 'read'<br/>AND resource.tenant_id == subject.tenant_id<br/>AND context.time IN '09:00-18:00'<br/>THEN ALLOW ELSE DENY"]
+    S --> P
+    A --> P
+    R --> P
+    C --> P
 ```
 
 ### Policy structure
@@ -136,23 +120,20 @@ Example policy in volta's format:
 
 In practice, most systems combine both. volta uses roles as one attribute among many:
 
-```
-  ┌─────────────────────────────────────────────┐
-  │  volta's hybrid approach:                    │
-  │                                              │
-  │  1. RBAC layer (fast, coarse):               │
-  │     User has role ADMIN? → Allow most ops    │
-  │     User has role MEMBER? → Check ABAC       │
-  │                                              │
-  │  2. ABAC layer (flexible, fine):             │
-  │     Check tenant membership                  │
-  │     Check resource ownership                 │
-  │     Check time/IP/risk context               │
-  │     Check custom attributes                  │
-  │                                              │
-  │  Result: Fast for common cases,              │
-  │          precise for edge cases              │
-  └─────────────────────────────────────────────┘
+```text
+volta's hybrid approach:
+
+1. RBAC layer (fast, coarse):
+   User has role ADMIN?  -> Allow most ops
+   User has role MEMBER? -> Check ABAC
+
+2. ABAC layer (flexible, fine):
+   Check tenant membership
+   Check resource ownership
+   Check time/IP/risk context
+   Check custom attributes
+
+Result: Fast for common cases, precise for edge cases
 ```
 
 ---
@@ -163,17 +144,9 @@ In practice, most systems combine both. volta uses roles as one attribute among 
 
 volta's Phase 4 adds an ABAC policy engine that evaluates policies at the proxy layer, before requests reach your [upstream](upstream.md) application:
 
-```
-  Request flow with ABAC:
-  ┌──────────┐     ┌──────────────────────────────┐     ┌──────────┐
-  │  Client  │────►│  volta-auth-proxy             │────►│ Upstream │
-  │          │     │                               │     │  App     │
-  │          │     │  1. Authenticate (JWT/Session) │     │          │
-  │          │     │  2. Extract attributes          │     │          │
-  │          │     │  3. Evaluate ABAC policies      │     │          │
-  │          │     │  4. ALLOW → forward             │     │          │
-  │          │     │     DENY  → 403 Forbidden       │     │          │
-  └──────────┘     └──────────────────────────────────┘     └──────────┘
+```mermaid
+flowchart LR
+    Client --> Proxy["volta-auth-proxy<br/>1. Authenticate (JWT/Session)<br/>2. Extract attributes<br/>3. Evaluate ABAC policies<br/>4. ALLOW -> forward<br/>   DENY  -> 403 Forbidden"] --> Upstream[Upstream App]
 ```
 
 ### Attribute sources in volta

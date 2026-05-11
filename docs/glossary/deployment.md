@@ -30,32 +30,19 @@ In a typical web project, deployment means copying your built application (a JAR
 
 A typical deployment flows through several stages:
 
-```
-  Developer's laptop
-       │
-       ▼
-  ┌──────────────────┐
-  │  Source Control   │  ← git push
-  │  (GitHub, etc.)   │
-  └────────┬─────────┘
-           │
-           ▼
-  ┌──────────────────┐
-  │  CI/CD Pipeline   │  ← build, test, package
-  │  (GitHub Actions)  │
-  └────────┬─────────┘
-           │
-           ▼
-  ┌──────────────────┐
-  │  Artifact Store   │  ← JAR file, Docker image
-  │                    │
-  └────────┬─────────┘
-           │
-           ▼
-  ┌──────────────────┐
-  │  Production       │  ← server running the app
-  │  Server           │
-  └──────────────────┘
+```text
+Developer's laptop
+
+   Source Control      ← git push
+   (GitHub, etc.)
+
+   CI/CD Pipeline      ← build, test, package
+   (GitHub Actions)
+
+   Artifact Store      ← JAR file, Docker image
+
+   Production          ← server running the app
+   Server
 ```
 
 ### Deployment strategies
@@ -86,20 +73,16 @@ java -jar volta-auth-proxy-1.0.0.jar
 
 The same JAR runs in every environment. What changes is the configuration:
 
-```
-  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
-  │ Development  │   │  Staging     │   │ Production   │
-  │              │   │              │   │              │
-  │ DB: localhost│   │ DB: staging  │   │ DB: prod-db  │
-  │ PORT: 8080  │   │ PORT: 8080   │   │ PORT: 8080   │
-  │ LOG: debug  │   │ LOG: info    │   │ LOG: warn    │
-  │ GOOGLE_ID:  │   │ GOOGLE_ID:   │   │ GOOGLE_ID:   │
-  │  test-xxx   │   │  stage-xxx   │   │  prod-xxx    │
-  └─────────────┘   └─────────────┘   └─────────────┘
-        │                 │                  │
-        └────────────┬────┘──────────────────┘
-                     │
-              Same JAR file
+```text
+Development         Staging           Production
+
+DB: localhost      DB: staging        DB: prod-db
+PORT: 8080        PORT: 8080         PORT: 8080
+LOG: debug        LOG: info          LOG: warn
+GOOGLE_ID:        GOOGLE_ID:         GOOGLE_ID:
+ test-xxx          stage-xxx          prod-xxx
+
+          Same JAR file
 ```
 
 Configuration is injected via [environment variables](environment-variable.md), not hardcoded.
@@ -112,24 +95,15 @@ Configuration is injected via [environment variables](environment-variable.md), 
 
 volta-auth-proxy is a [single-process](single-process.md) Java application deployed as a fat JAR behind [Traefik](reverse-proxy.md) as a reverse proxy:
 
-```
-  Internet
-     │
-     ▼
-  ┌──────────┐
-  │ Traefik   │  ← TLS termination, routing
-  └────┬─────┘
-       │
-       ▼
-  ┌──────────────────┐
-  │ volta-auth-proxy  │  ← single JVM process
-  │ (fat JAR on JVM)  │
-  └────────┬─────────┘
-       │
-       ▼
-  ┌──────────┐
-  │ Postgres  │  ← database
-  └──────────┘
+```text
+Internet
+
+  Traefik      ← TLS termination, routing
+
+  volta-auth-proxy     ← single JVM process
+  (fat JAR on JVM)
+
+  Postgres     ← database
 ```
 
 ### What you need to deploy volta
@@ -144,24 +118,15 @@ volta-auth-proxy is a [single-process](single-process.md) Java application deplo
 
 Phase 2 adds [Redis](redis.md) and [horizontal scaling](horizontal-scaling.md), changing the deployment topology:
 
-```
-  Internet
-     │
-     ▼
-  ┌──────────────┐
-  │ Load Balancer │
-  └──┬─────┬─────┘
-     │     │
-     ▼     ▼
-  ┌─────┐ ┌─────┐
-  │volta│ │volta│  ← multiple instances
-  │  1  │ │  2  │
-  └──┬──┘ └──┬──┘
-     │     │
-     ▼     ▼
-  ┌──────┐ ┌──────────┐
-  │Postgres│ │  Redis    │  ← shared session store
-  └──────┘ └──────────┘
+```text
+Internet
+
+  Load Balancer
+
+ volta   volta   ← multiple instances
+   1       2
+
+ Postgres     Redis       ← shared session store
 ```
 
 ---

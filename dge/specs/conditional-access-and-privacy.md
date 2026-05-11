@@ -33,55 +33,18 @@ volta-auth-proxy に以下の3機能を段階的に追加する:
 
 ### 2.1 検知/対応の責務分離
 
-```
-┌──────────────────────────────────────────────────────┐
-│ volta-auth-proxy                                     │
-│                                                      │
-│  ┌──────────────────┐    ┌───────────────────────┐   │
-│  │ LocalRiskCheck   │    │ ExternalRiskService   │   │
-│  │ (同期, ms単位)    │    │ (同期, timeout 3s)    │   │
-│  │                  │    │                       │   │
-│  │ NewDeviceCheck   │    │ fraud-alert /c/check  │   │
-│  │ (trusted_devices │    │ Only                  │   │
-│  │  + cookie)       │    │ → relativeSuspicious  │   │
-│  └────────┬─────────┘    │   Value (1-5)         │   │
-│           │              └───────────┬───────────┘   │
-│           │                          │               │
-│           └──────────┬───────────────┘               │
-│                      ▼                               │
-│           ┌──────────────────────┐                   │
-│           │ RiskAndMfaBranch     │                   │
-│           │ (SM Branch判定)       │                   │
-│           │                      │                   │
-│           │ risk 1-3 + !mfa      │                   │
-│           │   → COMPLETE         │                   │
-│           │ risk 1-3 + mfa       │                   │
-│           │   → MFA_PENDING      │                   │
-│           │ risk 4+              │                   │
-│           │   → MFA_PENDING      │                   │
-│           │ risk 5               │                   │
-│           │   → BLOCKED          │                   │
-│           └──────────────────────┘                   │
-│                                                      │
-│  Policy: tenant_security_policies                    │
-│    risk_action_threshold (default: 4)                │
-│    risk_block_threshold (default: 5)                 │
-│    new_device_action: notify | step_up               │
-└──────────────────────────────────────────────────────┘
-         │
-         │ HTTP API
-         ▼
-┌──────────────────────────────────────┐
-│ fraud-alert (外部サービス)            │
-│                                      │
-│ /c/checkOnly   → relativeSuspicious  │
-│ /c/loginSucceed → デバイス学習        │
-│ /c/loginFailed  → 失敗パターン学習    │
-│                                      │
-│ 50+ Checker 並列実行                  │
-│ Custom Functions (TinyExpression DSL) │
-│ Blacklist/Whitelist 強制オーバーライド │
-└──────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Volta["volta-auth-proxy"]
+        LR2["LocalRiskCheck (同期, ms単位)<br/>NewDeviceCheck<br/>(trusted_devices + cookie)"]
+        ER["ExternalRiskService (同期, timeout 3s)<br/>fraud-alert /c/checkOnly<br/>→ relativeSuspiciousValue (1-5)"]
+        Branch["RiskAndMfaBranch (SM Branch判定)<br/>risk 1-3 + !mfa → COMPLETE<br/>risk 1-3 + mfa → MFA_PENDING<br/>risk 4+ → MFA_PENDING<br/>risk 5 → BLOCKED"]
+        Policy["Policy: tenant_security_policies<br/>risk_action_threshold (default: 4)<br/>risk_block_threshold (default: 5)<br/>new_device_action: notify / step_up"]
+        LR2 --> Branch
+        ER --> Branch
+    end
+    Fraud["fraud-alert (外部サービス)<br/>/c/checkOnly → relativeSuspicious<br/>/c/loginSucceed → デバイス学習<br/>/c/loginFailed → 失敗パターン学習<br/>50+ Checker 並列実行<br/>Custom Functions (TinyExpression DSL)<br/>Blacklist/Whitelist 強制オーバーライド"]
+    ER -->|HTTP API| Fraud
 ```
 
 ### 2.2 SM フロー変更

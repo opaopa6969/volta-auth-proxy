@@ -43,34 +43,27 @@
 
 volta のデプロイには複数のルーティング判断が関わります：
 
-```
-  リクエスト: https://app.acme.example.com/dashboard
-                    │
-  ┌─────────────────▼──────────────────┐
-  │  リバースプロキシ（Traefik/Nginx）    │
-  │                                    │
-  │  ルーティングルール:                  │
-  │  ┌──────────────────────────────┐  │
-  │  │ auth.example.com → volta     │  │
-  │  │ *.app.example.com → app      │  │
-  │  │ api.example.com → api-server │  │
-  │  └──────────────────────────────┘  │
-  │                                    │
-  │  マッチ: *.app.example.com          │
-  │  ただしまず → ForwardAuth で volta   │
-  └─────────────────┬──────────────────┘
-                    │
-        ┌───────────▼───────────┐
-        │ volta（ForwardAuth）    │
-        │ セッション/Cookie 確認  │
-        │ X-Volta-* ヘッダー注入  │
-        └───────────┬───────────┘
-                    │
-        ┌───────────▼───────────┐
-        │ アプリ（:3000）         │
-        │ リクエスト +            │
-        │ 認証ヘッダーを受信       │
-        └───────────────────────┘
+```text
+リクエスト: https://app.acme.example.com/dashboard
+
+   リバースプロキシ（Traefik/Nginx）
+
+   ルーティングルール:
+
+     auth.example.com → volta
+     *.app.example.com → app
+     api.example.com → api-server
+
+   マッチ: *.app.example.com
+   ただしまず → ForwardAuth で volta
+
+        volta（ForwardAuth）
+        セッション/Cookie 確認
+        X-Volta-* ヘッダー注入
+
+        アプリ（:3000）
+        リクエスト +
+        認証ヘッダーを受信
 ```
 
 volta デプロイでのルーティングの種類：

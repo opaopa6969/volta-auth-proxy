@@ -14,19 +14,12 @@ But what about architecture? Most teams default to complex architectures because
 
 volta's production architecture in Phase 1 is two components:
 
-```
-  ┌──────────────────────────────────────────────┐
-  │                                                │
-  │  ┌──────────────┐     ┌──────────────┐       │
-  │  │ volta-auth-  │────►│ PostgreSQL   │       │
-  │  │ proxy        │     │              │       │
-  │  │              │◄────│              │       │
-  │  └──────────────┘     └──────────────┘       │
-  │                                                │
-  │  That's it.                                    │
-  │  Two boxes. One arrow.                         │
-  │                                                │
-  └──────────────────────────────────────────────┘
+```text
+  volta-auth-       >  PostgreSQL
+  proxy
+
+That's it.
+Two boxes. One arrow.
 ```
 
 No Redis. No Kafka. No Elasticsearch. No message queue. No distributed cache. No separate microservices. No Kubernetes. Just one application process talking to one database.
@@ -41,37 +34,33 @@ This is not a demo setup. This is production architecture. Real users authentica
 
 Let's compare architectures:
 
-```
-  Architecture A: volta (2 components)
-  ┌──────┐     ┌──────────┐
-  │ volta │────►│ Postgres │
-  └──────┘     └──────────┘
-  Failure points: 2
-  Network connections: 1
-  Things to monitor: 2
-  Things to back up: 1
+```text
+Architecture A: volta (2 components)
 
-  Architecture B: Ory Stack (5 components)
-  ┌────────────┐  ┌────────┐  ┌───────┐  ┌──────┐  ┌──────────┐
-  │ Oathkeeper  │  │ Kratos │  │ Hydra │  │ Keto │  │ Postgres │
-  └──────┬─────┘  └───┬────┘  └───┬───┘  └──┬───┘  └────┬─────┘
-         │            │           │          │           │
-         └────────────┴───────────┴──────────┴───────────┘
-  Failure points: 5
-  Network connections: 4+ (each service talks to Postgres and maybe each other)
-  Things to monitor: 5
-  Things to back up: 1 (but 4 services depending on it)
+  volta      >  Postgres
 
-  Architecture C: Keycloak + ecosystem (3+ components)
-  ┌──────────┐  ┌───────────┐  ┌──────────┐
-  │ Keycloak  │  │ Infinispan│  │ Postgres │
-  └────┬─────┘  └─────┬─────┘  └────┬─────┘
-       │              │              │
-       └──────────────┴──────────────┘
-  Failure points: 3
-  Network connections: 2+
-  Things to monitor: 3
-  Things to back up: 1+
+Failure points: 2
+Network connections: 1
+Things to monitor: 2
+Things to back up: 1
+
+Architecture B: Ory Stack (5 components)
+
+  Oathkeeper       Kratos      Hydra      Keto      Postgres
+
+Failure points: 5
+Network connections: 4+ (each service talks to Postgres and maybe each other)
+Things to monitor: 5
+Things to back up: 1 (but 4 services depending on it)
+
+Architecture C: Keycloak + ecosystem (3+ components)
+
+  Keycloak       Infinispan     Postgres
+
+Failure points: 3
+Network connections: 2+
+Things to monitor: 3
+Things to back up: 1+
 ```
 
 Each additional component multiplies:

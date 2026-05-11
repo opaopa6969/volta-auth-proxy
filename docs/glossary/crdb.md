@@ -46,20 +46,17 @@ ZITADEL is designed as a cloud-native identity platform that can scale to millio
 
 CockroachDB fits this architecture because it provides distributed consensus and multi-region replication out of the box. ZITADEL's event store pattern maps naturally to CockroachDB's serializable transactions.
 
-```
-  ZITADEL architecture:
-  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-  │ ZITADEL      │  │ ZITADEL      │  │ ZITADEL      │
-  │ (US-East)    │  │ (EU-West)    │  │ (AP-Tokyo)   │
-  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-         │                 │                 │
-  ┌──────▼─────────────────▼─────────────────▼───────┐
-  │            CockroachDB Cluster                    │
-  │  ┌─────┐   ┌─────┐   ┌─────┐   ┌─────┐          │
-  │  │Node1│   │Node2│   │Node3│   │Node4│  ...      │
-  │  └─────┘   └─────┘   └─────┘   └─────┘          │
-  │  (data replicated across nodes automatically)     │
-  └──────────────────────────────────────────────────┘
+```text
+ZITADEL architecture:
+
+  ZITADEL           ZITADEL           ZITADEL
+  (US-East)         (EU-West)         (AP-Tokyo)
+
+             CockroachDB Cluster
+
+    Node1     Node2     Node3     Node4   ...
+
+   (data replicated across nodes automatically)
 ```
 
 This is powerful. It is also complex.
@@ -72,18 +69,15 @@ This is powerful. It is also complex.
 
 volta-auth-proxy is designed for small-to-medium SaaS applications. A single PostgreSQL instance handles thousands of concurrent sessions without breaking a sweat. The typical volta deployment looks like:
 
-```
-  volta architecture:
-  ┌──────────────┐
-  │ volta-auth-  │
-  │ proxy        │
-  └──────┬───────┘
-         │
-  ┌──────▼───────┐
-  │ PostgreSQL   │
-  │ (single      │
-  │  instance)   │
-  └──────────────┘
+```text
+volta architecture:
+
+  volta-auth-
+  proxy
+
+  PostgreSQL
+  (single
+   instance)
 ```
 
 Two components. That is the entire deployment. No cluster management, no node discovery, no distributed consensus.

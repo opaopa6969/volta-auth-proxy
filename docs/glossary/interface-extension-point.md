@@ -76,21 +76,16 @@ The rest of volta's code only talks to `SessionStore` -- it never mentions Postg
 
 **Selection:** `SESSION_STORE=postgres` or `SESSION_STORE=redis` in `.env`
 
-```
-  volta code:                    SessionStore interface
-  ┌─────────────────┐          ┌──────────────────────┐
-  │ AuthHandler      │────────►│ createSession()       │
-  │ ForwardAuth      │         │ findSession()         │
-  │ SessionManager   │         │ touchSession()        │
-  │                  │         │ revokeSession()       │
-  └─────────────────┘         └──────────┬───────────┘
-                                         │
-                              ┌──────────┴───────────┐
-                              │                      │
-                    ┌─────────▼──────┐    ┌─────────▼──────┐
-                    │ Postgres       │    │ Redis          │
-                    │ SessionStore   │    │ SessionStore   │
-                    └────────────────┘    └────────────────┘
+```text
+volta code:                    SessionStore interface
+
+  AuthHandler               >  createSession()
+  ForwardAuth                  findSession()
+  SessionManager               touchSession()
+                               revokeSession()
+
+                    Postgres              Redis
+                    SessionStore          SessionStore
 ```
 
 ### AuditSink
@@ -138,18 +133,18 @@ volta's strategy is:
 
 This is the YAGNI principle ("You Ain't Gonna Need It") combined with the Open/Closed principle ("open for extension, closed for modification"):
 
-```
-  Phase 1:
-  SessionStore ←── PostgresSessionStore    ← What we need NOW
+```text
+Phase 1:
+SessionStore ←   PostgresSessionStore    ← What we need NOW
 
-  Phase 2:
-  SessionStore ←── PostgresSessionStore
-               ←── RedisSessionStore       ← Added when needed
+Phase 2:
+SessionStore ←   PostgresSessionStore
+             ←   RedisSessionStore       ← Added when needed
 
-  Future (if needed):
-  SessionStore ←── PostgresSessionStore
-               ←── RedisSessionStore
-               ←── DynamoSessionStore      ← Added by you or community
+Future (if needed):
+SessionStore ←   PostgresSessionStore
+             ←   RedisSessionStore
+             ←   DynamoSessionStore      ← Added by you or community
 ```
 
 The interface was there from Phase 1. But the DynamoDB implementation was not written until someone actually needed it. Zero wasted effort.

@@ -24,23 +24,21 @@ Your app reads these headers and knows exactly who the user is, which tenant the
 
 You encounter HTTP headers every day, even if you do not realize it:
 
-```
-  Request headers (browser → server):
-  ┌──────────────────────────────────────────────────┐
-  │ Host: wiki.example.com                           │  ← Which website?
-  │ Cookie: __volta_session=abc123                   │  ← Session token
-  │ Accept: text/html                                │  ← I want HTML
-  │ User-Agent: Mozilla/5.0 (Chrome)                 │  ← I'm Chrome
-  │ Accept-Language: en-US                           │  ← I speak English
-  └──────────────────────────────────────────────────┘
+```text
+Request headers (browser → server):
 
-  Response headers (server → browser):
-  ┌──────────────────────────────────────────────────┐
-  │ Content-Type: text/html; charset=utf-8           │  ← Here's HTML
-  │ Set-Cookie: __volta_session=xyz789; HttpOnly     │  ← Remember this
-  │ Cache-Control: no-store                          │  ← Don't cache this
-  │ X-Volta-Request-Id: req-12345                    │  ← Tracking ID
-  └──────────────────────────────────────────────────┘
+  Host: wiki.example.com                              ← Which website?
+  Cookie: __volta_session=abc123                      ← Session token
+  Accept: text/html                                   ← I want HTML
+  User-Agent: Mozilla/5.0 (Chrome)                    ← I'm Chrome
+  Accept-Language: en-US                              ← I speak English
+
+Response headers (server → browser):
+
+  Content-Type: text/html; charset=utf-8              ← Here's HTML
+  Set-Cookie: __volta_session=xyz789; HttpOnly        ← Remember this
+  Cache-Control: no-store                             ← Don't cache this
+  X-Volta-Request-Id: req-12345                       ← Tracking ID
 ```
 
 Headers are key-value pairs: a name and a value, separated by a colon.
@@ -66,37 +64,36 @@ When volta's [ForwardAuth](forwardauth.md) endpoint authenticates a request, it 
 
 ### How headers flow through the system
 
-```
-  Browser                  Traefik              volta           Your App
-  ═══════                  ═══════              ═════           ════════
+```text
+Browser                  Traefik              volta           Your App
 
-  GET /dashboard
-  Cookie: __volta_session=abc
-  ─────────────────────►
-                          Forward to volta
-                          for auth check
-                          ──────────────────►
-                                              Session valid.
-                                              User: taro
-                                              Tenant: acme
-                                              Role: ADMIN
-                          ◄──────────────────
-                          200 OK
-                          X-Volta-User-Id: taro-uuid
-                          X-Volta-Tenant-Id: acme-uuid
-                          X-Volta-Roles: ADMIN
+GET /dashboard
+Cookie: __volta_session=abc
 
-                          Forward original request
-                          + volta headers
-                          ─────────────────────────────────►
-                                                            GET /dashboard
-                                                            X-Volta-User-Id: taro-uuid
-                                                            X-Volta-Tenant-Id: acme-uuid
-                                                            X-Volta-Roles: ADMIN
-                                                            X-Volta-JWT: eyJ...
+                        Forward to volta
+                        for auth check
 
-                                                            App reads headers.
-                                                            No auth code needed.
+                                            Session valid.
+                                            User: taro
+                                            Tenant: acme
+                                            Role: ADMIN
+
+                        200 OK
+                        X-Volta-User-Id: taro-uuid
+                        X-Volta-Tenant-Id: acme-uuid
+                        X-Volta-Roles: ADMIN
+
+                        Forward original request
+                        + volta headers
+
+                                                          GET /dashboard
+                                                          X-Volta-User-Id: taro-uuid
+                                                          X-Volta-Tenant-Id: acme-uuid
+                                                          X-Volta-Roles: ADMIN
+                                                          X-Volta-JWT: eyJ...
+
+                                                          App reads headers.
+                                                          No auth code needed.
 ```
 
 ### Reading headers in your app

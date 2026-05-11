@@ -43,34 +43,27 @@ Routing is what lets you run dozens of services behind a clean URL like `app.exa
 
 volta's deployment involves multiple routing decisions:
 
-```
-  Request: https://app.acme.example.com/dashboard
-                    │
-  ┌─────────────────▼──────────────────┐
-  │  Reverse Proxy (Traefik/Nginx)     │
-  │                                    │
-  │  Routing rules:                    │
-  │  ┌──────────────────────────────┐  │
-  │  │ auth.example.com → volta     │  │
-  │  │ *.app.example.com → app      │  │
-  │  │ api.example.com → api-server │  │
-  │  └──────────────────────────────┘  │
-  │                                    │
-  │  Match: *.app.example.com          │
-  │  BUT first → ForwardAuth to volta  │
-  └─────────────────┬──────────────────┘
-                    │
-        ┌───────────▼───────────┐
-        │ volta (ForwardAuth)   │
-        │ Check session/cookie  │
-        │ Inject X-Volta-* hdrs │
-        └───────────┬───────────┘
-                    │
-        ┌───────────▼───────────┐
-        │ Your App (:3000)      │
-        │ Receives request +    │
-        │ auth headers          │
-        └───────────────────────┘
+```text
+Request: https://app.acme.example.com/dashboard
+
+   Reverse Proxy (Traefik/Nginx)
+
+   Routing rules:
+
+     auth.example.com → volta
+     *.app.example.com → app
+     api.example.com → api-server
+
+   Match: *.app.example.com
+   BUT first → ForwardAuth to volta
+
+        volta (ForwardAuth)
+        Check session/cookie
+        Inject X-Volta-* hdrs
+
+        Your App (:3000)
+        Receives request +
+        auth headers
 ```
 
 Types of routing in a volta deployment:

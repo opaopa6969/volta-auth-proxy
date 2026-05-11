@@ -30,21 +30,19 @@ Without audit logs:
 
 ### Anatomy of an audit log entry
 
-```
-  ┌────────────────────────────────────────────────────┐
-  │ Audit Log Entry                                    │
-  │                                                    │
-  │ timestamp:    2026-03-31T14:32:07.123Z             │
-  │ event_type:   MEMBER_ROLE_CHANGED                  │
-  │ actor_id:     550e8400-e29b-41d4-...  (who)        │
-  │ actor_ip:     192.168.1.100           (from where) │
-  │ tenant_id:    7c9e6679-7425-40de-...  (which org)  │
-  │ target_type:  MEMBER                  (what kind)  │
-  │ target_id:    a8098c1a-f86e-11da-...  (which one)  │
-  │ detail:       { "old_role": "MEMBER",              │
-  │                 "new_role": "ADMIN" }  (specifics) │
-  │ request_id:   b3e2a1f4-9d7c-4e8a-...  (trace)     │
-  └────────────────────────────────────────────────────┘
+```text
+Audit Log Entry
+
+timestamp:    2026-03-31T14:32:07.123Z
+event_type:   MEMBER_ROLE_CHANGED
+actor_id:     550e8400-e29b-41d4-...  (who)
+actor_ip:     192.168.1.100           (from where)
+tenant_id:    7c9e6679-7425-40de-...  (which org)
+target_type:  MEMBER                  (what kind)
+target_id:    a8098c1a-f86e-11da-...  (which one)
+detail:       { "old_role": "MEMBER",
+                "new_role": "ADMIN" }  (specifics)
+request_id:   b3e2a1f4-9d7c-4e8a-...  (trace)
 ```
 
 ### What gets logged
@@ -70,17 +68,12 @@ Without audit logs:
 
 Audit logs are append-only. The database table has no UPDATE or DELETE operations -- only INSERT. This guarantees that logged events cannot be tampered with after the fact.
 
-```
-  ┌──────────────────────────────────────┐
-  │ audit_logs table                     │
-  │                                      │
-  │ INSERT: ✓ Always allowed             │
-  │ SELECT: ✓ For authorized users       │
-  │ UPDATE: ✗ NEVER                      │
-  │ DELETE: ✗ NEVER (retention policy     │
-  │            handles old entries)       │
-  └──────────────────────────────────────┘
-```
+| Operation on `audit_logs` | Allowed? | Notes |
+|---------------------------|----------|-------|
+| INSERT | Yes | Always allowed |
+| SELECT | Yes | For authorized users |
+| UPDATE | **No** | Never |
+| DELETE | **No** | Never (retention policy handles old entries) |
 
 ---
 

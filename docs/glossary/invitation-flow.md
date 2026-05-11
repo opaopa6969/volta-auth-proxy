@@ -43,61 +43,61 @@ You might think: "Why not just let anyone join any workspace?" Here is why that 
 
 Here is exactly what happens when someone is invited to a volta workspace:
 
-```
-  Step 1: Admin creates invitation
-  ─────────────────────────────────
-  Kenji (ADMIN of ACME Corp) opens the admin panel and types:
-    Email: mika@example.com
-    Role:  MEMBER
+```text
+Step 1: Admin creates invitation
 
-  volta creates an invitation record with:
-    - A unique invitation code
-    - The target email
-    - The assigned role
-    - An expiration time (invitations don't last forever)
-    - Who sent it (Kenji)
+Kenji (ADMIN of ACME Corp) opens the admin panel and types:
+  Email: mika@example.com
+  Role:  MEMBER
 
-  Step 2: Invitation is sent
-  ──────────────────────────
-  volta sends an email to mika@example.com:
-    "Kenji invited you to join ACME Corp.
-     Click here to accept: https://volta.example.com/invite/abc123"
+volta creates an invitation record with:
+  - A unique invitation code
+  - The target email
+  - The assigned role
+  - An expiration time (invitations don't last forever)
+  - Who sent it (Kenji)
 
-  Step 3: Mika clicks the link
-  ─────────────────────────────
-  Mika clicks the link in the email.
-  volta: "Is Mika logged in?"
-    - If yes → go to Step 4
-    - If no  → redirect to login page, then come back
+Step 2: Invitation is sent
 
-  Step 4: Mika logs in (if needed)
-  ─────────────────────────────────
-  Mika logs in with Google (or whatever method is configured).
-  volta: "OK, you are mika@example.com. Verified."
+volta sends an email to mika@example.com:
+  "Kenji invited you to join ACME Corp.
+   Click here to accept: https://volta.example.com/invite/abc123"
 
-  Step 5: Consent / acceptance
-  ─────────────────────────────
-  volta shows a page:
-    "You've been invited to ACME Corp as a MEMBER.
-     Do you want to join?"
-    [Accept]  [Decline]
+Step 3: Mika clicks the link
 
-  Mika clicks [Accept].
+Mika clicks the link in the email.
+volta: "Is Mika logged in?"
+  - If yes → go to Step 4
+  - If no  → redirect to login page, then come back
 
-  Step 6: Membership created
-  ──────────────────────────
-  volta creates a membership record:
-    user_id:    mika-uuid
-    tenant_id:  acme-uuid
-    role:       MEMBER
-    invited_by: kenji-uuid
+Step 4: Mika logs in (if needed)
 
-  The invitation is marked as "used" (cannot be used again).
+Mika logs in with Google (or whatever method is configured).
+volta: "OK, you are mika@example.com. Verified."
 
-  Step 7: Mika is in!
-  ────────────────────
-  Mika is redirected to the ACME Corp workspace.
-  She can now use all apps that allow the MEMBER role.
+Step 5: Consent / acceptance
+
+volta shows a page:
+  "You've been invited to ACME Corp as a MEMBER.
+   Do you want to join?"
+  [Accept]  [Decline]
+
+Mika clicks [Accept].
+
+Step 6: Membership created
+
+volta creates a membership record:
+  user_id:    mika-uuid
+  tenant_id:  acme-uuid
+  role:       MEMBER
+  invited_by: kenji-uuid
+
+The invitation is marked as "used" (cannot be used again).
+
+Step 7: Mika is in!
+
+Mika is redirected to the ACME Corp workspace.
+She can now use all apps that allow the MEMBER role.
 ```
 
 ---

@@ -44,44 +44,39 @@ Without Kafka, volta would need to send the event to each system directly. If an
 
 ### Event flow
 
-```
-  volta-auth-proxy (Producer)
-       │
-       │  Publish event:
-       │  { "type": "login.success",
-       │    "user": "alice@acme.com",
-       │    "tenant": "acme",
-       │    "timestamp": "2024-01-15T10:30:00Z" }
-       │
-       ▼
-  ┌──────────────────────────────────┐
-  │           Kafka Cluster           │
-  │                                   │
-  │  Topic: volta.audit.events        │
-  │  ┌─────────┐ ┌─────────┐        │
-  │  │ Part. 0  │ │ Part. 1  │       │
-  │  │ offset 0 │ │ offset 0 │       │
-  │  │ offset 1 │ │ offset 1 │       │
-  │  │ offset 2 │ │ ...      │       │
-  │  └─────────┘ └─────────┘        │
-  └──────────────────────────────────┘
-       │              │
-       ▼              ▼
-  Consumer Group A   Consumer Group B
-  (Elasticsearch)    (Alerting System)
+```text
+volta-auth-proxy (Producer)
+
+        Publish event:
+        { "type": "login.success",
+          "user": "alice@acme.com",
+          "tenant": "acme",
+          "timestamp": "2024-01-15T10:30:00Z" }
+
+            Kafka Cluster
+
+   Topic: volta.audit.events
+
+     Part. 0      Part. 1
+     offset 0     offset 0
+     offset 1     offset 1
+     offset 2     ...
+
+Consumer Group A   Consumer Group B
+(Elasticsearch)    (Alerting System)
 ```
 
 ### Why Kafka over direct integration?
 
-```
-  Without Kafka:                    With Kafka:
-  volta ──► Elasticsearch           volta ──► Kafka ──► Elasticsearch
-  volta ──► Alerting System                        ──► Alerting
-  volta ──► Analytics                              ──► Analytics
-  volta ──► Compliance                             ──► Compliance
+```text
+Without Kafka:                    With Kafka:
+volta   > Elasticsearch           volta   > Kafka   > Elasticsearch
+volta   > Alerting System                          > Alerting
+volta   > Analytics                                > Analytics
+volta   > Compliance                               > Compliance
 
-  Problem: If Elasticsearch is down,   Kafka stores events durably.
-  volta blocks or loses the event.     Consumers catch up when ready.
+Problem: If Elasticsearch is down,   Kafka stores events durably.
+volta blocks or loses the event.     Consumers catch up when ready.
 ```
 
 ### Kafka vs alternatives
@@ -103,19 +98,19 @@ Kafka is an **optional external audit log sink** for volta-auth-proxy, alongside
 
 ### Architecture
 
-```
-  volta-auth-proxy
-       │
-       │  Audit events
-       │
-       ├──► PostgreSQL (always -- primary storage)
-       │
-       └──► Kafka topic: volta.audit.events (optional)
-                │
-                ├──► Consumer: Elasticsearch indexer
-                ├──► Consumer: Alerting / anomaly detection
-                ├──► Consumer: Analytics pipeline
-                └──► Consumer: Compliance archive (S3, etc.)
+```text
+volta-auth-proxy
+
+        Audit events
+
+        > PostgreSQL (always -- primary storage)
+
+        > Kafka topic: volta.audit.events (optional)
+
+                 > Consumer: Elasticsearch indexer
+                 > Consumer: Alerting / anomaly detection
+                 > Consumer: Analytics pipeline
+                 > Consumer: Compliance archive (S3, etc.)
 ```
 
 ### Event schema

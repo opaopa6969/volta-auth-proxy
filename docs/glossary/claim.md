@@ -62,45 +62,42 @@ Applications can add their own claims. volta prefixes custom claims with `volta_
 
 ### Claims are readable, not secret
 
-```
-  JWT payload (Base64 decoded):
-  ┌──────────────────────────────────────────────────┐
-  │  {                                               │
-  │    "sub": "alice-uuid",        ← WHO             │
-  │    "volta_tid": "acme-uuid",   ← WHICH TENANT    │
-  │    "volta_roles": ["admin"],   ← WHAT PERMISSION  │
-  │    "exp": 1743530700,          ← WHEN IT DIES     │
-  │    "iss": "volta.example.com"  ← WHO ISSUED IT    │
-  │  }                                               │
-  └──────────────────────────────────────────────────┘
-        │
-        │  Anyone can decode this with:
-        │  echo <payload> | base64 -d
-        │
-        │  But nobody can CHANGE it without
-        │  invalidating the signature.
-        ▼
-  ┌──────────────────────────────────────────────────┐
-  │  Signature (RS256)                               │
-  │  Created with private key → verified with public │
-  │  If any claim is modified, signature fails.      │
-  └──────────────────────────────────────────────────┘
+```text
+JWT payload (Base64 decoded):
+
+   {
+     "sub": "alice-uuid",        ← WHO
+     "volta_tid": "acme-uuid",   ← WHICH TENANT
+     "volta_roles": ["admin"],   ← WHAT PERMISSION
+     "exp": 1743530700,          ← WHEN IT DIES
+     "iss": "volta.example.com"  ← WHO ISSUED IT
+   }
+
+         Anyone can decode this with:
+         echo <payload> | base64 -d
+
+         But nobody can CHANGE it without
+         invalidating the signature.
+
+   Signature (RS256)
+   Created with private key → verified with public
+   If any claim is modified, signature fails.
 ```
 
 ### Claim validation flow
 
-```
-  Downstream app receives JWT:
+```text
+Downstream app receives JWT:
 
-  1. Decode header → check alg is RS256       ✓
-  2. Verify signature with public key         ✓
-  3. Check claims:
-     ├── exp > now?                           ✓ Not expired
-     ├── iss == "volta.example.com"?          ✓ Correct issuer
-     ├── aud contains my service?             ✓ Intended for me
-     ├── volta_tid matches request tenant?    ✓ Right tenant
-     └── volta_roles contains required role?  ✓ Authorized
-  4. Allow request                            ✓
+1. Decode header → check alg is RS256       ✓
+2. Verify signature with public key         ✓
+3. Check claims:
+       exp > now?                           ✓ Not expired
+       iss == "volta.example.com"?          ✓ Correct issuer
+       aud contains my service?             ✓ Intended for me
+       volta_tid matches request tenant?    ✓ Right tenant
+       volta_roles contains required role?  ✓ Authorized
+4. Allow request                            ✓
 ```
 
 ---

@@ -30,29 +30,27 @@ Without a DSL, authentication logic scatters across dozens of Java files, Javali
 
 ### The spectrum of languages
 
-```
-  General-purpose                                    Domain-specific
-  ◄────────────────────────────────────────────────────────────────►
-  Java       Python      Terraform     SQL      regex     volta DSL
-  (anything) (anything)  (infra)       (data)   (match)   (auth)
+```text
+General-purpose                                    Domain-specific
+
+Java       Python      Terraform     SQL      regex     volta DSL
+(anything) (anything)  (infra)       (data)   (match)   (auth)
 ```
 
 ### Internal vs External DSL
 
-```
-  External DSL:
-  ┌───────────────────────────────────────────┐
-  │ Has its own syntax and parser.            │
-  │ Examples: SQL, regex, Terraform HCL       │
-  │ volta: YAML files parsed at startup       │
-  └───────────────────────────────────────────┘
+```text
+External DSL:
 
-  Internal DSL:
-  ┌───────────────────────────────────────────┐
-  │ Hosted inside a general-purpose language. │
-  │ Examples: RSpec (Ruby), Gradle (Groovy)   │
-  │ volta: does NOT use this approach         │
-  └───────────────────────────────────────────┘
+  Has its own syntax and parser.
+  Examples: SQL, regex, Terraform HCL
+  volta: YAML files parsed at startup
+
+Internal DSL:
+
+  Hosted inside a general-purpose language.
+  Examples: RSpec (Ruby), Gradle (Groovy)
+  volta: does NOT use this approach
 ```
 
 volta uses an **external DSL** written in YAML. The Java application reads and interprets the YAML files at startup. The DSL itself has:
@@ -64,19 +62,19 @@ volta uses an **external DSL** written in YAML. The Java application reads and i
 
 ### Why YAML and not a custom syntax?
 
-```
-  Custom syntax:          YAML:
-  ┌──────────────────┐    ┌──────────────────────────────┐
-  │ state AUTH {      │    │ states:                      │
-  │   on login ->     │    │   AUTHENTICATED:             │
-  │     if valid      │    │     transitions:             │
-  │     goto DONE     │    │       forward_auth:          │
-  │ }                 │    │         guard: "session.valid"│
-  └──────────────────┘    │         next: AUTHENTICATED   │
-                          └──────────────────────────────┘
-  Needs custom parser      Standard YAML parser (SnakeYAML)
-  No editor support        Syntax highlighting everywhere
-  Learning curve            Already known by most devs
+```text
+Custom syntax:          YAML:
+
+  state AUTH {             states:
+    on login ->              AUTHENTICATED:
+      if valid                 transitions:
+      goto DONE                  forward_auth:
+  }                                guard: "session.valid"
+                                  next: AUTHENTICATED
+
+Needs custom parser      Standard YAML parser (SnakeYAML)
+No editor support        Syntax highlighting everywhere
+Learning curve            Already known by most devs
 ```
 
 ---
@@ -85,12 +83,12 @@ volta uses an **external DSL** written in YAML. The Java application reads and i
 
 ### The 4 DSL files
 
-```
-  dsl/
-  ├── auth-machine.yaml   ← State machine: 8 states, all transitions
-  ├── protocol.yaml       ← ForwardAuth contract, JWT spec, API endpoints
-  ├── policy.yaml         ← Role hierarchy, permissions, constraints
-  └── errors.yaml         ← Every error code, message, recovery action
+```text
+dsl/
+    auth-machine.yaml   ← State machine: 8 states, all transitions
+    protocol.yaml       ← ForwardAuth contract, JWT spec, API endpoints
+    policy.yaml         ← Role hierarchy, permissions, constraints
+    errors.yaml         ← Every error code, message, recovery action
 ```
 
 Each file has a specific responsibility:
@@ -137,19 +135,18 @@ guard: "oidc_flow.state_valid && oidc_flow.nonce_valid && oidc_flow.email_verifi
 
 The DSL files are the specification. The Java code (`AuthService.java`, `Main.java`) is the implementation that follows the specification. When there is a discrepancy between the DSL and the code, the DSL is correct and the code has a bug.
 
-```
-  DSL (specification)              Java (implementation)
-  ┌──────────────────────┐        ┌──────────────────────────────┐
-  │ auth-machine.yaml    │───────►│ AuthService.java             │
-  │   transition:        │  reads │   authenticate()             │
-  │     guard: "..."     │        │   issueSession()             │
-  │     next: STATE      │        │   verify()                   │
-  │     actions: [...]   │        │                              │
-  └──────────────────────┘        └──────────────────────────────┘
-  │                                │
-  │  errors.yaml         ───────►  │  ApiException.java          │
-  │  policy.yaml         ───────►  │  AppConfig + AppRegistry    │
-  │  protocol.yaml       ───────►  │  HttpSupport.java           │
+```text
+DSL (specification)              Java (implementation)
+
+  auth-machine.yaml            >  AuthService.java
+    transition:           reads     authenticate()
+      guard: "..."                  issueSession()
+      next: STATE                   verify()
+      actions: [...]
+
+   errors.yaml                >     ApiException.java
+   policy.yaml                >     AppConfig + AppRegistry
+   protocol.yaml              >     HttpSupport.java
 ```
 
 ---

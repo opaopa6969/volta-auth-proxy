@@ -49,24 +49,23 @@ The JVM itself is not the problem. The JVM is actually remarkably fast and effic
 
 Keycloak previously ran on WildFly (a full Java EE application server) and now runs on Quarkus. In both cases, it loads an enormous amount of functionality at startup:
 
-```
-  Keycloak at startup loads:
-  ┌─────────────────────────────────┐
-  │ JVM base                        │  ~50MB
-  │ Quarkus runtime                 │  ~30MB
-  │ Hibernate ORM                   │  ~20MB
-  │ RESTEasy (JAX-RS)               │  ~15MB
-  │ Infinispan (distributed cache)  │  ~30MB
-  │ Keycloak identity engine        │  ~50MB
-  │ Admin console (React SPA)       │  (served from memory)
-  │ Theme engine (FreeMarker)       │  ~10MB
-  │ Protocol mappers (OIDC, SAML)   │  ~20MB
-  │ Event listeners                 │  ~10MB
-  │ User federation SPI             │  ~10MB
-  │ Dozens more subsystems...       │  ~???MB
-  ├─────────────────────────────────┤
-  │ Total: ~512MB+ at idle          │
-  └─────────────────────────────────┘
+```text
+Keycloak at startup loads:
+
+  JVM base                           ~50MB
+  Quarkus runtime                    ~30MB
+  Hibernate ORM                      ~20MB
+  RESTEasy (JAX-RS)                  ~15MB
+  Infinispan (distributed cache)     ~30MB
+  Keycloak identity engine           ~50MB
+  Admin console (React SPA)          (served from memory)
+  Theme engine (FreeMarker)          ~10MB
+  Protocol mappers (OIDC, SAML)      ~20MB
+  Event listeners                    ~10MB
+  User federation SPI                ~10MB
+  Dozens more subsystems...          ~???MB
+
+  Total: ~512MB+ at idle
 ```
 
 Keycloak is not slow because of Java. Keycloak is slow because it is a **full-featured enterprise identity platform** that loads everything whether you need it or not. The Swiss Army knife analogy applies: even if you only want to cut bread, you are carrying all 30 tools.
@@ -77,18 +76,17 @@ Keycloak is not slow because of Java. Keycloak is slow because it is a **full-fe
 
 volta-auth-proxy is also written in Java. It also runs on the JVM. But it uses [Javalin](https://javalin.io/), a minimal web framework:
 
-```
-  volta at startup loads:
-  ┌─────────────────────────────────┐
-  │ JVM base                        │  ~15MB (with -Xmx tuning)
-  │ Javalin (embedded Jetty)        │  ~5MB
-  │ HikariCP (connection pool)      │  ~2MB
-  │ JJWT (JWT library)              │  ~1MB
-  │ volta application code          │  ~5MB
-  │ jte templates (compiled)        │  ~2MB
-  ├─────────────────────────────────┤
-  │ Total: ~30MB at idle            │
-  └─────────────────────────────────┘
+```text
+volta at startup loads:
+
+  JVM base                           ~15MB (with -Xmx tuning)
+  Javalin (embedded Jetty)           ~5MB
+  HikariCP (connection pool)         ~2MB
+  JJWT (JWT library)                 ~1MB
+  volta application code             ~5MB
+  jte templates (compiled)           ~2MB
+
+  Total: ~30MB at idle
 ```
 
 The difference is stark:

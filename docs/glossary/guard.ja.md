@@ -64,33 +64,31 @@ guard: "invite.valid && !invite.expired && !invite.used && invite.email_match"
 
 ガードは`auth-machine.yaml`の`context`セクションで定義された型付き変数を参照します：
 
-```
-  ┌─────────────────────────────────────────────┐
-  │ context:                                     │
-  │   session:                                   │
-  │     valid: bool                              │
-  │     expired: bool                            │
-  │     tenant_id: uuid?                         │
-  │   user:                                      │
-  │     exists: bool                             │
-  │     active: bool                             │
-  │     tenant_count: int                        │
-  │   membership:                                │
-  │     exists: bool                             │
-  │     role: enum[OWNER, ADMIN, MEMBER, VIEWER] │
-  │   tenant:                                    │
-  │     active: bool                             │
-  │     suspended: bool                          │
-  │   invite:                                    │
-  │     valid: bool                              │
-  │     expired: bool                            │
-  │     email_match: bool                        │
-  │   oidc_flow:                                 │
-  │     state_valid: bool                        │
-  │     nonce_valid: bool                        │
-  │   request:                                   │
-  │     accept_json: bool                        │
-  └─────────────────────────────────────────────┘
+```text
+context:
+  session:
+    valid: bool
+    expired: bool
+    tenant_id: uuid?
+  user:
+    exists: bool
+    active: bool
+    tenant_count: int
+  membership:
+    exists: bool
+    role: enum[OWNER, ADMIN, MEMBER, VIEWER]
+  tenant:
+    active: bool
+    suspended: bool
+  invite:
+    valid: bool
+    expired: bool
+    email_match: bool
+  oidc_flow:
+    state_valid: bool
+    nonce_valid: bool
+  request:
+    accept_json: bool
 ```
 
 ### ガードの評価順序（priority）
@@ -126,13 +124,12 @@ callback_success:
 
 DSLには重要な区別があります：
 
-```
-  ガード式：                テンプレート式：
-  ┌──────────────────────┐ ┌──────────────────────────────────┐
-  │ guard: "a || b"      │ │ target: "{x || y}"               │
-  │ "||" = 論理OR        │ │ "||" = COALESCE（フォールバック） │
-  │ 結果: true/false     │ │ 結果: xの値、nullならyの値       │
-  └──────────────────────┘ └──────────────────────────────────┘
+```text
+ガード式：                テンプレート式：
+
+  guard: "a || b"          target: "{x || y}"
+  "||" = 論理OR            "||" = COALESCE（フォールバック）
+  結果: true/false         結果: xの値、nullならyの値
 ```
 
 ---

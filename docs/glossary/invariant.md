@@ -29,20 +29,18 @@ Guards protect individual transitions. Invariants protect the entire system. Wit
 
 ### Invariants vs Guards vs Constraints
 
-```
-  ┌────────────────────────────────────────────────────────────┐
-  │ Guard:       Checked at RUNTIME, per TRANSITION            │
-  │              "session.valid && tenant.active"               │
-  │              If false → transition blocked                  │
-  │                                                            │
-  │ Constraint:  Checked at RUNTIME, per OPERATION             │
-  │              "A tenant MUST have at least one OWNER"        │
-  │              If violated → operation rejected (400 error)   │
-  │                                                            │
-  │ Invariant:   Checked at DESIGN TIME, GLOBALLY              │
-  │              "Every state has at least one exit"            │
-  │              If violated → the DSL has a bug                │
-  └────────────────────────────────────────────────────────────┘
+```text
+Guard:       Checked at RUNTIME, per TRANSITION
+             "session.valid && tenant.active"
+             If false → transition blocked
+
+Constraint:  Checked at RUNTIME, per OPERATION
+             "A tenant MUST have at least one OWNER"
+             If violated → operation rejected (400 error)
+
+Invariant:   Checked at DESIGN TIME, GLOBALLY
+             "Every state has at least one exit"
+             If violated → the DSL has a bug
 ```
 
 ### Types of invariants
@@ -64,30 +62,30 @@ Guards protect individual transitions. Invariants protect the entire system. Wit
 
 Invariants can be verified by static analysis of the DSL files -- no running code needed:
 
-```
-  1. Parse auth-machine.yaml
-  2. Build a directed graph of states and transitions
-  3. For each invariant:
-     ┌─────────────────────────────────────────────────────┐
-     │ no_deadlock:                                        │
-     │   For each non-terminal state S:                    │
-     │     count outgoing transitions from S               │
-     │     ASSERT count > 0                                │
-     │                                                     │
-     │ reachable_auth:                                     │
-     │   For each state S:                                 │
-     │     BFS/DFS from S                                  │
-     │     ASSERT AUTHENTICATED or UNAUTHENTICATED in path │
-     │                                                     │
-     │ no_undefined_refs:                                  │
-     │   For each transition T:                            │
-     │     ASSERT T.next is in defined states              │
-     │                                                     │
-     │ error_codes_defined:                                │
-     │   For each action A with error_ref:                 │
-     │     ASSERT A.error_ref is in errors.yaml            │
-     └─────────────────────────────────────────────────────┘
-  4. If any assertion fails → DSL bug, fix before deploying
+```text
+1. Parse auth-machine.yaml
+2. Build a directed graph of states and transitions
+3. For each invariant:
+
+     no_deadlock:
+       For each non-terminal state S:
+         count outgoing transitions from S
+         ASSERT count > 0
+
+     reachable_auth:
+       For each state S:
+         BFS/DFS from S
+         ASSERT AUTHENTICATED or UNAUTHENTICATED in path
+
+     no_undefined_refs:
+       For each transition T:
+         ASSERT T.next is in defined states
+
+     error_codes_defined:
+       For each action A with error_ref:
+         ASSERT A.error_ref is in errors.yaml
+
+4. If any assertion fails → DSL bug, fix before deploying
 ```
 
 ---
@@ -143,17 +141,15 @@ These are invariants of the data model, enforced at runtime by Java code.
 
 ### Invariant verification in practice
 
-```
-  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-  │ Developer     │     │ CI Pipeline  │     │ Production   │
-  │ edits DSL     │────►│ Verify       │────►│ Deploy       │
-  │               │     │ invariants   │     │              │
-  └──────────────┘     └──────┬───────┘     └──────────────┘
-                              │
-                        FAIL? │ Block deploy.
-                              │ "no_deadlock violated:
-                              │  MFA_REQUIRED has no
-                              │  outgoing transitions"
+```text
+Developer             CI Pipeline          Production
+edits DSL          >  Verify            >  Deploy
+                      invariants
+
+                    FAIL?   Block deploy.
+                            "no_deadlock violated:
+                             MFA_REQUIRED has no
+                             outgoing transitions"
 ```
 
 ---

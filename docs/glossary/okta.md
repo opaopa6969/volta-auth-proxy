@@ -38,28 +38,20 @@ Okta matters in the volta-auth-proxy context for two reasons:
 
 ### Okta as an SSO hub
 
-```
-  Employee
-     │
-     │  1. Goes to any app (Slack, Salesforce, your SaaS)
-     ▼
-  ┌──────────────┐
-  │  Application  │
-  │              │  2. Redirects to Okta
-  └──────┬───────┘
-         │
-         ▼
-  ┌──────────────┐
-  │    Okta      │
-  │              │  3. User authenticates (password + MFA)
-  │              │  4. Okta issues SAML assertion or OIDC token
-  └──────┬───────┘
-         │
-         ▼
-  ┌──────────────┐
-  │  Application  │
-  │              │  5. Receives identity, grants access
-  └──────────────┘
+```text
+Employee
+
+      1. Goes to any app (Slack, Salesforce, your SaaS)
+
+   Application
+                  2. Redirects to Okta
+
+     Okta
+                  3. User authenticates (password + MFA)
+                  4. Okta issues SAML assertion or OIDC token
+
+   Application
+                  5. Receives identity, grants access
 ```
 
 ### Key features
@@ -86,27 +78,25 @@ Okta supports both protocols. The choice depends on the application:
 
 SCIM (System for Cross-domain Identity Management) is how Okta automatically creates and deletes user accounts in applications:
 
-```
-  HR System: "Alice was hired"
-       │
-       ▼
-  Okta: Create user Alice
-       │
-       ├──► SCIM POST /Users to Slack → Alice gets Slack account
-       ├──► SCIM POST /Users to Salesforce → Alice gets Salesforce account
-       └──► SCIM POST /Users to volta → Alice gets volta account
+```text
+HR System: "Alice was hired"
+
+Okta: Create user Alice
+
+        > SCIM POST /Users to Slack → Alice gets Slack account
+        > SCIM POST /Users to Salesforce → Alice gets Salesforce account
+        > SCIM POST /Users to volta → Alice gets volta account
 ```
 
 When Alice leaves:
-```
-  HR System: "Alice was terminated"
-       │
-       ▼
-  Okta: Deactivate user Alice
-       │
-       ├──► SCIM PATCH /Users/alice to Slack → Account deactivated
-       ├──► SCIM PATCH /Users/alice to Salesforce → Account deactivated
-       └──► SCIM PATCH /Users/alice to volta → Account deactivated
+```text
+HR System: "Alice was terminated"
+
+Okta: Deactivate user Alice
+
+        > SCIM PATCH /Users/alice to Slack → Account deactivated
+        > SCIM PATCH /Users/alice to Salesforce → Account deactivated
+        > SCIM PATCH /Users/alice to volta → Account deactivated
 ```
 
 ---
@@ -117,15 +107,15 @@ volta-auth-proxy plans to integrate with Okta in **Phase 3** as an upstream iden
 
 ### Phase 3 integration plan
 
-```
-  Employee ──► volta-auth-proxy ──► Okta (as OIDC/SAML IdP)
-                    │                    │
-                    │                    └── Authenticates the user
-                    │
-                    ├── Receives identity (email, groups, roles)
-                    ├── Maps to volta tenant + user
-                    ├── Creates volta session
-                    └── Issues volta JWT
+```text
+Employee   > volta-auth-proxy   > Okta (as OIDC/SAML IdP)
+
+                                           Authenticates the user
+
+                      Receives identity (email, groups, roles)
+                      Maps to volta tenant + user
+                      Creates volta session
+                      Issues volta JWT
 ```
 
 ### Why this matters for enterprise customers

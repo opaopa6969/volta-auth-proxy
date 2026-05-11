@@ -40,19 +40,13 @@ Architecture does not describe every line of code. It describes the boxes and ar
 
 Most web applications follow a layered architecture internally:
 
-```
-  ┌─────────────────────────────────────┐
-  │          HTTP Layer                  │  ← Routes, request parsing
-  │     (Javalin handlers)              │
-  ├─────────────────────────────────────┤
-  │        Service Layer                │  ← Business logic
-  │   (AuthService, TenantService)      │
-  ├─────────────────────────────────────┤
-  │       Repository Layer              │  ← Database access
-  │   (SQL queries, HikariCP)           │
-  ├─────────────────────────────────────┤
-  │        Database                     │  ← PostgreSQL
-  └─────────────────────────────────────┘
+```mermaid
+flowchart TD
+    H["HTTP Layer<br/>(Javalin handlers)<br/>Routes, request parsing"]
+    S["Service Layer<br/>(AuthService, TenantService)<br/>Business logic"]
+    R["Repository Layer<br/>(SQL queries, HikariCP)<br/>Database access"]
+    D["Database<br/>PostgreSQL"]
+    H --> S --> R --> D
 ```
 
 Each layer only talks to the layer directly below it. The HTTP layer never touches the database directly -- it calls the service layer, which calls the repository layer.
@@ -61,20 +55,15 @@ Each layer only talks to the layer directly below it. The HTTP layer never touch
 
 Every architecture choice has trade-offs. There is no "best" architecture -- only the best architecture for your constraints:
 
-```
-  Monolith                          Microservices
-  ┌────────────────┐               ┌────┐ ┌────┐ ┌────┐
-  │  Everything     │               │Auth│ │User│ │Bill│
-  │  in one process │               │    │ │    │ │    │
-  └────────────────┘               └────┘ └────┘ └────┘
-
-  + Simple to deploy                + Scale independently
-  + Simple to debug                 + Team autonomy
-  + No network hops                 + Fault isolation
-  - Scales as one unit              - Network complexity
-  - One bug can crash all           - Distributed debugging
-  - Team bottleneck at scale        - Operational overhead
-```
+| Monolith | Microservices |
+|----------|---------------|
+| Everything in one process | Auth, User, Bill (separate services) |
+| + Simple to deploy | + Scale independently |
+| + Simple to debug | + Team autonomy |
+| + No network hops | + Fault isolation |
+| - Scales as one unit | - Network complexity |
+| - One bug can crash all | - Distributed debugging |
+| - Team bottleneck at scale | - Operational overhead |
 
 ---
 
@@ -84,44 +73,13 @@ Every architecture choice has trade-offs. There is no "best" architecture -- onl
 
 volta-auth-proxy follows a **modular monolith** pattern: a single deployable JAR with clear internal separation.
 
-```
-  ┌──────────────────────────────────────────────────────┐
-  │                    Internet                          │
-  └───────────────────────┬──────────────────────────────┘
-                          │
-                          ▼
-  ┌──────────────────────────────────────────────────────┐
-  │                    Traefik                           │
-  │            (reverse proxy + TLS)                     │
-  │                                                      │
-  │   ForwardAuth ──┐        Route to ──┐               │
-  └─────────────────┼───────────────────┼───────────────┘
-                    │                   │
-                    ▼                   ▼
-  ┌──────────────────────┐   ┌─────────────────────┐
-  │  volta-auth-proxy     │   │  Your App            │
-  │                        │   │  (reads X-Volta-*    │
-  │  ┌──────────────────┐ │   │   headers)           │
-  │  │ OIDC Login Flow  │ │   └─────────────────────┘
-  │  │ Session Mgmt     │ │
-  │  │ JWT Issuance     │ │
-  │  │ Tenant Resolution│ │
-  │  │ RBAC Enforcement │ │
-  │  │ Invitation Flow  │ │
-  │  │ Internal API     │ │
-  │  └──────────────────┘ │
-  │           │            │
-  │           ▼            │
-  │  ┌──────────────────┐ │
-  │  │   PostgreSQL      │ │
-  │  │   (9 tables)      │ │
-  │  └──────────────────┘ │
-  │                        │
-  │  ┌──────────────────┐ │
-  │  │ Caffeine Cache   │ │
-  │  │ (in-memory)      │ │
-  │  └──────────────────┘ │
-  └──────────────────────┘
+```mermaid
+flowchart TD
+    Internet --> Traefik["Traefik<br/>(reverse proxy + TLS)"]
+    Traefik -->|ForwardAuth| Volta["volta-auth-proxy<br/>OIDC Login Flow<br/>Session Mgmt<br/>JWT Issuance<br/>Tenant Resolution<br/>RBAC Enforcement<br/>Invitation Flow<br/>Internal API"]
+    Traefik -->|Route to| App["Your App<br/>(reads X-Volta-* headers)"]
+    Volta --> PG["PostgreSQL<br/>(9 tables)"]
+    Volta --> Cache["Caffeine Cache<br/>(in-memory)"]
 ```
 
 ### Key architectural decisions in volta
@@ -139,25 +97,23 @@ volta-auth-proxy follows a **modular monolith** pattern: a single deployable JAR
 
 ### Phase 2 architecture evolution
 
+```mermaid
+flowchart TB
+    subgraph Phase1["Phase 1 (current)"]
+        V1["volta (1)<br/>Caffeine (local)"] --> P1[Postgres]
+    end
+    subgraph Phase2["Phase 2 (planned)"]
+        LB[Load Balancer] --> Va[volta 1]
+        LB --> Vb[volta 2]
+        Va --> P2[Postgres]
+        Va --> Rd[Redis]
+        Vb --> P2
+        Vb --> Rd
+    end
 ```
-  Phase 1 (current):              Phase 2 (planned):
-  ┌───────────┐                   ┌───────────────┐
-  │ volta (1) │                   │ Load Balancer  │
-  │           │                   └──┬─────────┬──┘
-  │ Caffeine  │                      │         │
-  │ (local)   │                   ┌──┴──┐   ┌──┴──┐
-  └─────┬─────┘                   │volta│   │volta│
-        │                         │  1  │   │  2  │
-        ▼                         └──┬──┘   └──┬──┘
-  ┌───────────┐                      │         │
-  │ Postgres  │                      ▼         ▼
-  └───────────┘                   ┌──────┐ ┌──────┐
-                                  │Postgres│ │Redis │
-                                  └──────┘ └──────┘
 
-  Caffeine → Redis (shared sessions)
-  1 instance → N instances (horizontal scaling)
-```
+- Caffeine -> Redis (shared sessions)
+- 1 instance -> N instances (horizontal scaling)
 
 ---
 

@@ -132,37 +132,37 @@ If someone later adds a V2 migration, Flyway will only run V2 on the next startu
 
 ## A simple example
 
-```
-  Day 1: Setting up volta for the first time
-  ───────────────────────────────────────────
-  Database: empty
-  Migrations folder: V1__init.sql
+```text
+Day 1: Setting up volta for the first time
 
-  $ ./mvnw spring-boot:run
-  Flyway: "Database is empty. Running V1__init.sql..."
-  Flyway: "Created users, tenants, memberships, sessions tables."
-  Flyway: "Recording: V1 done."
+Database: empty
+Migrations folder: V1__init.sql
 
-  Day 30: A new feature needs a new table
-  ────────────────────────────────────────
-  Database: has V1 tables
-  Migrations folder: V1__init.sql, V2__add_audit_logs.sql
+$ ./mvnw spring-boot:run
+Flyway: "Database is empty. Running V1__init.sql..."
+Flyway: "Created users, tenants, memberships, sessions tables."
+Flyway: "Recording: V1 done."
 
-  $ ./mvnw spring-boot:run
-  Flyway: "V1 already done. Checking for new migrations..."
-  Flyway: "Found V2__add_audit_logs.sql. Running it..."
-  Flyway: "Created audit_logs table."
-  Flyway: "Recording: V2 done."
+Day 30: A new feature needs a new table
 
-  Day 31: Another developer sets up from scratch
-  ───────────────────────────────────────────────
-  Database: empty (fresh setup)
-  Migrations folder: V1__init.sql, V2__add_audit_logs.sql
+Database: has V1 tables
+Migrations folder: V1__init.sql, V2__add_audit_logs.sql
 
-  $ ./mvnw spring-boot:run
-  Flyway: "Database is empty. Running V1__init.sql..."
-  Flyway: "Running V2__add_audit_logs.sql..."
-  Flyway: "All caught up. Database is at V2."
+$ ./mvnw spring-boot:run
+Flyway: "V1 already done. Checking for new migrations..."
+Flyway: "Found V2__add_audit_logs.sql. Running it..."
+Flyway: "Created audit_logs table."
+Flyway: "Recording: V2 done."
+
+Day 31: Another developer sets up from scratch
+
+Database: empty (fresh setup)
+Migrations folder: V1__init.sql, V2__add_audit_logs.sql
+
+$ ./mvnw spring-boot:run
+Flyway: "Database is empty. Running V1__init.sql..."
+Flyway: "Running V2__add_audit_logs.sql..."
+Flyway: "All caught up. Database is at V2."
 ```
 
 The new developer gets the exact same database as everyone else, automatically.

@@ -32,52 +32,46 @@ Keys must be generated securely (using [crypto-random](crypto-random.md) sources
 
 One key, two operations:
 
-```
-  Symmetric key: K
-  ┌──────────────────────────────────────────────┐
-  │                                              │
-  │  Encrypt:  plaintext + K → ciphertext        │
-  │  Decrypt:  ciphertext + K → plaintext        │
-  │                                              │
-  │  Same key for both directions.               │
-  │  Both parties must share K secretly.         │
-  └──────────────────────────────────────────────┘
+```text
+Symmetric key: K
 
-  Example: AES-256-GCM (used by volta's KeyCipher)
-  ┌─────────────────────────────────────────┐
-  │  Key:  32 bytes (256 bits) from SHA-256 │
-  │  IV:   12 bytes (random per operation)  │
-  │  Tag:  16 bytes (authentication tag)    │
-  │                                         │
-  │  "v1:" + base64(IV) + ":" + base64(     │
-  │     encrypted_data + auth_tag)          │
-  └─────────────────────────────────────────┘
+   Encrypt:  plaintext + K → ciphertext
+   Decrypt:  ciphertext + K → plaintext
+
+   Same key for both directions.
+   Both parties must share K secretly.
+
+Example: AES-256-GCM (used by volta's KeyCipher)
+
+   Key:  32 bytes (256 bits) from SHA-256
+   IV:   12 bytes (random per operation)
+   Tag:  16 bytes (authentication tag)
+
+   "v1:" + base64(IV) + ":" + base64(
+      encrypted_data + auth_tag)
 ```
 
 ### Asymmetric key pairs
 
 Two keys, complementary operations:
 
-```
-  Private key: sk     Public key: pk
-  ┌──────────────────────────────────────────────┐
-  │                                              │
-  │  Sign:    message + sk → signature           │
-  │  Verify:  message + signature + pk → yes/no  │
-  │                                              │
-  │  Encrypt: plaintext + pk → ciphertext        │
-  │  Decrypt: ciphertext + sk → plaintext        │
-  │                                              │
-  │  Private key is SECRET. Public key is SHARED.│
-  └──────────────────────────────────────────────┘
+```text
+Private key: sk     Public key: pk
 
-  Example: RSA-2048 (used by volta's JwtService)
-  ┌─────────────────────────────────────────┐
-  │  Private key: 2048 bits, kept in DB     │
-  │               (encrypted with AES)      │
-  │  Public key:  Derived from private key  │
-  │               Published at JWKS endpoint│
-  └─────────────────────────────────────────┘
+   Sign:    message + sk → signature
+   Verify:  message + signature + pk → yes/no
+
+   Encrypt: plaintext + pk → ciphertext
+   Decrypt: ciphertext + sk → plaintext
+
+   Private key is SECRET. Public key is SHARED.
+
+Example: RSA-2048 (used by volta's JwtService)
+
+   Private key: 2048 bits, kept in DB
+                (encrypted with AES)
+   Public key:  Derived from private key
+                Published at JWKS endpoint
 ```
 
 ### Key sizes and strength
@@ -90,13 +84,13 @@ Two keys, complementary operations:
 
 ### Key lifecycle
 
-```
-  Generate ──→ Store (encrypted) ──→ Use ──→ Rotate ──→ Retire
-      │              │                │          │          │
-  SecureRandom   AES-256-GCM     Sign JWTs   New key    Old key
-  or KeyPairGen  in signing_keys  or encrypt  created    marked
-                 table                        old key    inactive
-                                              retired
+```text
+Generate   → Store (encrypted)   → Use   → Rotate   → Retire
+
+SecureRandom   AES-256-GCM     Sign JWTs   New key    Old key
+or KeyPairGen  in signing_keys  or encrypt  created    marked
+               table                        old key    inactive
+                                            retired
 ```
 
 ---
@@ -140,23 +134,21 @@ byte[] sig = mac.doFinal(payload.getBytes(UTF_8));
 
 ### Key storage architecture
 
-```
-  Environment variable:
-  JWT_KEY_ENCRYPTION_SECRET="my-secret-passphrase"
-          │
-          ▼  SHA-256 hash
-  AES-256 key (in memory only)
-          │
-          ▼  Encrypts/decrypts
-  ┌─────────────────────────────────────────┐
-  │  signing_keys table                     │
-  │  ┌───────────────────────────────────┐  │
-  │  │ kid: "key-2026-04-01T12-00"      │  │
-  │  │ public_pem: "v1:base64IV:base64" │  │  ← AES-256-GCM encrypted
-  │  │ private_pem: "v1:base64IV:base64"│  │  ← AES-256-GCM encrypted
-  │  │ status: "active"                 │  │
-  │  └───────────────────────────────────┘  │
-  └─────────────────────────────────────────┘
+```text
+Environment variable:
+JWT_KEY_ENCRYPTION_SECRET="my-secret-passphrase"
+
+        v  SHA-256 hash
+AES-256 key (in memory only)
+
+        v  Encrypts/decrypts
+
+   signing_keys table
+
+     kid: "key-2026-04-01T12-00"
+     public_pem: "v1:base64IV:base64"       ← AES-256-GCM encrypted
+     private_pem: "v1:base64IV:base64"      ← AES-256-GCM encrypted
+     status: "active"
 ```
 
 ---

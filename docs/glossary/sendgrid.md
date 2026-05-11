@@ -35,35 +35,33 @@ These are **transactional emails** -- triggered by user actions, not bulk market
 
 ### Sending an email via SendGrid API
 
-```
-  volta-auth-proxy
-       │
-       │  POST https://api.sendgrid.com/v3/mail/send
-       │  Authorization: Bearer SG.xxxxxxxx
-       │  {
-       │    "personalizations": [{
-       │      "to": [{"email": "alice@acme.com"}],
-       │      "dynamic_template_data": {
-       │        "invite_link": "https://auth.example.com/invite/abc123",
-       │        "tenant_name": "Acme Corp"
-       │      }
-       │    }],
-       │    "from": {"email": "noreply@example.com"},
-       │    "template_id": "d-abc123template"
-       │  }
-       │
-       ▼
-  SendGrid
-       │
-       │  1. Validate API key
-       │  2. Render template with dynamic data
-       │  3. Sign with DKIM
-       │  4. Queue for delivery
-       │  5. Retry on soft bounce
-       │  6. Track open/click/bounce
-       │
-       ▼
-  alice@acme.com's inbox
+```text
+volta-auth-proxy
+
+        POST https://api.sendgrid.com/v3/mail/send
+        Authorization: Bearer SG.xxxxxxxx
+        {
+          "personalizations": [{
+            "to": [{"email": "alice@acme.com"}],
+            "dynamic_template_data": {
+              "invite_link": "https://auth.example.com/invite/abc123",
+              "tenant_name": "Acme Corp"
+            }
+          }],
+          "from": {"email": "noreply@example.com"},
+          "template_id": "d-abc123template"
+        }
+
+SendGrid
+
+        1. Validate API key
+        2. Render template with dynamic data
+        3. Sign with DKIM
+        4. Queue for delivery
+        5. Retry on soft bounce
+        6. Track open/click/bounce
+
+alice@acme.com's inbox
 ```
 
 ### Email authentication (SPF, DKIM, DMARC)

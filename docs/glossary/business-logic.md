@@ -53,17 +53,16 @@ These are YOUR business rules. They belong in YOUR application, not in the auth 
 
 ### Why this separation matters
 
-```
+```text
 Auth proxy with business logic (BAD):
-┌──────────────────────────────────────┐
-│ Auth Proxy                            │
-│                                      │
-│ - Is the user logged in?             │ ← Auth (correct)
-│ - What is the user's role?           │ ← Auth (correct)
-│ - Is their subscription active?      │ ← Business logic (WRONG)
-│ - Have they exceeded the API limit?  │ ← Business logic (WRONG)
-│ - What tier are they on?             │ ← Business logic (WRONG)
-└──────────────────────────────────────┘
+
+  Auth Proxy
+
+  - Is the user logged in?               ← Auth (correct)
+  - What is the user's role?             ← Auth (correct)
+  - Is their subscription active?        ← Business logic (WRONG)
+  - Have they exceeded the API limit?    ← Business logic (WRONG)
+  - What tier are they on?               ← Business logic (WRONG)
 
 Problems:
   - Auth proxy needs to know about subscriptions, tiers, API limits
@@ -72,24 +71,21 @@ Problems:
   - Different apps have different rules, all crammed into one proxy
 
 Auth proxy without business logic (GOOD / volta):
-┌──────────────────────────────────────┐
-│ volta-auth-proxy                      │
-│                                      │
-│ - Is the user logged in?             │ ← Auth
-│ - What is the user's role?           │ ← Auth
-│ - Which tenant are they in?          │ ← Auth
-│ - Return identity headers            │ ← Auth
-└──────────────────────────────────────┘
-                │
-                │ X-Volta-User-Id, X-Volta-Roles, X-Volta-Tenant-Id
-                ▼
-┌──────────────────────────────────────┐
-│ Your App                              │
-│                                      │
-│ - Is their subscription active?      │ ← Your business logic
-│ - Have they exceeded their limit?    │ ← Your business logic
-│ - What tier are they on?             │ ← Your business logic
-└──────────────────────────────────────┘
+
+  volta-auth-proxy
+
+  - Is the user logged in?               ← Auth
+  - What is the user's role?             ← Auth
+  - Which tenant are they in?            ← Auth
+  - Return identity headers              ← Auth
+
+                  X-Volta-User-Id, X-Volta-Roles, X-Volta-Tenant-Id
+
+  Your App
+
+  - Is their subscription active?        ← Your business logic
+  - Have they exceeded their limit?      ← Your business logic
+  - What tier are they on?               ← Your business logic
 ```
 
 volta tells your app WHO the user is. Your app decides WHAT the user can do.

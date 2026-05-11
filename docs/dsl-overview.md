@@ -237,13 +237,17 @@ interface PolicyEvaluator {
 
 ### DSL → Driver conversion
 
-```
-volta policy.yaml
-    ↓
-    ├── Phase 1-3: Java code (if/switch in AuthService.java)
-    ├── Phase 4A:  → model.conf + policy.csv → jCasbin
-    ├── Phase 4B:  → Cedar policy language → cedar-java (JNI)
-    └── Phase 4C:  → Rego → OPA server (HTTP)
+```mermaid
+flowchart TB
+    YAML["volta policy.yaml"]
+    P13["Phase 1-3: Java code (if/switch in AuthService.java)"]
+    P4A["Phase 4A: model.conf + policy.csv -> jCasbin"]
+    P4B["Phase 4B: Cedar policy language -> cedar-java (JNI)"]
+    P4C["Phase 4C: Rego -> OPA server (HTTP)"]
+    YAML --> P13
+    YAML --> P4A
+    YAML --> P4B
+    YAML --> P4C
 ```
 
 ### Driver comparison

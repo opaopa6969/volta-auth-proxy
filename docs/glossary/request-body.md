@@ -97,18 +97,17 @@ volta sees the cookie (to identify the user), the forwarded headers (to know whi
 
 ## Comparison: reverse proxy vs ForwardAuth
 
-```
+```text
 Full reverse proxy (auth proxy sees everything):
-  Browser  ──[full request]──►  Auth Proxy  ──[full request]──►  App
+  Browser    [full request]  >  Auth Proxy    [full request]  >  App
   The auth proxy receives and forwards the entire request,
   including the body. It is a bottleneck and a privacy risk.
 
 ForwardAuth (volta sees headers only):
-  Browser  ──[full request]──►  Traefik  ──[full request]──►  App
-                                   │
+  Browser    [full request]  >  Traefik    [full request]  >  App
+
                               [headers only]
-                                   │
-                                   ▼
+
                               volta-auth-proxy
                               (checks session,
                                returns headers,

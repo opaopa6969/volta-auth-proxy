@@ -64,33 +64,31 @@ guard: "invite.valid && !invite.expired && !invite.used && invite.email_match"
 
 Guards reference typed variables defined in the `context` section of `auth-machine.yaml`:
 
-```
-  ┌─────────────────────────────────────────────┐
-  │ context:                                     │
-  │   session:                                   │
-  │     valid: bool                              │
-  │     expired: bool                            │
-  │     tenant_id: uuid?                         │
-  │   user:                                      │
-  │     exists: bool                             │
-  │     active: bool                             │
-  │     tenant_count: int                        │
-  │   membership:                                │
-  │     exists: bool                             │
-  │     role: enum[OWNER, ADMIN, MEMBER, VIEWER] │
-  │   tenant:                                    │
-  │     active: bool                             │
-  │     suspended: bool                          │
-  │   invite:                                    │
-  │     valid: bool                              │
-  │     expired: bool                            │
-  │     email_match: bool                        │
-  │   oidc_flow:                                 │
-  │     state_valid: bool                        │
-  │     nonce_valid: bool                        │
-  │   request:                                   │
-  │     accept_json: bool                        │
-  └─────────────────────────────────────────────┘
+```text
+context:
+  session:
+    valid: bool
+    expired: bool
+    tenant_id: uuid?
+  user:
+    exists: bool
+    active: bool
+    tenant_count: int
+  membership:
+    exists: bool
+    role: enum[OWNER, ADMIN, MEMBER, VIEWER]
+  tenant:
+    active: bool
+    suspended: bool
+  invite:
+    valid: bool
+    expired: bool
+    email_match: bool
+  oidc_flow:
+    state_valid: bool
+    nonce_valid: bool
+  request:
+    accept_json: bool
 ```
 
 ### Guard evaluation order (priority)
@@ -126,13 +124,12 @@ The first guard that evaluates to `true` wins. This is why error checks have low
 
 There is an important distinction in the DSL:
 
-```
-  Guard expressions:           Template expressions:
-  ┌──────────────────────┐    ┌──────────────────────────────────┐
-  │ guard: "a || b"      │    │ target: "{x || y}"               │
-  │ "||" = logical OR    │    │ "||" = COALESCE (fallback)       │
-  │ Result: true/false   │    │ Result: value of x, or y if null │
-  └──────────────────────┘    └──────────────────────────────────┘
+```text
+Guard expressions:           Template expressions:
+
+  guard: "a || b"             target: "{x || y}"
+  "||" = logical OR           "||" = COALESCE (fallback)
+  Result: true/false          Result: value of x, or y if null
 ```
 
 ---

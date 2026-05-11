@@ -41,17 +41,17 @@ Without logout:
 
 volta implements server-side session destruction:
 
-```
-  Browser                    volta-auth-proxy              Database
-  ──────                     ──────────────────            ──────────
-  1. Click "Log out"
-  2. POST /auth/logout ─────>
-                             3. Read session ID from cookie
-                             4. DELETE session from sessions table ──>
-                             5. Clear __volta_session cookie
-                               (Set-Cookie with Max-Age=0)
-  <────── 302 Redirect to /
-  6. User sees login page
+```text
+Browser                    volta-auth-proxy              Database
+
+1. Click "Log out"
+2. POST /auth/logout      >
+                           3. Read session ID from cookie
+                           4. DELETE session from sessions table   >
+                           5. Clear __volta_session cookie
+                             (Set-Cookie with Max-Age=0)
+<       302 Redirect to /
+6. User sees login page
 ```
 
 What volta does on logout:

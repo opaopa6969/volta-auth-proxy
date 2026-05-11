@@ -31,84 +31,78 @@ HMACがなければ：
 
 ### HMAC構成
 
-```
-  HMAC-SHA256(key, message):
+```text
+HMAC-SHA256(key, message):
 
-  ┌──────────────────────────────────────────────────┐
-  │  ステップ1: 鍵を準備                             │
-  │  鍵 > ブロックサイズの場合: key = SHA256(key)    │
-  │  鍵をブロックサイズにパディング（SHA-256は64バイト）│
-  │                                                  │
-  │  ステップ2: 内側ハッシュ                          │
-  │  inner_pad = key XOR 0x36363636...               │
-  │  inner_hash = SHA256(inner_pad + message)        │
-  │                                                  │
-  │  ステップ3: 外側ハッシュ                          │
-  │  outer_pad = key XOR 0x5C5C5C5C...               │
-  │  hmac = SHA256(outer_pad + inner_hash)           │
-  │                                                  │
-  │  結果: 32バイト（256ビット）の認証コード          │
-  └──────────────────────────────────────────────────┘
+   ステップ1: 鍵を準備
+   鍵 > ブロックサイズの場合: key = SHA256(key)
+   鍵をブロックサイズにパディング（SHA-256は64バイト）
+
+   ステップ2: 内側ハッシュ
+   inner_pad = key XOR 0x36363636...
+   inner_hash = SHA256(inner_pad + message)
+
+   ステップ3: 外側ハッシュ
+   outer_pad = key XOR 0x5C5C5C5C...
+   hmac = SHA256(outer_pad + inner_hash)
+
+   結果: 32バイト（256ビット）の認証コード
 ```
 
 ### なぜ単にhash(key + message)ではダメなのか？
 
-```
-  素朴なアプローチ: SHA256(key + message)
-  ┌──────────────────────────────────────────────┐
-  │  問題: 長さ拡張攻撃                          │
-  │  SHA-256はMerkle-Damgardベース。              │
-  │  SHA256(key + message)を知っていれば、        │
-  │  攻撃者は鍵を知らずに                        │
-  │  SHA256(key + message + extra)を計算できる！  │
-  │                                              │
-  │  HMACは二重ハッシュ（内側+外側）構成で        │
-  │  これを防ぐ。                                │
-  └──────────────────────────────────────────────┘
+```text
+素朴なアプローチ: SHA256(key + message)
+
+   問題: 長さ拡張攻撃
+   SHA-256はMerkle-Damgardベース。
+   SHA256(key + message)を知っていれば、
+   攻撃者は鍵を知らずに
+   SHA256(key + message + extra)を計算できる！
+
+   HMACは二重ハッシュ（内側+外側）構成で
+   これを防ぐ。
 ```
 
 ### HMAC vs RSA署名
 
-```
-  HMAC（対称）:
-  ┌──────────────────────────────────────────────┐
-  │  同じ鍵で署名と検証                          │
-  │  両者がシークレットを共有する必要あり         │
-  │  高速: RSAより約100倍速い                    │
-  │  用途: Cookie署名、Webhook                   │
-  │                                              │
-  │  volta: SecurityUtils.hmacSha256Hex()        │
-  └──────────────────────────────────────────────┘
+```text
+HMAC（対称）:
 
-  RSA署名（非対称）:
-  ┌──────────────────────────────────────────────┐
-  │  秘密鍵で署名、公開鍵で検証                  │
-  │  署名者だけが秘密鍵を必要とする              │
-  │  低速だが、公開鍵は自由に共有可能            │
-  │  用途: JWT署名（RS256）                      │
-  │                                              │
-  │  volta: JwtService.issueToken()              │
-  └──────────────────────────────────────────────┘
+   同じ鍵で署名と検証
+   両者がシークレットを共有する必要あり
+   高速: RSAより約100倍速い
+   用途: Cookie署名、Webhook
+
+   volta: SecurityUtils.hmacSha256Hex()
+
+RSA署名（非対称）:
+
+   秘密鍵で署名、公開鍵で検証
+   署名者だけが秘密鍵を必要とする
+   低速だが、公開鍵は自由に共有可能
+   用途: JWT署名（RS256）
+
+   volta: JwtService.issueToken()
 ```
 
 ### HMAC検証
 
-```
-  サーバーがCookieを作成:
-  value = "session-uuid"
-  sig = HMAC-SHA256(secret, value) = "a3f2c8..."
-  cookie = value + "." + sig
+```text
+サーバーがCookieを作成:
+value = "session-uuid"
+sig = HMAC-SHA256(secret, value) = "a3f2c8..."
+cookie = value + "." + sig
 
-  後でサーバーがCookieを受信:
-  ┌──────────────────────────────────────────┐
-  │  Cookieを分割 → value、provided_sig     │
-  │  再計算: expected_sig =                  │
-  │    HMAC-SHA256(secret, value)            │
-  │                                          │
-  │  constantTimeEquals(expected, provided)? │
-  │  はい → Cookieは本物                     │
-  │  いいえ → Cookieは改ざん → 拒否          │
-  └──────────────────────────────────────────┘
+後でサーバーがCookieを受信:
+
+   Cookieを分割 → value、provided_sig
+   再計算: expected_sig =
+     HMAC-SHA256(secret, value)
+
+   constantTimeEquals(expected, provided)?
+   はい → Cookieは本物
+   いいえ → Cookieは改ざん → 拒否
 ```
 
 ---

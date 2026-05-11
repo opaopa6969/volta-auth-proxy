@@ -23,21 +23,15 @@ Now imagine you write a **universal cookbook** that automatically translates its
 
 That's Java's big idea: **"Write once, run anywhere."**
 
-```
-  ┌───────────────────────────────────────────┐
-  │  Java code                                │
-  │  (written once)                           │
-  │         │                                 │
-  │         ▼                                 │
-  │  ┌─────────────┐                          │
-  │  │ Java Virtual │  (the automatic         │
-  │  │ Machine (JVM)│   translator)           │
-  │  └─────────────┘                          │
-  │    │       │       │                      │
-  │    ▼       ▼       ▼                      │
-  │  Windows  Mac    Linux                    │
-  │  ✓ Works  ✓ Works ✓ Works                 │
-  └───────────────────────────────────────────┘
+```text
+Java code
+(written once)
+
+  Java Virtual    (the automatic
+  Machine (JVM)    translator)
+
+Windows  Mac    Linux
+✓ Works  ✓ Works ✓ Works
 ```
 
 ---

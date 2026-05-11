@@ -53,93 +53,83 @@ For **server-side apps** (like volta), PKCE is not strictly required because the
 
 PKCE adds two new parameters to the flow: a **code_verifier** and a **code_challenge**.
 
-```
-  Step 1: BEFORE starting the login
-  ══════════════════════════════════
+```text
+Step 1: BEFORE starting the login
 
-  Your app generates a random string called the "code_verifier"
-  (43-128 characters, URL-safe random bytes)
+Your app generates a random string called the "code_verifier"
+(43-128 characters, URL-safe random bytes)
 
-    code_verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+  code_verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 
-  Your app then creates a "code_challenge" by hashing the verifier:
+Your app then creates a "code_challenge" by hashing the verifier:
 
-    code_challenge = BASE64URL(SHA256(code_verifier))
-                   = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+  code_challenge = BASE64URL(SHA256(code_verifier))
+                 = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
 
-  The challenge is a one-way hash: you can go from verifier -> challenge,
-  but you cannot go from challenge -> verifier.
+The challenge is a one-way hash: you can go from verifier -> challenge,
+but you cannot go from challenge -> verifier.
 
+Step 2: START the login (authorization request)
 
-  Step 2: START the login (authorization request)
-  ══════════════════════════════════════════════════
+Your app redirects to Google with the code_challenge:
 
-  Your app redirects to Google with the code_challenge:
+  GET https://accounts.google.com/o/oauth2/v2/auth
+    ?response_type=code
+    &client_id=YOUR_CLIENT_ID
+    &redirect_uri=http://localhost:7070/callback
+    &scope=openid email profile
+    &state=RANDOM_STATE
+    &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+    &code_challenge_method=S256
 
-    GET https://accounts.google.com/o/oauth2/v2/auth
-      ?response_type=code
-      &client_id=YOUR_CLIENT_ID
-      &redirect_uri=http://localhost:7070/callback
-      &scope=openid email profile
-      &state=RANDOM_STATE
-      &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
-      &code_challenge_method=S256
+Google stores the code_challenge alongside the authorization session.
 
-  Google stores the code_challenge alongside the authorization session.
+Step 3: USER authenticates with Google
 
+(Same as normal -- user picks account, approves)
 
-  Step 3: USER authenticates with Google
-  ══════════════════════════════════════
+Step 4: Google REDIRECTS back with a code
 
-  (Same as normal -- user picks account, approves)
+  http://localhost:7070/callback?code=AUTH_CODE&state=RANDOM_STATE
 
+  >>> DANGER ZONE: The code is in the URL. It could be intercepted. <<<
 
-  Step 4: Google REDIRECTS back with a code
-  ══════════════════════════════════════════
+Step 5: EXCHANGE the code for tokens
 
-    http://localhost:7070/callback?code=AUTH_CODE&state=RANDOM_STATE
+Your app sends the code AND the original code_verifier:
 
-    >>> DANGER ZONE: The code is in the URL. It could be intercepted. <<<
+  POST https://oauth2.googleapis.com/token
+    code=AUTH_CODE
+    &client_id=YOUR_CLIENT_ID
+    &client_secret=YOUR_CLIENT_SECRET
+    &redirect_uri=http://localhost:7070/callback
+    &grant_type=authorization_code
+    &code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
 
-
-  Step 5: EXCHANGE the code for tokens
-  ═══════════════════════════════════════
-
-  Your app sends the code AND the original code_verifier:
-
-    POST https://oauth2.googleapis.com/token
-      code=AUTH_CODE
-      &client_id=YOUR_CLIENT_ID
-      &client_secret=YOUR_CLIENT_SECRET
-      &redirect_uri=http://localhost:7070/callback
-      &grant_type=authorization_code
-      &code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
-
-  Google:
-    1. Looks up the code_challenge it stored earlier
-    2. Computes SHA256(code_verifier) to get a new challenge
-    3. Compares: does the new challenge match the stored one?
-    4. If YES -> issue tokens
-       If NO  -> reject (code was intercepted by someone who
-                          does not have the verifier)
+Google:
+  1. Looks up the code_challenge it stored earlier
+  2. Computes SHA256(code_verifier) to get a new challenge
+  3. Compares: does the new challenge match the stored one?
+  4. If YES -> issue tokens
+     If NO  -> reject (code was intercepted by someone who
+                        does not have the verifier)
 ```
 
 ### Why the attacker cannot win
 
-```
-  What the attacker has:          What the attacker needs:
-  ┌─────────────────────────┐     ┌─────────────────────────┐
-  │ - The authorization code │     │ - The authorization code │
-  │   (intercepted from URL) │     │   (they have this) ✓     │
-  │                          │     │ - The code_verifier      │
-  │                          │     │   (they do NOT have this)│
-  └─────────────────────────┘     └─────────────────────────┘
+```text
+What the attacker has:          What the attacker needs:
 
-  The code_verifier never leaves your app.
-  It was generated in your app's memory.
-  It is sent directly to Google's token endpoint (server-to-server).
-  The attacker only saw the code_challenge (the hash),
-  and SHA-256 is a one-way function -- they cannot reverse it.
+  - The authorization code         - The authorization code
+    (intercepted from URL)           (they have this) ✓
+                                   - The code_verifier
+                                     (they do NOT have this)
+
+The code_verifier never leaves your app.
+It was generated in your app's memory.
+It is sent directly to Google's token endpoint (server-to-server).
+The attacker only saw the code_challenge (the hash),
+and SHA-256 is a one-way function -- they cannot reverse it.
 ```
 
 ### S256 vs plain

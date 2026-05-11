@@ -18,23 +18,21 @@ Note: the terminology can be confusing because "upstream" means further from the
 
 The upstream relationship defines the security boundary in volta's architecture:
 
-```
-  Internet (untrusted)    volta-auth-proxy (trust boundary)    Upstream (trusted)
-  ====================    ================================    ==================
+```text
+Internet (untrusted)    volta-auth-proxy (trust boundary)    Upstream (trusted)
+====================    ================================    ==================
 
-  ┌──────────┐           ┌────────────────────────┐          ┌──────────────┐
-  │  Client  │──────────►│  volta-auth-proxy      │─────────►│  Your App    │
-  │ (browser)│           │                        │          │  (upstream)  │
-  │          │           │  1. Check session/JWT   │          │              │
-  │          │           │  2. Verify tenant       │          │  Receives:   │
-  │          │           │  3. Check suspension    │          │  - Original  │
-  │          │           │  4. Evaluate ABAC       │          │    request   │
-  │          │           │  5. Add X-Volta-*       │          │  - X-Volta-* │
-  │          │           │     headers             │          │    headers   │
-  │          │           │  6. Forward request     │          │              │
-  │          │           │                        │          │  Trusts:     │
-  │          │           │  OR: 401/403 if denied  │          │  X-Volta-*   │
-  └──────────┘           └────────────────────────┘          └──────────────┘
+   Client             >   volta-auth-proxy                >   Your App
+  (browser)                                                   (upstream)
+                          1. Check session/JWT
+                          2. Verify tenant                     Receives:
+                          3. Check suspension                  - Original
+                          4. Evaluate ABAC                       request
+                          5. Add X-Volta-*                     - X-Volta-*
+                             headers                             headers
+                          6. Forward request
+                                                              Trusts:
+                          OR: 401/403 if denied                X-Volta-*
 ```
 
 Your upstream app can trust the `X-Volta-*` [headers](header.md) because:
@@ -133,19 +131,16 @@ upstream:
       url: "http://admin-app:8083"
 ```
 
-```
-  ┌──────────┐     ┌──────────────┐     ┌──────────────┐
-  │  Client  │────►│ volta-auth-  │──┬─►│ main-app     │
-  │          │     │ proxy        │  │  │ :8081        │
-  │ /api/v1/ │     │              │  │  └──────────────┘
-  │ /api/v2/ │     │  route by    │  │  ┌──────────────┐
-  │ /admin/  │     │  path prefix │  ├─►│ v2-app       │
-  │          │     │              │  │  │ :8082        │
-  └──────────┘     └──────────────┘  │  └──────────────┘
-                                     │  ┌──────────────┐
-                                     └─►│ admin-app    │
-                                        │ :8083        │
-                                        └──────────────┘
+```text
+ Client       >  volta-auth-       >  main-app
+                 proxy                :8081
+/api/v1/
+/api/v2/          route by
+/admin/           path prefix      >  v2-app
+                                      :8082
+
+                                   >  admin-app
+                                      :8083
 ```
 
 ---
@@ -156,23 +151,20 @@ upstream:
 
 volta implements the ForwardAuth pattern, commonly used with reverse proxies like Traefik or Nginx:
 
-```
-  Option 1: volta as standalone proxy (direct)
-  ┌────────┐     ┌──────────────┐     ┌──────────┐
-  │ Client │────►│ volta-auth-  │────►│ Upstream │
-  │        │     │ proxy        │     │ App      │
-  └────────┘     └──────────────┘     └──────────┘
+```text
+Option 1: volta as standalone proxy (direct)
 
-  Option 2: volta behind a load balancer (ForwardAuth)
-  ┌────────┐     ┌─────────┐  auth?  ┌──────────────┐
-  │ Client │────►│ Traefik │────────►│ volta-auth-  │
-  │        │     │ (LB)    │◄────────│ proxy        │
-  │        │     │         │ 200 OK  │ (auth only)  │
-  │        │     │         │         └──────────────┘
-  │        │     │         │────────►┌──────────┐
-  │        │     │         │         │ Upstream │
-  └────────┘     └─────────┘         │ App      │
-                                     └──────────┘
+  Client      >  volta-auth-       >  Upstream
+                 proxy                App
+
+Option 2: volta behind a load balancer (ForwardAuth)
+                            auth?
+  Client      >  Traefik          >  volta-auth-
+                 (LB)     <          proxy
+                           200 OK    (auth only)
+
+                                     Upstream
+                                     App
 ```
 
 ### Upstream trust model

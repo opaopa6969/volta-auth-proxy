@@ -84,21 +84,15 @@ public class Example {
 }
 ```
 
-```
-  ┌─────────────────────────────────────────┐
-  │  Class scope                             │
-  │  appName = "volta-auth-proxy"            │
-  │                                          │
-  │  ┌───────────────────────────────────┐   │
-  │  │  Method scope                      │   │
-  │  │  userId = "550e8400-..."           │   │
-  │  │                                    │   │
-  │  │  ┌─────────────────────────────┐   │   │
-  │  │  │  Block scope                 │   │   │
-  │  │  │  parsed = UUID(550e8400...) │   │   │
-  │  │  └─────────────────────────────┘   │   │
-  │  └───────────────────────────────────┘   │
-  └─────────────────────────────────────────┘
+```text
+Class scope
+appName = "volta-auth-proxy"
+
+   Method scope
+   userId = "550e8400-..."
+
+      Block scope
+      parsed = UUID(550e8400...)
 ```
 
 ### Mutable vs. immutable variables
@@ -144,16 +138,16 @@ String dbUrl = System.getenv("DATABASE_URL");
 
 volta reads all its configuration from environment variables, not from hardcoded values:
 
-```
-  Environment Variable              What it configures
-  ────────────────────              ──────────────────
-  VOLTA_PORT                        HTTP server port (default: 7070)
-  GOOGLE_CLIENT_ID                  Google OIDC client ID
-  GOOGLE_CLIENT_SECRET              Google OIDC client secret
-  DATABASE_URL                      PostgreSQL connection string
-  SESSION_TIMEOUT                   Session duration (default: 8h)
-  JWT_EXPIRY                        JWT lifetime (default: 5m)
-  VOLTA_BASE_URL                    Public URL of volta
+```text
+Environment Variable              What it configures
+
+VOLTA_PORT                        HTTP server port (default: 7070)
+GOOGLE_CLIENT_ID                  Google OIDC client ID
+GOOGLE_CLIENT_SECRET              Google OIDC client secret
+DATABASE_URL                      PostgreSQL connection string
+SESSION_TIMEOUT                   Session duration (default: 8h)
+JWT_EXPIRY                        JWT lifetime (default: 5m)
+VOLTA_BASE_URL                    Public URL of volta
 ```
 
 This means the same JAR file can run in different environments (development, staging, production) by changing only the environment variables.

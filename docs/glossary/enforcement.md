@@ -29,67 +29,63 @@ The gap between "we have a rule" and "we enforce the rule" is where security bre
 
 ### Enforcement points
 
-```
-  Request from browser
-  │
-  ├── [1] Traefik ForwardAuth ──► volta /auth/verify
-  │   │
-  │   ├── Session valid?          (enforcement: authentication)
-  │   ├── Tenant active?          (enforcement: tenant status)
-  │   ├── Role in allowed_roles?  (enforcement: app access)
-  │   │
-  │   └── Pass? → Forward to app with X-Volta-* headers
-  │       Fail? → 401 or 403
-  │
-  ├── [2] volta Internal API
-  │   │
-  │   ├── JWT valid?              (enforcement: authentication)
-  │   ├── JWT tenant == path tenant? (enforcement: tenant isolation)
-  │   ├── Role >= required_role?  (enforcement: RBAC)
-  │   ├── Constraint satisfied?   (enforcement: business rules)
-  │   │   e.g., "cannot remove last OWNER"
-  │   │
-  │   └── Pass? → Execute operation
-  │       Fail? → 403 or 400
-  │
-  └── [3] State machine transitions
-      │
-      ├── Guard expression true?  (enforcement: transition rules)
-      ├── CSRF token valid?       (enforcement: anti-CSRF)
-      └── Rate limit not exceeded? (enforcement: abuse prevention)
+```text
+Request from browser
+
+    [1] Traefik ForwardAuth   > volta /auth/verify
+
+        Session valid?          (enforcement: authentication)
+        Tenant active?          (enforcement: tenant status)
+        Role in allowed_roles?  (enforcement: app access)
+
+        Pass? → Forward to app with X-Volta-* headers
+        Fail? → 401 or 403
+
+    [2] volta Internal API
+
+        JWT valid?              (enforcement: authentication)
+        JWT tenant == path tenant? (enforcement: tenant isolation)
+        Role >= required_role?  (enforcement: RBAC)
+        Constraint satisfied?   (enforcement: business rules)
+        e.g., "cannot remove last OWNER"
+
+        Pass? → Execute operation
+        Fail? → 403 or 400
+
+    [3] State machine transitions
+
+        Guard expression true?  (enforcement: transition rules)
+        CSRF token valid?       (enforcement: anti-CSRF)
+        Rate limit not exceeded? (enforcement: abuse prevention)
 ```
 
 ### Defense in depth
 
 volta enforces rules at multiple layers. Even if one layer fails, another catches the violation:
 
-```
-  Layer 1: Traefik
-  ┌──────────────────────────────────────────────┐
-  │ Only routes to volta for /auth/* paths       │
-  │ Only routes to apps for configured domains   │
-  └──────────────────────────────────────────────┘
-            │
-  Layer 2: volta ForwardAuth
-  ┌──────────────────────────────────────────────┐
-  │ Session validation                           │
-  │ Tenant status check                          │
-  │ Role-based app access check                  │
-  └──────────────────────────────────────────────┘
-            │
-  Layer 3: volta Internal API
-  ┌──────────────────────────────────────────────┐
-  │ JWT verification                             │
-  │ Tenant isolation (path == JWT tenant)         │
-  │ Role hierarchy check                         │
-  │ Business rule constraints                    │
-  └──────────────────────────────────────────────┘
-            │
-  Layer 4: Database constraints
-  ┌──────────────────────────────────────────────┐
-  │ Foreign keys, NOT NULL, unique constraints   │
-  │ Last line of defense                         │
-  └──────────────────────────────────────────────┘
+```text
+Layer 1: Traefik
+
+  Only routes to volta for /auth/* paths
+  Only routes to apps for configured domains
+
+Layer 2: volta ForwardAuth
+
+  Session validation
+  Tenant status check
+  Role-based app access check
+
+Layer 3: volta Internal API
+
+  JWT verification
+  Tenant isolation (path == JWT tenant)
+  Role hierarchy check
+  Business rule constraints
+
+Layer 4: Database constraints
+
+  Foreign keys, NOT NULL, unique constraints
+  Last line of defense
 ```
 
 ---

@@ -47,21 +47,21 @@ CREATE TABLE tenants (
 
 ### スキーマ vs データ
 
-```
-  スキーマ（構造）:                 データ（内容）:
-  ┌──────────────────────┐        ┌──────────────────────────────┐
-  │ TABLE: users         │        │ id: a1b2c3                   │
-  │ ├─ id: UUID (PK)    │        │ email: alice@example.com     │
-  │ ├─ email: VARCHAR    │        │ name: Alice                  │
-  │ ├─ name: VARCHAR     │        │ created_at: 2025-01-15       │
-  │ └─ created_at: TS    │        ├──────────────────────────────┤
-  │                      │        │ id: d4e5f6                   │
-  │                      │        │ email: bob@example.com       │
-  │                      │        │ name: Bob                    │
-  │                      │        │ created_at: 2025-02-20       │
-  └──────────────────────┘        └──────────────────────────────┘
-    形を定義                         実際のレコードを含む
-    マイグレーションで変更            INSERT/UPDATEで変更
+```text
+スキーマ（構造）:                 データ（内容）:
+
+  TABLE: users                    id: a1b2c3
+     id: UUID (PK)               email: alice@example.com
+     email: VARCHAR               name: Alice
+     name: VARCHAR                created_at: 2025-01-15
+     created_at: TS
+                                  id: d4e5f6
+                                  email: bob@example.com
+                                  name: Bob
+                                  created_at: 2025-02-20
+
+  形を定義                         実際のレコードを含む
+  マイグレーションで変更            INSERT/UPDATEで変更
 ```
 
 ### スキーマの主要概念
@@ -78,20 +78,31 @@ CREATE TABLE tenants (
 
 ### テーブルの関連
 
+```mermaid
+erDiagram
+    users {
+        uuid id PK
+        string email
+        string name
+    }
+    memberships {
+        uuid user_id FK
+        uuid tenant_id FK
+        string role
+    }
+    tenants {
+        uuid id PK
+        string name
+        string subdomain
+    }
+    users ||--o{ memberships : has
+    tenants ||--o{ memberships : has
 ```
-  ┌──────────┐     ┌──────────────┐     ┌──────────┐
-  │  users   │     │ memberships  │     │ tenants  │
-  │          │     │              │     │          │
-  │ id (PK)  │◀────│ user_id (FK) │     │ id (PK)  │
-  │ email    │     │ tenant_id(FK)│────▶│ name     │
-  │ name     │     │ role         │     │ subdomain│
-  └──────────┘     └──────────────┘     └──────────┘
 
-  ユーザーは多数のメンバーシップを持つ。
-  テナントは多数のメンバーシップを持つ。
-  メンバーシップは1ユーザーを1テナントにロール付きで接続。
-  これは結合テーブルによる「多対多」リレーション。
-```
+- ユーザーは多数のメンバーシップを持つ。
+- テナントは多数のメンバーシップを持つ。
+- メンバーシップは1ユーザーを1テナントにロール付きで接続。
+- これは結合テーブルによる「多対多」リレーション。
 
 ---
 
@@ -101,24 +112,16 @@ CREATE TABLE tenants (
 
 volta-auth-proxyは9つのPostgreSQLテーブルを使います：
 
-```
-  ┌─────────────────────────────────────────────────────┐
-  │                voltaスキーマ                          │
-  │                                                      │
-  │  ┌──────────┐  ┌──────────────┐  ┌──────────┐      │
-  │  │  users   │──│ memberships  │──│ tenants  │      │
-  │  └──────────┘  └──────────────┘  └──────────┘      │
-  │       │                                │             │
-  │       │         ┌──────────────┐       │             │
-  │       └─────────│  sessions    │       │             │
-  │                 └──────────────┘       │             │
-  │                                        │             │
-  │  ┌──────────────┐  ┌──────────────┐   │             │
-  │  │ invitations  │──│ (tenant FK)  │───┘             │
-  │  └──────────────┘  └──────────────┘                 │
-  │                                                      │
-  │  + rate_limits、audit_log、schema_version 等        │
-  └─────────────────────────────────────────────────────┘
+```text
+              voltaスキーマ
+
+   users        memberships       tenants
+
+                  sessions
+
+  invitations       (tenant FK)
+
++ rate_limits、audit_log、schema_version 等
 ```
 
 ### 主要テーブルとその目的

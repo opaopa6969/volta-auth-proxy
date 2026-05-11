@@ -18,26 +18,24 @@ Regeneration is different from rotation (which replaces cryptographic keys for t
 
 Without session ID regeneration, an attacker can exploit a well-known attack called [session fixation](session-fixation.md):
 
-```
-  Session fixation attack (without regeneration):
-  ┌──────────────────────────────────────────────────┐
-  │  1. Attacker visits site → gets session ID "abc" │
-  │  2. Attacker sends victim a link with sid=abc    │
-  │  3. Victim clicks link → browser uses sid=abc    │
-  │  4. Victim logs in → session abc is now          │
-  │     authenticated as the victim                  │
-  │  5. Attacker uses session abc → IS the victim    │
-  └──────────────────────────────────────────────────┘
+```text
+Session fixation attack (without regeneration):
 
-  With regeneration:
-  ┌──────────────────────────────────────────────────┐
-  │  1-3. Same as above                              │
-  │  4. Victim logs in → server regenerates          │
-  │     session ID from "abc" to "xyz"               │
-  │     → victim's browser gets new cookie "xyz"     │
-  │  5. Attacker uses session "abc" → INVALID        │
-  │     → Attack prevented!                          │
-  └──────────────────────────────────────────────────┘
+   1. Attacker visits site → gets session ID "abc"
+   2. Attacker sends victim a link with sid=abc
+   3. Victim clicks link → browser uses sid=abc
+   4. Victim logs in → session abc is now
+      authenticated as the victim
+   5. Attacker uses session abc → IS the victim
+
+With regeneration:
+
+   1-3. Same as above
+   4. Victim logs in → server regenerates
+      session ID from "abc" to "xyz"
+      → victim's browser gets new cookie "xyz"
+   5. Attacker uses session "abc" → INVALID
+      → Attack prevented!
 ```
 
 Regeneration is a critical defense that costs almost nothing to implement but prevents an entire class of attacks.
@@ -48,27 +46,25 @@ Regeneration is a critical defense that costs almost nothing to implement but pr
 
 ### Session ID regeneration
 
-```
-  Before login:
-  ┌──────────────┐     ┌───────────────────────┐
-  │  Browser     │     │  Server                │
-  │  Cookie: abc │ ──► │  session abc:          │
-  │              │     │  authenticated: false   │
-  │              │     │  user: null             │
-  └──────────────┘     └───────────────────────┘
+```text
+Before login:
 
-  User submits credentials (email + password)...
-  Server validates credentials → SUCCESS
+   Browser              Server
+   Cookie: abc     >    session abc:
+                        authenticated: false
+                        user: null
 
-  REGENERATE session ID:
-  ┌──────────────┐     ┌───────────────────────┐
-  │  Browser     │     │  Server                │
-  │  Cookie: xyz │ ──► │  session xyz:          │  ← NEW ID
-  │  (new!)      │     │  authenticated: true   │
-  │              │     │  user: alice            │
-  └──────────────┘     └───────────────────────┘
-                       │  session abc: DELETED   │  ← OLD ID gone
-                       └───────────────────────┘
+User submits credentials (email + password)...
+Server validates credentials → SUCCESS
+
+REGENERATE session ID:
+
+   Browser              Server
+   Cookie: xyz     >    session xyz:             ← NEW ID
+   (new!)               authenticated: true
+                        user: alice
+
+                        session abc: DELETED      ← OLD ID gone
 ```
 
 ### When to regenerate
@@ -83,23 +79,21 @@ Regeneration is a critical defense that costs almost nothing to implement but pr
 
 ### The regeneration process
 
-```
-  1. Generate new session ID (crypto-random UUID)
-  2. Copy session data to new ID
-  3. Delete old session ID from database
-  4. Set new cookie with new session ID
-  5. Old session ID is now invalid
+```text
+1. Generate new session ID (crypto-random UUID)
+2. Copy session data to new ID
+3. Delete old session ID from database
+4. Set new cookie with new session ID
+5. Old session ID is now invalid
 
-  ┌─────────────────────────────────────────────┐
-  │  Old:  abc → { user: alice, tenant: acme }  │
-  │                     │                       │
-  │                     │ copy data              │
-  │                     ▼                       │
-  │  New:  xyz → { user: alice, tenant: acme }  │
-  │                                             │
-  │  Delete: abc → (gone)                       │
-  │  Cookie: __volta_session=xyz                │
-  └─────────────────────────────────────────────┘
+   Old:  abc → { user: alice, tenant: acme }
+
+                        copy data
+
+   New:  xyz → { user: alice, tenant: acme }
+
+   Delete: abc → (gone)
+   Cookie: __volta_session=xyz
 ```
 
 ---

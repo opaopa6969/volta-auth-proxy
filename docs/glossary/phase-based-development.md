@@ -47,69 +47,65 @@ This is the waterfall trap. It fails because:
 
 ### Phase 1: Core (minimum viable auth)
 
-```
-  What ships:
-  ┌──────────────────────────────────────────────────────┐
-  │ Google OIDC login (Authorization Code + PKCE)        │
-  │ Session management (sliding window, max 5 per user)  │
-  │ Multi-tenancy (tenant creation, resolution, switching)│
-  │ Role-based access (OWNER > ADMIN > MEMBER > VIEWER)  │
-  │ Invitation system (codes, expiry, consent screen)     │
-  │ ForwardAuth (X-Volta-* headers to downstream apps)   │
-  │ Internal API (/api/v1/* for app delegation)           │
-  │ JWT issuance (RS256, 5-min expiry, JWKS endpoint)     │
-  │ Login UI (jte templates, full control)                │
-  └──────────────────────────────────────────────────────┘
+```text
+What ships:
 
-  Components: volta-auth-proxy + PostgreSQL.
-  That's it. It works. Ship it.
+  Google OIDC login (Authorization Code + PKCE)
+  Session management (sliding window, max 5 per user)
+  Multi-tenancy (tenant creation, resolution, switching)
+  Role-based access (OWNER > ADMIN > MEMBER > VIEWER)
+  Invitation system (codes, expiry, consent screen)
+  ForwardAuth (X-Volta-* headers to downstream apps)
+  Internal API (/api/v1/* for app delegation)
+  JWT issuance (RS256, 5-min expiry, JWKS endpoint)
+  Login UI (jte templates, full control)
+
+Components: volta-auth-proxy + PostgreSQL.
+That's it. It works. Ship it.
 ```
 
 Phase 1 is not a demo. It is production-ready auth for a multi-tenant SaaS. A team can build real applications on top of it.
 
 ### Phase 2: Scale
 
-```
-  What's added:
-  ┌──────────────────────────────────────────────────────┐
-  │ Multiple IdPs (GitHub, Microsoft)                     │
-  │ M2M OAuth (Client Credentials flow)                  │
-  │ Redis session storage (higher throughput)             │
-  │ Webhooks (event notifications to your services)       │
-  │ Passkeys (WebAuthn/FIDO2)                            │
-  └──────────────────────────────────────────────────────┘
+```text
+What's added:
+
+  Multiple IdPs (GitHub, Microsoft)
+  M2M OAuth (Client Credentials flow)
+  Redis session storage (higher throughput)
+  Webhooks (event notifications to your services)
+  Passkeys (WebAuthn/FIDO2)
 ```
 
 Phase 2 addresses scaling needs. More login options, machine-to-machine communication, faster session lookups. These are features you discover you need after Phase 1 is in production.
 
 ### Phase 3: Enterprise
 
-```
-  What's added:
-  ┌──────────────────────────────────────────────────────┐
-  │ SAML SSO (enterprise IdP integration)                 │
-  │ Email notifications (SMTP, SendGrid)                  │
-  │ MFA/2FA (TOTP, WebAuthn)                             │
-  │ i18n (internationalization)                           │
-  │ Conditional access (risk-based auth)                  │
-  │ Fraud detection/alerting                              │
-  └──────────────────────────────────────────────────────┘
+```text
+What's added:
+
+  SAML SSO (enterprise IdP integration)
+  Email notifications (SMTP, SendGrid)
+  MFA/2FA (TOTP, WebAuthn)
+  i18n (internationalization)
+  Conditional access (risk-based auth)
+  Fraud detection/alerting
 ```
 
 Phase 3 adds enterprise requirements. SAML is needed when you sell to companies that use Active Directory. MFA is needed when security policies require it. These are features you add when you have enterprise customers, not before.
 
 ### Phase 4: Platform
 
-```
-  What's added:
-  ┌──────────────────────────────────────────────────────┐
-  │ SCIM (automated user provisioning)                    │
-  │ Policy Engine                                         │
-  │ Billing integration (Stripe)                          │
-  │ GDPR data export/deletion                            │
-  │ Device trust                                          │
-  │ Mobile SDK (iOS/Android)                              │
-  └──────────────────────────────────────────────────────┘
+```text
+What's added:
+
+  SCIM (automated user provisioning)
+  Policy Engine
+  Billing integration (Stripe)
+  GDPR data export/deletion
+  Device trust
+  Mobile SDK (iOS/Android)
 ```
 
 Phase 4 turns volta into a platform. SCIM is for companies with thousands of employees. Billing integration is for SaaS products that tie subscriptions to tenants. These are features you need at scale, not at launch.

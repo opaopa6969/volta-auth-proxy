@@ -30,19 +30,17 @@ CRUD is the mental model that makes APIs predictable. When a developer sees a RE
 
 ### CRUD to HTTP mapping
 
-```
-  ┌──────────┬─────────┬──────────────────────────────────┐
-  │ CRUD     │ HTTP    │ Example                          │
-  │──────────│─────────│──────────────────────────────────│
-  │ Create   │ POST    │ POST /api/v1/tenants/{id}/invitations   │
-  │ Read     │ GET     │ GET  /api/v1/tenants/{id}/members       │
-  │ Update   │ PATCH   │ PATCH /api/v1/tenants/{id}/members/{mid}│
-  │ Delete   │ DELETE  │ DELETE /api/v1/tenants/{id}/members/{mid}│
-  └──────────┴─────────┴──────────────────────────────────┘
+```text
+  CRUD       HTTP      Example
 
-  Note: volta uses PATCH (partial update), not PUT (full replace).
-  This is intentional: you can update display_name without
-  sending every other field.
+  Create     POST      POST /api/v1/tenants/{id}/invitations
+  Read       GET       GET  /api/v1/tenants/{id}/members
+  Update     PATCH     PATCH /api/v1/tenants/{id}/members/{mid}
+  Delete     DELETE    DELETE /api/v1/tenants/{id}/members/{mid}
+
+Note: volta uses PATCH (partial update), not PUT (full replace).
+This is intentional: you can update display_name without
+sending every other field.
 ```
 
 ### CRUD and REST
@@ -63,15 +61,13 @@ REST APIs organize resources as nouns (members, invitations, tenants) and use HT
 
 Each CRUD operation typically requires a different permission level:
 
-```
-  ┌──────────┬───────────────┬──────────────────────┐
-  │ Operation│ Required role │ Why                  │
-  │──────────│───────────────│──────────────────────│
-  │ Read     │ MEMBER+       │ See who is on the team│
-  │ Create   │ ADMIN+        │ Invite new members    │
-  │ Update   │ ADMIN+        │ Change roles          │
-  │ Delete   │ ADMIN+        │ Remove members        │
-  └──────────┴───────────────┴──────────────────────┘
+```text
+Operation  Required role   Why
+
+Read       MEMBER+         See who is on the team
+Create     ADMIN+          Invite new members
+Update     ADMIN+          Change roles
+Delete     ADMIN+          Remove members
 ```
 
 ---

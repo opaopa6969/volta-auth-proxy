@@ -101,20 +101,18 @@ TOTP is the most widely deployed second factor in the world.
 
 ### Why TOTP is secure
 
-```
-  What the attacker needs:        Where it lives:
-  ┌──────────────────────────┐    ┌──────────────────────────┐
-  │ The shared secret        │    │ Server: encrypted in DB   │
-  │                          │    │ Phone: in authenticator   │
-  │                          │    │        app's secure store │
-  └──────────────────────────┘    └──────────────────────────┘
+```text
+What the attacker needs:        Where it lives:
 
-  What the attacker can see:
-  ┌──────────────────────────┐
-  │ A 6-digit code            │  ← Only valid for 30-60 seconds
-  │ (if they shoulder-surf)   │  ← Cannot derive the secret from it
-  │                           │  ← Cannot predict the next code
-  └──────────────────────────┘
+  The shared secret               Server: encrypted in DB
+                                  Phone: in authenticator
+                                         app's secure store
+
+What the attacker can see:
+
+  A 6-digit code               ← Only valid for 30-60 seconds
+  (if they shoulder-surf)      ← Cannot derive the secret from it
+                               ← Cannot predict the next code
 ```
 
 Even if an attacker sees one code, they cannot use it again (it expires) or derive future codes (HMAC is one-way).
@@ -129,43 +127,40 @@ TOTP is **not implemented** in Phase 1. volta already includes the `googleauth` 
 
 ### Phase 3 plan
 
-```
-  TOTP enrollment flow:
-  ════════════════════
+```text
+TOTP enrollment flow:
 
-  1. User navigates to /settings/security
-  2. Clicks "Enable TOTP"
-  3. volta generates a random secret
-  4. Shows QR code + manual entry key
-  5. User scans with authenticator app
-  6. User enters verification code
-  7. volta verifies code against secret
-  8. If valid: store encrypted secret in DB
-     Associate with user account
-  9. Generate and display recovery codes
-     (one-time use, for when phone is lost)
+1. User navigates to /settings/security
+2. Clicks "Enable TOTP"
+3. volta generates a random secret
+4. Shows QR code + manual entry key
+5. User scans with authenticator app
+6. User enters verification code
+7. volta verifies code against secret
+8. If valid: store encrypted secret in DB
+   Associate with user account
+9. Generate and display recovery codes
+   (one-time use, for when phone is lost)
 
-  TOTP verification flow (on login):
-  ═══════════════════════════════════
+TOTP verification flow (on login):
 
-  1. User completes Google OIDC login
-  2. volta checks: does this user have TOTP enabled?
-  3. If yes: show TOTP challenge page
-  4. User enters 6-digit code from app
-  5. volta verifies against stored secret
-  6. If valid: complete login, set amr=["google_oidc","totp"]
-  7. If invalid: show error (with rate limiting)
+1. User completes Google OIDC login
+2. volta checks: does this user have TOTP enabled?
+3. If yes: show TOTP challenge page
+4. User enters 6-digit code from app
+5. volta verifies against stored secret
+6. If valid: complete login, set amr=["google_oidc","totp"]
+7. If invalid: show error (with rate limiting)
 
-  Tenant enforcement:
-  ═══════════════════
+Tenant enforcement:
 
-  Tenant admins can set a policy:
-  - "MFA optional" (default)
-  - "MFA required for ADMIN and OWNER"
-  - "MFA required for all members"
+Tenant admins can set a policy:
+- "MFA optional" (default)
+- "MFA required for ADMIN and OWNER"
+- "MFA required for all members"
 
-  Users without MFA who belong to a "required" tenant
-  will be prompted to set up TOTP on their next login.
+Users without MFA who belong to a "required" tenant
+will be prompted to set up TOTP on their next login.
 ```
 
 ### Recovery codes

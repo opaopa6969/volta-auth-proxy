@@ -34,12 +34,12 @@ Every interaction between a [SPA](spa.md) and volta-auth-proxy, or between a dow
 
 An endpoint is defined by three things:
 
-```
-  HTTP Method   +   URL Path              =   Endpoint
-  ───────────       ──────────────────         ─────────────────────
-  GET               /api/v1/users/me           "Get current user"
-  POST              /api/v1/tenants            "Create a tenant"
-  DELETE            /api/v1/admin/members/:id  "Remove a member"
+```text
+HTTP Method   +   URL Path              =   Endpoint
+
+GET               /api/v1/users/me           "Get current user"
+POST              /api/v1/tenants            "Create a tenant"
+DELETE            /api/v1/admin/members/:id  "Remove a member"
 ```
 
 The **same path** with **different methods** can be different endpoints:
@@ -80,16 +80,16 @@ Endpoints can accept additional data via query parameters:
 
 A complete endpoint interaction:
 
-```
-  Client                                        Server (volta)
-  ──────                                        ──────────────
+```text
+Client -> Server (volta)
+
   GET /api/v1/users/me
   Headers:
     Cookie: JSESSIONID=abc123
     Accept: application/json
-                          ─────────────────────>
 
-                          <─────────────────────
+Server (volta) -> Client
+
   HTTP/1.1 200 OK
   Headers:
     Content-Type: application/json
@@ -118,31 +118,31 @@ Most APIs follow REST conventions for endpoint design:
 
 Endpoints are often organized into logical groups:
 
-```
-  volta-auth-proxy endpoints
-  │
-  ├── Auth endpoints (browser-facing, HTML responses)
-  │   ├── GET  /auth/login
-  │   ├── GET  /auth/callback
-  │   ├── POST /auth/logout
-  │   └── POST /auth/refresh
-  │
-  ├── API endpoints (JSON responses, require authentication)
-  │   ├── GET  /api/v1/users/me
-  │   ├── GET  /api/v1/tenants
-  │   ├── POST /api/v1/tenants
-  │   └── ...
-  │
-  ├── Admin endpoints (require ADMIN or OWNER role)
-  │   ├── GET  /api/v1/admin/members
-  │   ├── POST /api/v1/admin/members/invite
-  │   └── ...
-  │
-  ├── Internal endpoints (called by Traefik, not users)
-  │   └── GET  /forwardauth
-  │
-  └── Well-known endpoints (public, no auth)
-      └── GET  /.well-known/jwks.json
+```text
+volta-auth-proxy endpoints
+
+    Auth endpoints (browser-facing, HTML responses)
+        GET  /auth/login
+        GET  /auth/callback
+        POST /auth/logout
+        POST /auth/refresh
+
+    API endpoints (JSON responses, require authentication)
+        GET  /api/v1/users/me
+        GET  /api/v1/tenants
+        POST /api/v1/tenants
+        ...
+
+    Admin endpoints (require ADMIN or OWNER role)
+        GET  /api/v1/admin/members
+        POST /api/v1/admin/members/invite
+        ...
+
+    Internal endpoints (called by Traefik, not users)
+        GET  /forwardauth
+
+    Well-known endpoints (public, no auth)
+        GET  /.well-known/jwks.json
 ```
 
 ---
@@ -182,15 +182,15 @@ Each line maps one endpoint to one handler method. There is no hidden routing co
 
 Different endpoints have different security requirements, enforced by [middleware](middleware.md):
 
-```
-  Endpoint                          Auth required?   Role required?
-  ────────────────────────────────  ──────────────   ──────────────
-  GET  /auth/login                  No               No
-  GET  /.well-known/jwks.json       No               No
-  GET  /api/v1/users/me             Yes (session)    No (any role)
-  GET  /api/v1/tenants              Yes (session)    No (any role)
-  POST /api/v1/admin/members/invite Yes (session)    ADMIN or OWNER
-  GET  /forwardauth                 Yes (session)    No (internal)
+```text
+Endpoint                          Auth required?   Role required?
+
+GET  /auth/login                  No               No
+GET  /.well-known/jwks.json       No               No
+GET  /api/v1/users/me             Yes (session)    No (any role)
+GET  /api/v1/tenants              Yes (session)    No (any role)
+POST /api/v1/admin/members/invite Yes (session)    ADMIN or OWNER
+GET  /forwardauth                 Yes (session)    No (internal)
 ```
 
 ### API versioning in endpoints

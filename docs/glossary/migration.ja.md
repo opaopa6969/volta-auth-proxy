@@ -30,50 +30,47 @@
 
 [Flyway](flyway.ja.md)（voltaが使うマイグレーションツール）はバージョンプレフィックス付きのファイル名を期待します：
 
-```
-  src/main/resources/db/migration/
-  ├── V1__create_users_table.sql
-  ├── V2__create_tenants_table.sql
-  ├── V3__create_memberships_table.sql
-  ├── V4__create_sessions_table.sql
-  ├── V5__create_invitations_table.sql
-  ├── V6__add_audit_log.sql
-  └── V7__add_session_index.sql
+```text
+src/main/resources/db/migration/
+    V1__create_users_table.sql
+    V2__create_tenants_table.sql
+    V3__create_memberships_table.sql
+    V4__create_sessions_table.sql
+    V5__create_invitations_table.sql
+    V6__add_audit_log.sql
+    V7__add_session_index.sql
 
-  形式: V{番号}__{説明}.sql
-        │          │
-        │          └─ 人が読める説明
-        └─ バージョン番号（順序を決定）
+形式: V{番号}__{説明}.sql
+
+                    人が読める説明
+         バージョン番号（順序を決定）
 ```
 
 ### Flywayがマイグレーションを適用する方法
 
-```
-  ┌──────────────────────────────────────────────┐
-  │  Flywayマイグレーションプロセス                │
-  │                                               │
-  │  1. flyway_schema_historyテーブルを読む        │
-  │     (どのマイグレーションが実行済みか追跡)      │
-  │                                               │
-  │  2. ディスク上のマイグレーションファイルと比較   │
-  │                                               │
-  │  3. 新しいマイグレーションを順番に適用          │
-  └──────────────────────────────────────────────┘
+```text
+   Flywayマイグレーションプロセス
 
-  flyway_schema_historyテーブル:
-  ┌─────────┬───────────────────────┬─────────┐
-  │ version │ description           │ success │
-  ├─────────┼───────────────────────┼─────────┤
-  │ 1       │ create_users_table    │ true    │
-  │ 2       │ create_tenants_table  │ true    │
-  │ 3       │ create_memberships    │ true    │
-  │ 4       │ create_sessions       │ true    │
-  └─────────┴───────────────────────┴─────────┘
+   1. flyway_schema_historyテーブルを読む
+      (どのマイグレーションが実行済みか追跡)
 
-  ディスク上の新ファイル: V5__create_invitations.sql
-  → FlywayがV5が履歴にないことを検知
-  → V5を実行
-  → V5を履歴テーブルに記録
+   2. ディスク上のマイグレーションファイルと比較
+
+   3. 新しいマイグレーションを順番に適用
+
+flyway_schema_historyテーブル:
+
+  version   description             success
+
+  1         create_users_table      true
+  2         create_tenants_table    true
+  3         create_memberships      true
+  4         create_sessions         true
+
+ディスク上の新ファイル: V5__create_invitations.sql
+→ FlywayがV5が履歴にないことを検知
+→ V5を実行
+→ V5を履歴テーブルに記録
 ```
 
 ### マイグレーションファイルの例
@@ -107,26 +104,20 @@ CREATE TABLE invitations (
 
 ### マイグレーションのライフサイクル
 
-```
-  開発者が V7__add_phone_to_users.sql を書く
-       │
-       ▼
-  ローカルでテスト（アプリ起動時にFlywayが実行）
-       │
-       ▼
-  gitにコミット＋プッシュ
-       │
-       ▼
-  CI/CDパイプラインがテスト実行（テストDBでFlywayが実行）
-       │
-       ▼
-  ステージングにデプロイ（ステージングDBでFlywayが実行）
-       │
-       ▼
-  本番にデプロイ（本番DBでFlywayが実行）
-       │
-       ▼
-  V7がすべての環境に同一に適用される
+```text
+開発者が V7__add_phone_to_users.sql を書く
+
+ローカルでテスト（アプリ起動時にFlywayが実行）
+
+gitにコミット＋プッシュ
+
+CI/CDパイプラインがテスト実行（テストDBでFlywayが実行）
+
+ステージングにデプロイ（ステージングDBでFlywayが実行）
+
+本番にデプロイ（本番DBでFlywayが実行）
+
+V7がすべての環境に同一に適用される
 ```
 
 ---

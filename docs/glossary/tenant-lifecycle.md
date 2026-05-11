@@ -23,8 +23,8 @@ Each transition needs clear rules about what happens to members, sessions, data,
 
 ## A simple example
 
-```
-[Created] ──── normal usage ────> [Active]
+```text
+[Created]      normal usage     > [Active]
                                      |
                            admin suspends
                                      |

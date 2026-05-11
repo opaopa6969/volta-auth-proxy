@@ -43,67 +43,53 @@ Multi-tenancy is the architectural foundation that makes SaaS possible. Getting 
 
 There are three main approaches to keeping tenant data separate:
 
-```
-  Strategy 1: Row-Level Isolation (what volta uses)
-  ═════════════════════════════════════════════════
+```text
+Strategy 1: Row-Level Isolation (what volta uses)
 
-  One database, one schema, all tenants share the same tables.
-  Every row has a tenant_id column.
+One database, one schema, all tenants share the same tables.
+Every row has a tenant_id column.
 
-  ┌─────────────────────────────────────────────┐
-  │  items table                                 │
-  │  ┌────────────┬───────────┬────────────────┐ │
-  │  │ tenant_id  │ id        │ data           │ │
-  │  ├────────────┼───────────┼────────────────┤ │
-  │  │ acme-uuid  │ item-1    │ ACME's data    │ │
-  │  │ acme-uuid  │ item-2    │ ACME's data    │ │
-  │  │ globex-uuid│ item-3    │ Globex's data  │ │
-  │  │ globex-uuid│ item-4    │ Globex's data  │ │
-  │  └────────────┴───────────┴────────────────┘ │
-  └─────────────────────────────────────────────┘
+   items table
 
-  Every query MUST include WHERE tenant_id = ?
-  If you forget, you leak data across tenants.
+     tenant_id    id          data
 
-  Pros: Simple, efficient, easy to manage
-  Cons: One bug = data leak, no physical isolation
+     acme-uuid    item-1      ACME's data
+     acme-uuid    item-2      ACME's data
+     globex-uuid  item-3      Globex's data
+     globex-uuid  item-4      Globex's data
 
+Every query MUST include WHERE tenant_id = ?
+If you forget, you leak data across tenants.
 
-  Strategy 2: Schema-Level Isolation
-  ═══════════════════════════════════
+Pros: Simple, efficient, easy to manage
+Cons: One bug = data leak, no physical isolation
 
-  One database, separate schema per tenant.
+Strategy 2: Schema-Level Isolation
 
-  ┌──────────────────────────────────┐
-  │  Database: volta_db               │
-  │                                   │
-  │  Schema: acme                     │
-  │  ┌──────────────────────────┐    │
-  │  │ items: ACME's data only  │    │
-  │  └──────────────────────────┘    │
-  │                                   │
-  │  Schema: globex                   │
-  │  ┌──────────────────────────┐    │
-  │  │ items: Globex's data only│    │
-  │  └──────────────────────────┘    │
-  └──────────────────────────────────┘
+One database, separate schema per tenant.
 
-  Pros: Stronger isolation, easier data export/deletion
-  Cons: Schema migrations run N times, connection management complex
+   Database: volta_db
 
+   Schema: acme
 
-  Strategy 3: Database-Level Isolation
-  ═════════════════════════════════════
+     items: ACME's data only
 
-  Separate database per tenant.
+   Schema: globex
 
-  ┌─────────────────┐  ┌─────────────────┐
-  │ DB: acme_db      │  │ DB: globex_db    │
-  │ items: ACME data │  │ items: Globex    │
-  └─────────────────┘  └─────────────────┘
+     items: Globex's data only
 
-  Pros: Strongest isolation, easy per-tenant backup/restore
-  Cons: Expensive, hard to manage at scale, cross-tenant queries impossible
+Pros: Stronger isolation, easier data export/deletion
+Cons: Schema migrations run N times, connection management complex
+
+Strategy 3: Database-Level Isolation
+
+Separate database per tenant.
+
+  DB: acme_db           DB: globex_db
+  items: ACME data      items: Globex
+
+Pros: Strongest isolation, easy per-tenant backup/restore
+Cons: Expensive, hard to manage at scale, cross-tenant queries impossible
 ```
 
 volta uses **row-level isolation**. This is the most common choice for SaaS applications because it is the simplest and scales well. The trade-off is that application code must always include tenant_id in queries.
@@ -112,49 +98,47 @@ volta uses **row-level isolation**. This is the most common choice for SaaS appl
 
 When a request comes in, volta needs to figure out which tenant the user is accessing. It uses a 4-level priority:
 
-```
-  Priority 1: Session cookie (highest priority)
-  ─────────────────────────────────────────────
-  If the user has an active session with a tenant_id,
-  use that tenant. This handles the common case.
+```text
+Priority 1: Session cookie (highest priority)
 
-  Priority 2: URL subdomain
-  ─────────────────────────
-  If the URL is wiki.acme.example.com, look up "acme"
-  in the tenant_domains table.
+If the user has an active session with a tenant_id,
+use that tenant. This handles the common case.
 
-  Priority 3: Email domain
-  ─────────────────────────
-  If the user logs in with taro@acme.com, look up
-  "acme.com" in the tenant_domains table.
+Priority 2: URL subdomain
 
-  Exception: "free email" domains are excluded:
-  gmail.com, outlook.com, yahoo.com, yahoo.co.jp,
-  hotmail.com, icloud.com, protonmail.com
+If the URL is wiki.acme.example.com, look up "acme"
+in the tenant_domains table.
 
-  Priority 4: Manual selection / invitation
-  ──────────────────────────────────────────
-  If none of the above match, show the user:
-  - An invitation code input screen
-  - Or a tenant selection screen (if they belong to multiple)
+Priority 3: Email domain
+
+If the user logs in with taro@acme.com, look up
+"acme.com" in the tenant_domains table.
+
+Exception: "free email" domains are excluded:
+gmail.com, outlook.com, yahoo.com, yahoo.co.jp,
+hotmail.com, icloud.com, protonmail.com
+
+Priority 4: Manual selection / invitation
+
+If none of the above match, show the user:
+- An invitation code input screen
+- Or a tenant selection screen (if they belong to multiple)
 ```
 
 ### Multiple tenant membership
 
 volta allows one user to belong to multiple tenants with different roles:
 
-```
-  User: taro@example.com
+```text
+User: taro@example.com
 
-  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-  │ Tenant: ACME     │  │ Tenant: Globex   │  │ Tenant: Initech  │
-  │ Role: OWNER      │  │ Role: MEMBER     │  │ Role: VIEWER     │
-  └──────────────────┘  └──────────────────┘  └──────────────────┘
+  Tenant: ACME          Tenant: Globex        Tenant: Initech
+  Role: OWNER           Role: MEMBER          Role: VIEWER
 
-  Taro can switch between tenants via:
-  - GET /select-tenant (UI)
-  - POST /auth/switch-tenant (API)
-  - Volta.switchTenant("globex-uuid") (SDK)
+Taro can switch between tenants via:
+- GET /select-tenant (UI)
+- POST /auth/switch-tenant (API)
+- Volta.switchTenant("globex-uuid") (SDK)
 ```
 
 ---
@@ -163,31 +147,28 @@ volta allows one user to belong to multiple tenants with different roles:
 
 ### Tenant data model
 
-```
-  tenants table:
-  ┌─────────────────────────────────────────────┐
-  │  id:       UUID                              │
-  │  name:     "ACME Corp"                       │
-  │  slug:     "acme" (URL-friendly identifier)  │
-  │  plan:     "pro" (for future billing)        │
-  │  status:   "active" | "suspended"            │
-  └─────────────────────────────────────────────┘
+```text
+tenants table:
 
-  tenant_domains table:
-  ┌─────────────────────────────────────────────┐
-  │  tenant_id:  acme-uuid                       │
-  │  domain:     "acme.com"                      │
-  │  verified:   true                            │
-  └─────────────────────────────────────────────┘
+   id:       UUID
+   name:     "ACME Corp"
+   slug:     "acme" (URL-friendly identifier)
+   plan:     "pro" (for future billing)
+   status:   "active" | "suspended"
 
-  memberships table:
-  ┌─────────────────────────────────────────────┐
-  │  user_id:    taro-uuid                       │
-  │  tenant_id:  acme-uuid                       │
-  │  role:       "ADMIN"                         │
-  │  active:     true                            │
-  │  joined_at:  2026-03-31T09:00:00Z            │
-  └─────────────────────────────────────────────┘
+tenant_domains table:
+
+   tenant_id:  acme-uuid
+   domain:     "acme.com"
+   verified:   true
+
+memberships table:
+
+   user_id:    taro-uuid
+   tenant_id:  acme-uuid
+   role:       "ADMIN"
+   active:     true
+   joined_at:  2026-03-31T09:00:00Z
 ```
 
 ### Tenant isolation enforcement

@@ -18,30 +18,28 @@ volta-auth-proxy's frontend SDK (volta.js) is written in vanilla JavaScript -- a
 
 Frameworks have costs that are often invisible:
 
-```
-  Framework approach:
-  ┌──────────────────────────────────────────────┐
-  │  Your auth code:        ~50 lines            │
-  │  + React:               ~140 KB (minified)   │
-  │  + React DOM:           ~120 KB              │
-  │  + Auth library:        ~45 KB               │
-  │  + Bundler (webpack):   build step required  │
-  │  + node_modules:        200+ packages        │
-  │  ──────────────────────────────────────────   │
-  │  Total: 305+ KB, 200+ dependencies,          │
-  │         complex build pipeline               │
-  └──────────────────────────────────────────────┘
+```text
+Framework approach:
 
-  Vanilla approach (volta.js):
-  ┌──────────────────────────────────────────────┐
-  │  volta.js:              ~150 lines, ~4 KB    │
-  │  Dependencies:          0                    │
-  │  Build step:            none                 │
-  │  node_modules:          none                 │
-  │  ──────────────────────────────────────────   │
-  │  Total: 4 KB, 0 dependencies,               │
-  │         just a <script> tag                  │
-  └──────────────────────────────────────────────┘
+   Your auth code:        ~50 lines
+   + React:               ~140 KB (minified)
+   + React DOM:           ~120 KB
+   + Auth library:        ~45 KB
+   + Bundler (webpack):   build step required
+   + node_modules:        200+ packages
+
+   Total: 305+ KB, 200+ dependencies,
+          complex build pipeline
+
+Vanilla approach (volta.js):
+
+   volta.js:              ~150 lines, ~4 KB
+   Dependencies:          0
+   Build step:            none
+   node_modules:          none
+
+   Total: 4 KB, 0 dependencies,
+          just a <script> tag
 ```
 
 Key benefits of vanilla JS:
@@ -88,34 +86,31 @@ container.innerHTML = `
 
 ### volta.js structure
 
-```
-  volta.js (~150 lines):
-  ┌──────────────────────────────────────────────┐
-  │                                               │
-  │  const Volta = {                              │
-  │                                               │
-  │    // Check if user is logged in              │
-  │    async me() { ... }                         │
-  │                                               │
-  │    // Redirect to login page                  │
-  │    login() { ... }                            │
-  │                                               │
-  │    // Log the user out                        │
-  │    async logout() { ... }                     │
-  │                                               │
-  │    // Refresh the session                     │
-  │    async refresh() { ... }                    │
-  │                                               │
-  │    // Fetch with auto-retry on 401            │
-  │    async fetch(url, options) { ... }          │
-  │                                               │
-  │    // Initialize: check session, set up       │
-  │    // auto-refresh                            │
-  │    async init(config) { ... }                 │
-  │                                               │
-  │  };                                           │
-  │                                               │
-  └──────────────────────────────────────────────┘
+```text
+volta.js (~150 lines):
+
+   const Volta = {
+
+     // Check if user is logged in
+     async me() { ... }
+
+     // Redirect to login page
+     login() { ... }
+
+     // Log the user out
+     async logout() { ... }
+
+     // Refresh the session
+     async refresh() { ... }
+
+     // Fetch with auto-retry on 401
+     async fetch(url, options) { ... }
+
+     // Initialize: check session, set up
+     // auto-refresh
+     async init(config) { ... }
+
+   };
 ```
 
 ### Using volta.js in any framework
@@ -163,25 +158,23 @@ volta.js is the official client-side SDK for volta-auth-proxy. It handles:
 
 ### How volta.js handles authentication
 
-```
-  ┌──────────────────────────────────────────────┐
-  │  Volta.init()                                 │
-  │  │                                            │
-  │  ├── Call /auth/me                            │
-  │  │   ├── 200 → User is logged in              │
-  │  │   │        → Call onLogin(user)             │
-  │  │   │        → Start auto-refresh timer       │
-  │  │   │                                        │
-  │  │   └── 401 → User is not logged in          │
-  │  │            → Call onLogout()                │
-  │  │                                            │
-  │  └── Set up Volta.fetch() with retry logic    │
-  │      │                                        │
-  │      ├── Call /api/something                   │
-  │      ├── If 401 → try /auth/refresh            │
-  │      │           → retry original request      │
-  │      └── If still 401 → call onLogout()        │
-  └──────────────────────────────────────────────┘
+```text
+Volta.init()
+
+    Call /auth/me
+        200 → User is logged in
+             → Call onLogin(user)
+             → Start auto-refresh timer
+
+        401 → User is not logged in
+             → Call onLogout()
+
+    Set up Volta.fetch() with retry logic
+
+        Call /api/something
+        If 401 → try /auth/refresh
+                → retry original request
+        If still 401 → call onLogout()
 ```
 
 ### Why volta chose vanilla JS over a framework

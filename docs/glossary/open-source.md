@@ -16,20 +16,18 @@ It's OK not to know this! Open source is a concept, not a technology. Once you u
 
 Think about recipes:
 
-```
-  Closed source (proprietary):        Open source:
+```text
+Closed source (proprietary):        Open source:
 
-  ┌─────────────────────┐             ┌─────────────────────┐
-  │  SECRET Recipe       │             │  PUBLIC Recipe       │
-  │                      │             │                      │
-  │  Coca-Cola's formula │             │  Your grandmother's  │
-  │  is locked in a      │             │  cookie recipe that  │
-  │  vault. You can      │             │  she shares with     │
-  │  buy the drink,      │             │  everyone. Anyone    │
-  │  but you can't see   │             │  can make it, change │
-  │  how it's made or    │             │  it, or improve it.  │
-  │  make your own.      │             │                      │
-  └─────────────────────┘             └─────────────────────┘
+   SECRET Recipe                        PUBLIC Recipe
+
+   Coca-Cola's formula                  Your grandmother's
+   is locked in a                       cookie recipe that
+   vault. You can                       she shares with
+   buy the drink,                       everyone. Anyone
+   but you can't see                    can make it, change
+   how it's made or                     it, or improve it.
+   make your own.
 ```
 
 Open source software is like grandma's cookie recipe: anyone can read it, use it, modify it, and share their improvements with others.

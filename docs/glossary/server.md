@@ -16,22 +16,18 @@ It's OK not to know this! You interact with servers every single day without rea
 
 Think of a restaurant:
 
-```
-  ┌──────────────────────────────────────────────────┐
-  │                                                  │
-  │   Customers          Kitchen                     │
-  │   (browsers)         (server)                    │
-  │                                                  │
-  │   "I'd like a   -->  Receives order              │
-  │    pizza!"            Makes the pizza             │
-  │                       Sends it back               │
-  │   "Here's your  <--                              │
-  │    pizza!"                                       │
-  │                                                  │
-  │   The kitchen doesn't decide when to cook.       │
-  │   It WAITS for orders, then responds.            │
-  │                                                  │
-  └──────────────────────────────────────────────────┘
+```text
+Customers          Kitchen
+(browsers)         (server)
+
+"I'd like a   -->  Receives order
+ pizza!"            Makes the pizza
+                    Sends it back
+"Here's your  <--
+ pizza!"
+
+The kitchen doesn't decide when to cook.
+It WAITS for orders, then responds.
 ```
 
 A server works exactly like this kitchen:

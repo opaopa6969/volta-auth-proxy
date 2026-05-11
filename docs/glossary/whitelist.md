@@ -18,25 +18,23 @@ In volta-auth-proxy, whitelists are used to restrict cryptographic algorithms, r
 
 Blacklisting (blocking known bad things) is a losing game:
 
-```
-  Blacklist approach (fragile):
-  ┌─────────────────────────────────────────┐
-  │  Block: HS256 (weak algorithm)          │
-  │  Block: none  (no-algorithm attack)     │
-  │  Block: HS384 (HMAC confusion attack)   │
-  │  Block: ???   (next vulnerability?)     │
-  │                                         │
-  │  Problem: you must know every bad thing │
-  │  in advance. Miss one → compromised.    │
-  └─────────────────────────────────────────┘
+```text
+Blacklist approach (fragile):
 
-  Whitelist approach (robust):
-  ┌─────────────────────────────────────────┐
-  │  Allow: RS256 (and ONLY RS256)          │
-  │                                         │
-  │  Everything else is automatically denied│
-  │  including attacks not yet invented.    │
-  └─────────────────────────────────────────┘
+   Block: HS256 (weak algorithm)
+   Block: none  (no-algorithm attack)
+   Block: HS384 (HMAC confusion attack)
+   Block: ???   (next vulnerability?)
+
+   Problem: you must know every bad thing
+   in advance. Miss one → compromised.
+
+Whitelist approach (robust):
+
+   Allow: RS256 (and ONLY RS256)
+
+   Everything else is automatically denied
+   including attacks not yet invented.
 ```
 
 A whitelist is inherently safer because it denies the unknown. New attack vectors are blocked by default without any updates.
@@ -47,17 +45,12 @@ A whitelist is inherently safer because it denies the unknown. New attack vector
 
 ### The principle
 
-```
-  ┌───────────────────────────────────────────────┐
-  │                                               │
-  │    Input ──► Is it on the whitelist? ──► YES  │
-  │                      │                   │    │
-  │                      │                 ALLOW  │
-  │                      │                        │
-  │                      ▼                        │
-  │                     NO ──────────────► DENY   │
-  │                                               │
-  └───────────────────────────────────────────────┘
+```text
+Input   > Is it on the whitelist?   > YES
+
+                                    ALLOW
+
+                 NO               > DENY
 ```
 
 ### Whitelist vs blacklist comparison
@@ -118,20 +111,19 @@ public AuthPrincipal verify(String token) {
 
 This prevents the "algorithm confusion" attack where an attacker changes the JWT `alg` header to `HS256` or `none`:
 
-```
-  Attack: Algorithm confusion
-  ┌─────────────────────────────────────────────────┐
-  │  Attacker crafts JWT with alg: "none"            │
-  │  Signature: (empty)                              │
-  │                                                   │
-  │  Without whitelist:                               │
-  │    volta sees alg=none → skips verification       │
-  │    → Attacker has valid token!                    │
-  │                                                   │
-  │  With whitelist:                                  │
-  │    volta sees alg=none → NOT in [RS256]           │
-  │    → REJECT immediately                           │
-  └─────────────────────────────────────────────────┘
+```text
+Attack: Algorithm confusion
+
+   Attacker crafts JWT with alg: "none"
+   Signature: (empty)
+
+   Without whitelist:
+     volta sees alg=none → skips verification
+     → Attacker has valid token!
+
+   With whitelist:
+     volta sees alg=none → NOT in [RS256]
+     → REJECT immediately
 ```
 
 ### Redirect URL whitelist

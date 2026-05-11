@@ -27,14 +27,14 @@ You do not give each person a list of 50 individual permissions. Instead, you gi
 
 volta uses a simple hierarchy of four roles. "Hierarchy" means that higher roles automatically include all the permissions of lower roles:
 
-```
-  OWNER   (highest -- can do everything)
-    │
-  ADMIN   (can manage people and settings)
-    │
-  MEMBER  (normal usage)
-    │
-  VIEWER  (read-only, lowest)
+```text
+OWNER   (highest -- can do everything)
+
+ADMIN   (can manage people and settings)
+
+MEMBER  (normal usage)
+
+VIEWER  (read-only, lowest)
 ```
 
 Here is what each role can do:
@@ -130,27 +130,25 @@ Your app can read this token to make its own permission decisions. For example, 
 
 ## A simple example
 
-```
-  ACME Corp workspace has three members:
+```text
+ACME Corp workspace has three members:
 
-  ┌──────────────────────────────────────────┐
-  │ Yuki   - OWNER  - Created the workspace │
-  │ Kenji  - ADMIN  - Manages the team      │
-  │ Mika   - MEMBER - Regular user          │
-  │ Client - VIEWER - External consultant   │
-  └──────────────────────────────────────────┘
+  Yuki   - OWNER  - Created the workspace
+  Kenji  - ADMIN  - Manages the team
+  Mika   - MEMBER - Regular user
+  Client - VIEWER - External consultant
 
-  Scenario: Client tries to edit a wiki page
-  → volta: "Client is a VIEWER. Viewers have read-only access."
-  → Result: The edit is blocked.
+Scenario: Client tries to edit a wiki page
+→ volta: "Client is a VIEWER. Viewers have read-only access."
+→ Result: The edit is blocked.
 
-  Scenario: Mika tries to remove Kenji from the workspace
-  → volta: "Mika is a MEMBER. Only ADMIN or OWNER can remove members."
-  → Result: The action is blocked.
+Scenario: Mika tries to remove Kenji from the workspace
+→ volta: "Mika is a MEMBER. Only ADMIN or OWNER can remove members."
+→ Result: The action is blocked.
 
-  Scenario: Kenji tries to make himself an OWNER
-  → volta: "Kenji is an ADMIN. Only OWNERs can promote to OWNER."
-  → Result: The action is blocked.
+Scenario: Kenji tries to make himself an OWNER
+→ volta: "Kenji is an ADMIN. Only OWNERs can promote to OWNER."
+→ Result: The action is blocked.
 ```
 
 ---

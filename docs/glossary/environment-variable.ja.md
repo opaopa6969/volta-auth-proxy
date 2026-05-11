@@ -35,32 +35,32 @@
 
 その理由：
 
-```
-  ダメな例（シークレットがコード内）：
-  ─────────────────────────────────
-  // database.js
-  const password = "super-secret-password-123";
-  db.connect("localhost", "volta", password);
+```text
+ダメな例（シークレットがコード内）：
 
-  問題：
-  1. コードを読んだ誰もがパスワードを見える
-  2. GitHubにプッシュしたら全世界に見える
-  3. 開発と本番で異なるパスワードが必要
-  4. パスワード変更にはコード変更と再デプロイが必要
+// database.js
+const password = "super-secret-password-123";
+db.connect("localhost", "volta", password);
+
+問題：
+1. コードを読んだ誰もがパスワードを見える
+2. GitHubにプッシュしたら全世界に見える
+3. 開発と本番で異なるパスワードが必要
+4. パスワード変更にはコード変更と再デプロイが必要
 ```
 
-```
-  良い例（シークレットが環境変数）：
-  ─────────────────────────────────
-  // database.js
-  const password = process.env.DB_PASSWORD;
-  db.connect("localhost", "volta", password);
+```text
+良い例（シークレットが環境変数）：
 
-  メリット：
-  1. コードにシークレットが含まれない
-  2. GitHubにプッシュしても安全
-  3. 異なる環境で異なる値を使う
-  4. 変数を変えるだけでパスワード変更、コード変更不要
+// database.js
+const password = process.env.DB_PASSWORD;
+db.connect("localhost", "volta", password);
+
+メリット：
+1. コードにシークレットが含まれない
+2. GitHubにプッシュしても安全
+3. 異なる環境で異なる値を使う
+4. 変数を変えるだけでパスワード変更、コード変更不要
 ```
 
 ---

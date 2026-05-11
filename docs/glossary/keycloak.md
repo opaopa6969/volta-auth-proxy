@@ -39,13 +39,12 @@ If your requirement is "I need a fully featured identity server that implements 
 
 Keycloak is built on the Quarkus framework (previously WildFly) and requires significant resources:
 
-```
-  Keycloak:                          volta-auth-proxy:
-  ┌────────────────────┐             ┌────────────────────┐
-  │  RAM: ~512MB+      │             │  RAM: ~30MB        │
-  │  Startup: ~30s     │             │  Startup: ~200ms   │
-  │  Docker image: big │             │  Docker image: small│
-  └────────────────────┘             └────────────────────┘
+```text
+Keycloak:                          volta-auth-proxy:
+
+   RAM: ~512MB+                       RAM: ~30MB
+   Startup: ~30s                      Startup: ~200ms
+   Docker image: big                  Docker image: small
 ```
 
 For a small SaaS that just needs "Google login + multi-tenancy," Keycloak is like using a bulldozer to plant a flower.

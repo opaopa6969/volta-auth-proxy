@@ -16,23 +16,22 @@ Think of it like a Swiss Army knife vs a full toolbox. The Swiss Army knife has 
 
 The alternative is multiple processes communicating over the network:
 
-```
+```text
 Single process (volta):
-┌─────────────────────────────────┐
-│ volta-auth-proxy                 │
-│                                 │
-│ [OIDC] → [Session] → [JWT]     │
-│          → [ForwardAuth]        │
-│          → [Internal API]       │
-│                                 │
-│ All method calls. No network.   │
-└─────────────────────────────────┘
+
+  volta-auth-proxy
+
+  [OIDC] → [Session] → [JWT]
+           → [ForwardAuth]
+           → [Internal API]
+
+  All method calls. No network.
 
 Multiple processes (e.g., Ory stack):
-┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
-│ Kratos   │──►│ Hydra    │──►│ Keto     │──►│ Oathkeeper│
-│ (identity)│   │ (OAuth)  │   │ (perms)  │   │ (proxy)   │
-└──────────┘   └──────────┘   └──────────┘   └──────────┘
+
+  Kratos      >  Hydra       >  Keto        >  Oathkeeper
+  (identity)      (OAuth)        (perms)        (proxy)
+
   HTTP calls between processes. Each can fail independently.
 ```
 

@@ -45,14 +45,14 @@
 
 サブドメインは volta のマルチテナント設計の中核です：
 
-```
-  example.com                    （ベースドメイン）
-  ├── auth.example.com           （volta-auth-proxy）
-  ├── app.example.com            （SaaS アプリ）
-  │   ├── acme.app.example.com   （テナント: ACME Corp）
-  │   ├── globex.app.example.com （テナント: Globex Inc）
-  │   └── initech.app.example.com（テナント: Initech）
-  └── api.example.com            （API サーバー）
+```text
+example.com                    （ベースドメイン）
+    auth.example.com           （volta-auth-proxy）
+    app.example.com            （SaaS アプリ）
+        acme.app.example.com   （テナント: ACME Corp）
+        globex.app.example.com （テナント: Globex Inc）
+        initech.app.example.com（テナント: Initech）
+    api.example.com            （API サーバー）
 ```
 
 **サブドメインによるテナント解決：**

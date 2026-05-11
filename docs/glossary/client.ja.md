@@ -29,39 +29,29 @@
 
 ### クライアント-サーバーモデル
 
-```
-  クライアント                          サーバー
-  ──────                               ──────
-  リクエスト送信 ─────────────────────> リクエスト処理
-                                       データベース読み取り
-                                       ビジネスロジック適用
-  レスポンス受信 <───────────────────── レスポンス送信
+```text
+クライアント                          サーバー
+
+リクエスト送信                      > リクエスト処理
+                                     データベース読み取り
+                                     ビジネスロジック適用
+レスポンス受信 <                      レスポンス送信
 ```
 
 ### Web開発におけるクライアントの種類
 
-```
-  ┌─────────────────────────────────────────────────────────┐
-  │                     クライアント                         │
-  │                                                          │
-  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐ │
-  │  │ ブラウザ  │  │ モバイル │  │ 別の     │  │ CLI    │  │
-  │  │ (Chrome, │  │ アプリ   │  │ サーバー │  │ ツール  │  │
-  │  │  Firefox)│  │ (iOS,    │  │ (マイクロ│  │ (curl, │  │
-  │  │          │  │  Android)│  │  サービス)│  │ httpie)│  │
-  │  └─────┬────┘  └─────┬────┘  └─────┬────┘  └────┬───┘ │
-  │        │              │              │            │      │
-  └────────┼──────────────┼──────────────┼────────────┼──────┘
-           │              │              │            │
-           └──────────────┴──────┬───────┴────────────┘
-                                 │
-                          HTTPリクエスト
-                                 │
-                                 ▼
-                    ┌─────────────────────┐
-                    │  volta-auth-proxy   │
-                    │  （サーバー）        │
-                    └─────────────────────┘
+```text
+                 クライアント
+
+ブラウザ       モバイル      別の          CLI
+(Chrome,      アプリ        サーバー      ツール
+ Firefox)     (iOS,         (マイクロ     (curl,
+               Android)      サービス)     httpie)
+
+                   HTTPリクエスト
+
+                volta-auth-proxy
+                （サーバー）
 ```
 
 ### 異なるクライアントがvoltaでどう認証するか
@@ -82,62 +72,61 @@
 
 ユーザーがvoltaログインページを開くと、ブラウザがクライアントです：
 
-```
-  ブラウザ（クライアント）            volta（サーバー）
-  ────────────────                    ──────────────
-  GET /auth/login  ──────────────────> ログインHTMLページを返す
-                   <──────────────────
+```text
+ブラウザ（クライアント）            volta（サーバー）
 
-  ユーザーが「Googleでサインイン」をクリック
-  GET /auth/callback?code=... ───────> GoogleでコードSを検証
-                                       セッションを作成
-                   <────────────────── Set-Cookie: JSESSIONID=abc
-                                       /dashboardにリダイレクト
+GET /auth/login                    > ログインHTMLページを返す
+
+ユーザーが「Googleでサインイン」をクリック
+GET /auth/callback?code=...        > GoogleでコードSを検証
+                                     セッションを作成
+                 <                   Set-Cookie: JSESSIONID=abc
+                                     /dashboardにリダイレクト
 ```
 
 ### SPAクライアントに対するサーバーとしてのvolta
 
 [SPA](spa.md)がvoltaのAPIを呼ぶとき：
 
-```
-  SPA（クライアント）                 volta（サーバー）
-  ────────────                        ──────────────
-  GET /api/v1/users/me
-  Cookie: JSESSIONID=abc  ──────────> セッションを検証
-                                      データベースでユーザーを検索
-                          <────────── 200 OK {"userId":"...","name":"Taro"}
+```text
+SPA（クライアント）                 volta（サーバー）
+
+GET /api/v1/users/me
+Cookie: JSESSIONID=abc            > セッションを検証
+                                    データベースでユーザーを検索
+                        <           200 OK {"userId":"...","name":"Taro"}
 ```
 
 ### Traefik（別のサーバーがクライアント）に対するサーバーとしてのvolta
 
 [ForwardAuth](forwardauth.md)パターンでは、Traefikがクライアントです：
 
-```
-  Traefik（クライアント）             volta（サーバー）
-  ────────────────                    ──────────────
-  GET /forwardauth
-  X-Forwarded-Uri: /app/dashboard
-  Cookie: JSESSIONID=abc  ──────────> セッションを検証
-                          <────────── 200 OK
-                                      X-Volta-User-Id: 550e...
-                                      X-Volta-Tenant-Id: abcd...
-                                      X-Volta-Roles: ADMIN
+```text
+Traefik（クライアント）             volta（サーバー）
+
+GET /forwardauth
+X-Forwarded-Uri: /app/dashboard
+Cookie: JSESSIONID=abc            > セッションを検証
+                        <           200 OK
+                                    X-Volta-User-Id: 550e...
+                                    X-Volta-Tenant-Id: abcd...
+                                    X-Volta-Roles: ADMIN
 ```
 
 ### Googleに対するクライアントとしてのvolta
 
 voltaは常にサーバーというわけではありません。[OIDC](oidc.md)認証を行う際、voltaはGoogleのサーバーに対するクライアントとして動作します：
 
-```
-  volta（クライアント）               Google（サーバー）
-  ──────────────                      ────────────────
-  POST /token
-  code=xyz&redirect_uri=...  ────────> 認可コードを検証
-                             <──────── id_token + access_tokenを返す
+```text
+volta（クライアント）               Google（サーバー）
 
-  GET /userinfo
-  Authorization: Bearer ... ─────────> ユーザープロフィールを返す
-                            <────────── {"email":"taro@example.com",...}
+POST /token
+code=xyz&redirect_uri=...          > 認可コードを検証
+                           <         id_token + access_tokenを返す
+
+GET /userinfo
+Authorization: Bearer ...          > ユーザープロフィールを返す
+                          <           {"email":"taro@example.com",...}
 ```
 
 これが示すのは、クライアントとサーバーは固定された性質ではなく**役割**だということです。同じプログラムがあるやり取りではクライアント、別のやり取りではサーバーになれます。
@@ -150,17 +139,17 @@ voltaは常にサーバーというわけではありません。[OIDC](oidc.md)
 
 クライアントは送信内容を制御します。偽のヘッダー、改変されたリクエストボディ、偽造されたCookieを送れます。サーバーはすべてを検証しなければなりません：
 
-```
-  決して信頼しない:
-  ├── X-Forwarded-Forヘッダー（クライアントがIPを偽装できる）
-  ├── User-Agentヘッダー（クライアントが何にでも偽装できる）
-  ├── リクエストボディの値（クライアントが任意のJSONを送れる）
-  └── クエリパラメータ（クライアントがURLを変更できる）
+```text
+決して信頼しない:
+    X-Forwarded-Forヘッダー（クライアントがIPを偽装できる）
+    User-Agentヘッダー（クライアントが何にでも偽装できる）
+    リクエストボディの値（クライアントが任意のJSONを送れる）
+    クエリパラメータ（クライアントがURLを変更できる）
 
-  常にサーバーで検証する:
-  ├── セッションCookie（暗号的に検証）
-  ├── JWT署名（RS256検証）
-  └── データベースからのロール（リクエストからではなく）
+常にサーバーで検証する:
+    セッションCookie（暗号的に検証）
+    JWT署名（RS256検証）
+    データベースからのロール（リクエストからではなく）
 ```
 
 ### 攻撃1：クライアントのなりすまし

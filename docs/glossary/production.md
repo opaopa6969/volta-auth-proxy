@@ -28,21 +28,19 @@ Most projects have at least three environments: **development** (your laptop), *
 
 ### Environment comparison
 
-```
-  ┌──────────────────────────────────────────────────────────┐
-  │                    Environments                          │
-  ├──────────────┬──────────────┬──────────────┬─────────────┤
-  │              │ Development  │  Staging     │ Production   │
-  ├──────────────┼──────────────┼──────────────┼─────────────┤
-  │ Users        │ Just you     │ QA team      │ Everyone     │
-  │ Data         │ Fake/seed    │ Fake/copy    │ Real         │
-  │ URL          │ localhost    │ staging.x    │ app.x.com    │
-  │ DB           │ Local PG     │ Shared PG    │ Managed PG   │
-  │ Secrets      │ Test keys    │ Test keys    │ Real keys    │
-  │ Errors       │ Stack traces │ Stack traces │ User-friendly│
-  │ Logging      │ DEBUG        │ INFO         │ WARN/ERROR   │
-  │ If it breaks │ ¯\_(ツ)_/¯   │ Fix later    │ FIX NOW      │
-  └──────────────┴──────────────┴──────────────┴─────────────┘
+```text
+                   Environments
+
+               Development     Staging       Production
+
+Users          Just you       QA team        Everyone
+Data           Fake/seed      Fake/copy      Real
+URL            localhost      staging.x      app.x.com
+DB             Local PG       Shared PG      Managed PG
+Secrets        Test keys      Test keys      Real keys
+Errors         Stack traces   Stack traces   User-friendly
+Logging        DEBUG          INFO           WARN/ERROR
+If it breaks   ¯\_(ツ)_/¯     Fix later      FIX NOW
 ```
 
 ### What makes production different
@@ -70,15 +68,14 @@ In development, you read logs in your terminal. In production, you need:
 
 **4. Security hardening**
 
-```
-  Development:                    Production:
-  ┌───────────────────┐          ┌────────────────────────┐
-  │ HTTP (no TLS)     │          │ HTTPS (TLS required)   │
-  │ CORS: allow all   │          │ CORS: specific origins │
-  │ Debug endpoints   │          │ Debug disabled         │
-  │ Weak secrets      │          │ Strong rotated secrets │
-  │ No rate limiting  │          │ Rate limiting enabled  │
-  └───────────────────┘          └────────────────────────┘
+```text
+Development:                    Production:
+
+  HTTP (no TLS)                  HTTPS (TLS required)
+  CORS: allow all                CORS: specific origins
+  Debug endpoints                Debug disabled
+  Weak secrets                   Strong rotated secrets
+  No rate limiting               Rate limiting enabled
 ```
 
 ---
@@ -115,28 +112,19 @@ Before going live, verify:
 
 ### Production architecture
 
-```
-  DNS: auth.yourdomain.com
-          │
-          ▼
-  ┌──────────────┐
-  │   Traefik     │  ← TLS termination
-  │   (reverse    │  ← ForwardAuth to volta
-  │    proxy)     │  ← Routes to downstream apps
-  └──────┬───────┘
-         │
-         ▼
-  ┌──────────────────┐
-  │ volta-auth-proxy  │  ← Validates sessions
-  │                    │  ← Issues JWTs
-  │                    │  ← Sets X-Volta-* headers
-  └────────┬─────────┘
-           │
-           ▼
-  ┌──────────────────┐
-  │    PostgreSQL     │  ← Users, tenants, sessions,
-  │                    │     roles, invitations
-  └──────────────────┘
+```text
+DNS: auth.yourdomain.com
+
+    Traefik        ← TLS termination
+    (reverse       ← ForwardAuth to volta
+     proxy)        ← Routes to downstream apps
+
+  volta-auth-proxy     ← Validates sessions
+                        ← Issues JWTs
+                        ← Sets X-Volta-* headers
+
+     PostgreSQL        ← Users, tenants, sessions,
+                           roles, invitations
 ```
 
 ---

@@ -42,44 +42,39 @@ For early-stage startups, compliance is a spectrum. You do not need SOC 2 on day
 
 ### How compliance works in practice
 
-```
-  Step 1: Identify which regulations apply
-          ┌──────────────────────────┐
-          │ Do you store EU user     │
-          │ data? ──► GDPR applies   │
-          │                          │
-          │ Do you sell to US        │
-          │ enterprises? ──► SOC 2   │
-          │                          │
-          │ Do you process           │
-          │ payments? ──► PCI DSS    │
-          │                          │
-          │ Healthcare data?         │
-          │ ──► HIPAA               │
-          └──────────────────────────┘
-              │
-              ▼
-  Step 2: Gap analysis
-          What do you already do?
-          What are you missing?
-              │
-              ▼
-  Step 3: Implement controls
-          - Technical (encryption, access control, logging)
-          - Procedural (policies, training, incident response)
-          - Documentation (evidence collection)
-              │
-              ▼
-  Step 4: Verify / audit
-          - Self-assessment (GDPR)
-          - Third-party audit (SOC 2, ISO 27001)
-          - Certification body (PCI DSS)
-              │
-              ▼
-  Step 5: Maintain continuously
-          Compliance is not a one-time event.
-          Annual audits, ongoing monitoring,
-          policy updates as regulations change.
+```text
+Step 1: Identify which regulations apply
+
+          Do you store EU user
+          data?   > GDPR applies
+
+          Do you sell to US
+          enterprises?   > SOC 2
+
+          Do you process
+          payments?   > PCI DSS
+
+          Healthcare data?
+            > HIPAA
+
+Step 2: Gap analysis
+        What do you already do?
+        What are you missing?
+
+Step 3: Implement controls
+        - Technical (encryption, access control, logging)
+        - Procedural (policies, training, incident response)
+        - Documentation (evidence collection)
+
+Step 4: Verify / audit
+        - Self-assessment (GDPR)
+        - Third-party audit (SOC 2, ISO 27001)
+        - Certification body (PCI DSS)
+
+Step 5: Maintain continuously
+        Compliance is not a one-time event.
+        Annual audits, ongoing monitoring,
+        policy updates as regulations change.
 ```
 
 ### GDPR essentials for SaaS

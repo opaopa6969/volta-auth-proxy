@@ -47,29 +47,29 @@ Without integrating billing and auth, you end up with users who have access they
 
 Stripe communicates changes to your application through **webhooks** -- HTTP POST requests sent to a URL you configure. This is an event-driven architecture:
 
-```
-  Stripe                          Your Server (volta)
-  ======                          ===================
+```text
+Stripe                          Your Server (volta)
+======                          ===================
 
-  Customer upgrades plan
-       │
-       ├──► Webhook: customer.subscription.updated
-       │         { subscription: { plan: "pro", status: "active" } }
-       │
-       │                          Receive webhook
-       │                          Verify signature
-       │                          Update tenant plan in DB
-       │                          Return 200 OK
-       │
-  Payment fails
-       │
-       ├──► Webhook: invoice.payment_failed
-       │         { customer: "cus_xxx", attempt: 3 }
-       │
-       │                          Receive webhook
-       │                          Mark tenant as "payment_failed"
-       │                          Restrict access (grace period)
-       │                          Send notification
+Customer upgrades plan
+
+        > Webhook: customer.subscription.updated
+               { subscription: { plan: "pro", status: "active" } }
+
+                                Receive webhook
+                                Verify signature
+                                Update tenant plan in DB
+                                Return 200 OK
+
+Payment fails
+
+        > Webhook: invoice.payment_failed
+               { customer: "cus_xxx", attempt: 3 }
+
+                                Receive webhook
+                                Mark tenant as "payment_failed"
+                                Restrict access (grace period)
+                                Send notification
 ```
 
 ### Common webhook events
@@ -113,22 +113,19 @@ volta-auth-proxy ingests Stripe webhooks to synchronize billing state with authe
 
 ### Integration architecture
 
-```
-  Stripe Cloud
-       │
-       │  Webhooks (HTTPS POST)
-       ▼
-  ┌──────────────────┐
-  │  volta-auth-proxy │
-  │                   │
-  │  /webhook/stripe  │  ← Receives events
-  │       │           │
-  │       ▼           │
-  │  Verify signature │
-  │  Update tenant DB │
-  │  Adjust features  │
-  │  Notify if needed │
-  └──────────────────┘
+```text
+Stripe Cloud
+
+        Webhooks (HTTPS POST)
+
+   volta-auth-proxy
+
+   /webhook/stripe     ← Receives events
+
+   Verify signature
+   Update tenant DB
+   Adjust features
+   Notify if needed
 ```
 
 ### What volta does with Stripe data

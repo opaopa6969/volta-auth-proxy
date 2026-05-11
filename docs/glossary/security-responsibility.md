@@ -36,26 +36,25 @@ Everything is fresh. You review volta's code, understand the auth flow, and depl
 
 GitHub's Dependabot flags that `io.jsonwebtoken:jjwt-impl` has a new version. Is it a security fix? You check the release notes. It is a minor fix for a specific JWT parsing edge case. You decide to update. You test. You deploy.
 
-```
-  Dependabot alert:
-  ┌──────────────────────────────────────────────────────┐
-  │ jjwt-impl 0.12.5 → 0.12.6                           │
-  │ Severity: Moderate                                   │
-  │ "Fixed: JWT with specific malformed header could     │
-  │  bypass signature verification in rare cases"        │
-  └──────────────────────────────────────────────────────┘
+```text
+Dependabot alert:
 
-  Your response:
-  1. Read the CVE details (30 minutes)
-  2. Assess impact on your system (1 hour)
-  3. Update pom.xml (5 minutes)
-  4. Run tests (10 minutes)
-  5. Deploy to staging (30 minutes)
-  6. Verify in staging (1 hour)
-  7. Deploy to production (30 minutes)
-  8. Verify in production (30 minutes)
+  jjwt-impl 0.12.5 → 0.12.6
+  Severity: Moderate
+  "Fixed: JWT with specific malformed header could
+   bypass signature verification in rare cases"
 
-  Total: ~4 hours of focused security work
+Your response:
+1. Read the CVE details (30 minutes)
+2. Assess impact on your system (1 hour)
+3. Update pom.xml (5 minutes)
+4. Run tests (10 minutes)
+5. Deploy to staging (30 minutes)
+6. Verify in staging (1 hour)
+7. Deploy to production (30 minutes)
+8. Verify in production (30 minutes)
+
+Total: ~4 hours of focused security work
 ```
 
 With Auth0, this is zero hours for you. Their team handles it.
@@ -98,31 +97,29 @@ Time: 4-8 hours of research and evaluation.
 
 Auth0 at 100,000 MAU costs approximately $2,400/month ($28,800/year). What does that buy?
 
-```
-  What $28,800/year buys from Auth0:
-  ┌────────────────────────────────────────────────┐
-  │ ✓ 24/7 security monitoring                     │
-  │ ✓ Automatic dependency patching                 │
-  │ ✓ Incident response team                       │
-  │ ✓ SOC 2 Type II compliance                     │
-  │ ✓ Regular penetration testing                   │
-  │ ✓ DDoS protection                              │
-  │ ✓ Uptime SLA                                   │
-  │ ✓ Vulnerability disclosure program             │
-  │ ✓ Security research team                       │
-  └────────────────────────────────────────────────┘
+```text
+What $28,800/year buys from Auth0:
 
-  What $0/year with volta requires from YOU:
-  ┌────────────────────────────────────────────────┐
-  │ ✓ Monitor dependency vulnerabilities            │
-  │ ✓ Apply patches promptly                       │
-  │ ✓ Respond to security incidents                │
-  │ ✓ Conduct or commission pen testing            │
-  │ ✓ Set up DDoS protection (Cloudflare, etc.)    │
-  │ ✓ Monitor uptime                               │
-  │ ✓ Review security advisories                   │
-  │ ✓ Keep auth protocol knowledge current          │
-  └────────────────────────────────────────────────┘
+  ✓ 24/7 security monitoring
+  ✓ Automatic dependency patching
+  ✓ Incident response team
+  ✓ SOC 2 Type II compliance
+  ✓ Regular penetration testing
+  ✓ DDoS protection
+  ✓ Uptime SLA
+  ✓ Vulnerability disclosure program
+  ✓ Security research team
+
+What $0/year with volta requires from YOU:
+
+  ✓ Monitor dependency vulnerabilities
+  ✓ Apply patches promptly
+  ✓ Respond to security incidents
+  ✓ Conduct or commission pen testing
+  ✓ Set up DDoS protection (Cloudflare, etc.)
+  ✓ Monitor uptime
+  ✓ Review security advisories
+  ✓ Keep auth protocol knowledge current
 ```
 
 This is the trade-off. $28,800/year to have someone else worry, or $0/year plus your team's time and attention. Neither option is objectively better. It depends on your team's capabilities and priorities.

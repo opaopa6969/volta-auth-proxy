@@ -52,16 +52,21 @@ Python/Node/Go チームは [Java](glossary/java.md) のプロキシを保守し
 
 ## マーケットポジション
 
-```
-              フル機能 →
-        ┌────────────────────────────┐
-        │ Keycloak   Auth0   WorkOS  │
-セルフ   │ ZITADEL    Clerk           │ クラウド
-ホスト   │                            │ のみ
-        │ ★ volta-auth-proxy         │
-        │                            │
-        └────────────────────────────┘
-              最小構成 →
+```mermaid
+quadrantChart
+    title マーケットポジション
+    x-axis 最小構成 --> フル機能
+    y-axis セルフホスト --> クラウドのみ
+    quadrant-1 "クラウド / フル機能"
+    quadrant-2 "クラウド / 最小構成"
+    quadrant-3 "セルフホスト / 最小構成"
+    quadrant-4 "セルフホスト / フル機能"
+    "volta-auth-proxy (★)": [0.15, 0.15]
+    "Keycloak": [0.85, 0.10]
+    "ZITADEL": [0.75, 0.15]
+    "Auth0": [0.85, 0.90]
+    "Clerk": [0.60, 0.90]
+    "WorkOS": [0.80, 0.90]
 ```
 
 volta は**セルフホスト × [最小構成](glossary/minimum-viable-architecture.ja.md)**。最も軽く、最も制御しやすい選択肢。[トレードオフ](../docs/glossary/tradeoff.ja.md): [セキュリティの責任](glossary/security-responsibility.ja.md)は自分で負う。

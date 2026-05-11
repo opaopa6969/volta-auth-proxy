@@ -24,36 +24,24 @@ Oathkeeperを理解することで、volta-auth-proxyが既存のプロキシを
 
 Oathkeeperは4つのステージのパイプラインでリクエストを処理します：
 
-```
-  受信リクエスト
-       │
-       ▼
-  ┌──────────────────┐
-  │ 1. Authenticator  │  「あなたは誰？」
-  │    (cookie,       │  JWT検証、Cookie確認、API呼び出しなど
-  │     jwt, oauth2,  │
-  │     anonymous...) │
-  └──────────────────┘
-       │
-       ▼
-  ┌──────────────────┐
-  │ 2. Authorizer     │  「許可されているか？」
-  │    (allow, deny,  │  Ory Ketoで権限確認、または静的な許可/拒否
-  │     keto_engine)  │
-  └──────────────────┘
-       │
-       ▼
-  ┌──────────────────┐
-  │ 3. Mutator        │  「ダウンストリームに何を見せるか？」
-  │    (header, cookie,│  X-User-Idヘッダー追加、JWT発行、Cookie設定
-  │     id_token...)  │
-  └──────────────────┘
-       │
-       ▼
-  ┌──────────────────┐
-  │ 4. Error Handler  │  「失敗時にどうするか？」
-  │    (redirect, json)│  ログインにリダイレクト、401 JSON返却など
-  └──────────────────┘
+```text
+受信リクエスト
+
+  1. Authenticator     「あなたは誰？」
+     (cookie,          JWT検証、Cookie確認、API呼び出しなど
+      jwt, oauth2,
+      anonymous...)
+
+  2. Authorizer        「許可されているか？」
+     (allow, deny,     Ory Ketoで権限確認、または静的な許可/拒否
+      keto_engine)
+
+  3. Mutator           「ダウンストリームに何を見せるか？」
+     (header, cookie,   X-User-Idヘッダー追加、JWT発行、Cookie設定
+      id_token...)
+
+  4. Error Handler     「失敗時にどうするか？」
+     (redirect, json)   ログインにリダイレクト、401 JSON返却など
 ```
 
 各ステージはルールごとに設定されます。1つのOathkeeperデプロイメントに何百ものルールがあり、それぞれ異なるauthenticator、authorizer、mutatorを持つことができます。
@@ -82,27 +70,25 @@ Oathkeeperは4つのステージのパイプラインでリクエストを処理
 
 Oathkeeper自体はユーザー認証を処理しません。Ory Kratos（アイデンティティ/ログイン）、Ory Hydra（OAuth2/OIDC）、Ory Keto（権限）に委譲します。Oryスタック全体を運用するには4つの別々のサービスを操作することを意味します：
 
-```
-  Oryスタック（完全版）：
-  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-  │ Oathkeeper   │  │ Kratos       │  │ Hydra        │  │ Keto         │
-  │ (プロキシ)   │  │ (ID管理)     │  │ (OAuth2)     │  │ (権限)       │
-  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘
-       +                  +                 +                  +
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │ PostgreSQL（共有または別々のデータベース）                          │
-  └─────────────────────────────────────────────────────────────────────┘
+```text
+Oryスタック（完全版）：
 
-  voltaスタック：
-  ┌──────────────┐
-  │ volta-auth-  │
-  │ proxy        │
-  │ (すべて)     │
-  └──────────────┘
-       +
-  ┌──────────────┐
-  │ PostgreSQL   │
-  └──────────────┘
+  Oathkeeper        Kratos            Hydra             Keto
+  (プロキシ)        (ID管理)          (OAuth2)          (権限)
+
+     +                  +                 +                  +
+
+  PostgreSQL（共有または別々のデータベース）
+
+voltaスタック：
+
+  volta-auth-
+  proxy
+  (すべて)
+
+     +
+
+  PostgreSQL
 ```
 
 voltaはすべてを1つのプロセスに収めることを選びました。デプロイするもの1つ、監視するもの1つ、理解するもの1つ。

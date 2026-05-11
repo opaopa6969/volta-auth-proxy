@@ -69,23 +69,18 @@ A service without a health check is like a car without a dashboard -- it might r
 
 ### How orchestrators use health checks
 
-```
-  Docker Compose / Kubernetes
-         │
-         │  Every 10 seconds:
-         │  GET /healthz
-         │
-         ▼
-  ┌──────────────────────┐
-  │  Health check passes │──► Service is healthy
-  │  (HTTP 200)          │    Continue routing traffic
-  └──────────────────────┘
+```text
+Docker Compose / Kubernetes
 
-  ┌──────────────────────┐
-  │  Health check fails  │──► 3 consecutive failures?
-  │  (timeout/5xx/no     │    ├── Yes: Restart container
-  │   response)          │    └── No:  Try again next interval
-  └──────────────────────┘
+          Every 10 seconds:
+          GET /healthz
+
+   Health check passes    > Service is healthy
+   (HTTP 200)               Continue routing traffic
+
+   Health check fails     > 3 consecutive failures?
+   (timeout/5xx/no              Yes: Restart container
+    response)                   No:  Try again next interval
 ```
 
 ### Health check configuration in Docker

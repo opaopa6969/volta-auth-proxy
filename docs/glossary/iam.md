@@ -26,37 +26,37 @@ As a beginner, the most important thing is to understand that IAM is the big pic
 
 ### The IAM landscape
 
-```
-  IAM (the big umbrella)
-  ├── Authentication ("Who are you?")
-  │   ├── Passwords
-  │   ├── OIDC / OAuth (social login, SSO)
-  │   ├── SAML (enterprise SSO)
-  │   ├── MFA (multi-factor)
-  │   ├── WebAuthn / Passkeys
-  │   └── Certificates
-  │
-  ├── Authorization ("What can you do?")
-  │   ├── RBAC (role-based access control)
-  │   ├── ABAC (attribute-based access control)
-  │   ├── ACL (access control lists)
-  │   └── Policy engines (OPA, Cedar)
-  │
-  ├── User Management
-  │   ├── Registration / signup
-  │   ├── Profile management
-  │   ├── Password reset
-  │   └── Account deactivation
-  │
-  ├── Session Management
-  │   ├── Cookies / tokens
-  │   ├── Session expiry
-  │   └── Concurrent session limits
-  │
-  └── Audit / Compliance
-      ├── Login logs
-      ├── Access logs
-      └── Compliance reporting
+```text
+IAM (the big umbrella)
+    Authentication ("Who are you?")
+        Passwords
+        OIDC / OAuth (social login, SSO)
+        SAML (enterprise SSO)
+        MFA (multi-factor)
+        WebAuthn / Passkeys
+        Certificates
+
+    Authorization ("What can you do?")
+        RBAC (role-based access control)
+        ABAC (attribute-based access control)
+        ACL (access control lists)
+        Policy engines (OPA, Cedar)
+
+    User Management
+        Registration / signup
+        Profile management
+        Password reset
+        Account deactivation
+
+    Session Management
+        Cookies / tokens
+        Session expiry
+        Concurrent session limits
+
+    Audit / Compliance
+        Login logs
+        Access logs
+        Compliance reporting
 ```
 
 ---

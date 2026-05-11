@@ -45,11 +45,11 @@ Without SSL/TLS:
 
 volta requires HTTPS in production for all external communication:
 
-```
-  Browser ──HTTPS──> Reverse Proxy ──HTTP──> volta ──HTTP──> PostgreSQL
-  ▲                  ▲                       ▲
-  encrypted          unencrypted but         private network,
-  (public internet)  isolated network        no internet access
+```text
+Browser   HTTPS  > Reverse Proxy   HTTP  > volta   HTTP  > PostgreSQL
+
+encrypted          unencrypted but         private network,
+(public internet)  isolated network        no internet access
 ```
 
 Where SSL/TLS is used:

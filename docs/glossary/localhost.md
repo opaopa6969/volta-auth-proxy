@@ -48,21 +48,15 @@ No matter what computer you're on, `localhost` always points to THAT computer. I
 
 ## Why test on localhost first?
 
-```
-  ┌─────────────────────────────────────────────────────┐
-  │                                                     │
-  │  Step 1: Build and test on localhost                │
-  │          (just you, safe to make mistakes)           │
-  │                    │                                │
-  │                    ▼                                │
-  │  Step 2: Show teammates on a staging server         │
-  │          (small group, still private)                │
-  │                    │                                │
-  │                    ▼                                │
-  │  Step 3: Deploy to production                       │
-  │          (everyone can use it!)                      │
-  │                                                     │
-  └─────────────────────────────────────────────────────┘
+```text
+Step 1: Build and test on localhost
+        (just you, safe to make mistakes)
+
+Step 2: Show teammates on a staging server
+        (small group, still private)
+
+Step 3: Deploy to production
+        (everyone can use it!)
 ```
 
 Testing on localhost is safe because:

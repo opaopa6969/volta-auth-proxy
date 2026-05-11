@@ -35,91 +35,90 @@ OIDCはOAuth 2.0（[oauth2.md](oauth2.md)参照）の上に構築されていま
 
 これが最も一般的で最も安全なOIDCフローです。volta-auth-proxyが使用しているのもこのフローです。
 
-```
-  あなた（ブラウザ）          volta-auth-proxy             Google
-  ================          ================             ======
+```text
+あなた（ブラウザ）          volta-auth-proxy             Google
+================          ================             ======
 
-  1. 「ログイン」をクリック
-  ──────────────────────►  2. 以下を生成：
-                               - state（ランダム、CSRF防止用）
-                               - nonce（ランダム、リプレイ防止用）
-                               - code_verifier + code_challenge（PKCE）
-                              DBに保存
+1. 「ログイン」をクリック
+                      >  2. 以下を生成：
+                             - state（ランダム、CSRF防止用）
+                             - nonce（ランダム、リプレイ防止用）
+                             - code_verifier + code_challenge（PKCE）
+                            DBに保存
 
-                           3. ブラウザをGoogleにリダイレクト：
-  ◄────── 302 リダイレクト ──────
-       Location: https://accounts.google.com/o/oauth2/v2/auth
-               ?response_type=code
-               &client_id=YOUR_CLIENT_ID
-               &redirect_uri=http://localhost:7070/callback
-               &scope=openid email profile
-               &state=ランダムな値
-               &nonce=ランダムな値
-               &code_challenge=チャレンジ値
-               &code_challenge_method=S256
+                         3. ブラウザをGoogleにリダイレクト：
+<       302 リダイレクト
+     Location: https://accounts.google.com/o/oauth2/v2/auth
+             ?response_type=code
+             &client_id=YOUR_CLIENT_ID
+             &redirect_uri=http://localhost:7070/callback
+             &scope=openid email profile
+             &state=ランダムな値
+             &nonce=ランダムな値
+             &code_challenge=チャレンジ値
+             &code_challenge_method=S256
 
-  4. ブラウザがリダイレクトに従う
-  ──────────────────────────────────────────────────────►
-                                                          5. Googleが
-                                                            「アカウント選択」
-                                                             画面を表示
-  6. ユーザーがGoogleアカウントを選択
-  ──────────────────────────────────────────────────────►
-                                                          7. Googleが
-                                                             ユーザーを検証
+4. ブラウザがリダイレクトに従う
 
-                                                          8. Googleが
-                                                             CODEと一緒に
-                                                             リダイレクトバック：
-  ◄──────────────────────────────────────────────────────
-       Location: http://localhost:7070/callback
-               ?code=認可コード
-               &state=ランダムな値
+                                                        5. Googleが
+                                                          「アカウント選択」
+                                                           画面を表示
+6. ユーザーがGoogleアカウントを選択
 
-  9. ブラウザがvoltaのコールバックにアクセス
-  ──────────────────────►
-                          10. voltaがcode + stateを受け取る
-                              - stateが保存したものと一致するか検証
-                              - codeをトークンに交換（サーバー間通信）：
+                                                        7. Googleが
+                                                           ユーザーを検証
 
-                              POST https://oauth2.googleapis.com/token
-                              ──────────────────────────────────────────►
-                                body: code=認可コード
-                                      &client_id=YOUR_CLIENT_ID
-                                      &client_secret=YOUR_SECRET
-                                      &redirect_uri=コールバックURL
-                                      &grant_type=authorization_code
-                                      &code_verifier=元のverifier
+                                                        8. Googleが
+                                                           CODEと一緒に
+                                                           リダイレクトバック：
 
-                                                          11. Googleが検証：
-                                                              - codeが有効か
-                                                              - code_verifierが
-                                                                challengeと一致か
-                                                              - client_secretが
-                                                                正しいか
+     Location: http://localhost:7070/callback
+             ?code=認可コード
+             &state=ランダムな値
 
-                              ◄──────────────────────────────────────────
-                                { "id_token": "eyJhbGci...",
-                                  "access_token": "ya29..." }
+9. ブラウザがvoltaのコールバックにアクセス
 
-                          12. voltaがid_tokenを検証：
-                              - 署名を確認（RS256、Googleの公開鍵）
-                              - 発行者 = accounts.google.com か
-                              - audience = 自分のclient_id か
-                              - nonceが保存したものと一致するか
-                              - email_verified = true か
-                              - 期限切れでないか
+                        10. voltaがcode + stateを受け取る
+                            - stateが保存したものと一致するか検証
+                            - codeをトークンに交換（サーバー間通信）：
 
-                          13. 身元情報を抽出：
-                              email: jane@example.com
-                              name: Jane Smith
-                              google_sub: 1234567890
+                            POST https://oauth2.googleapis.com/token
 
-                          14. DBでユーザーを作成または検索
-                          15. セッションを作成
-                          16. volta JWTを発行
+                              body: code=認可コード
+                                    &client_id=YOUR_CLIENT_ID
+                                    &client_secret=YOUR_SECRET
+                                    &redirect_uri=コールバックURL
+                                    &grant_type=authorization_code
+                                    &code_verifier=元のverifier
 
-  ◄────── セッションCookieをセット + アプリにリダイレクト ──────
+                                                        11. Googleが検証：
+                                                            - codeが有効か
+                                                            - code_verifierが
+                                                              challengeと一致か
+                                                            - client_secretが
+                                                              正しいか
+
+                              { "id_token": "eyJhbGci...",
+                                "access_token": "ya29..." }
+
+                        12. voltaがid_tokenを検証：
+                            - 署名を確認（RS256、Googleの公開鍵）
+                            - 発行者 = accounts.google.com か
+                            - audience = 自分のclient_id か
+                            - nonceが保存したものと一致するか
+                            - email_verified = true か
+                            - 期限切れでないか
+
+                        13. 身元情報を抽出：
+                            email: jane@example.com
+                            name: Jane Smith
+                            google_sub: 1234567890
+
+                        14. DBでユーザーを作成または検索
+                        15. セッションを作成
+                        16. volta JWTを発行
+
+<       セッションCookieをセット + アプリにリダイレクト
 ```
 
 ステップが多いですが、それぞれに意味があります：
@@ -132,26 +131,22 @@ OIDCはOAuth 2.0（[oauth2.md](oauth2.md)参照）の上に構築されていま
 
 ### OAuth 2.0との関係
 
-```
-  ┌─────────────────────────────────────────────┐
-  │              OAuth 2.0                       │
-  │                                              │
-  │  「このユーザーに何を許可する？」              │
-  │  （認可）                                     │
-  │                                              │
-  │  access_tokenを発行して                       │
-  │  ユーザーの代わりにAPIを呼べるようにする       │
-  │                                              │
-  │  ┌───────────────────────────────────────┐   │
-  │  │         OpenID Connect (OIDC)         │   │
-  │  │                                       │   │
-  │  │  「このユーザーは誰？」                │   │
-  │  │  （認証）                              │   │
-  │  │                                       │   │
-  │  │  OAuth 2.0にid_tokenを追加して         │   │
-  │  │  身元情報（メール、名前）を提供         │   │
-  │  └───────────────────────────────────────┘   │
-  └─────────────────────────────────────────────┘
+```text
+            OAuth 2.0
+
+「このユーザーに何を許可する？」
+（認可）
+
+access_tokenを発行して
+ユーザーの代わりにAPIを呼べるようにする
+
+          OpenID Connect (OIDC)
+
+   「このユーザーは誰？」
+   （認証）
+
+   OAuth 2.0にid_tokenを追加して
+   身元情報（メール、名前）を提供
 ```
 
 OAuth 2.0単体ではユーザーが**誰か**は分かりません。何かをする**許可**が得られるだけです。OIDCはその上にアイデンティティ層を追加し、id_token（JWT -- [jwt.md](jwt.md)参照）を使います。

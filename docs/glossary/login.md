@@ -48,22 +48,22 @@ volta does NOT handle passwords itself. It delegates [authentication](authentica
 
 The login flow in volta:
 
-```
-  Browser                    volta-auth-proxy              Google
-  ──────                     ──────────────────            ──────
-  1. Visit /auth/login ──────>
-                             2. Generate state + nonce
-                             3. Redirect to Google ──────>
-                                                          4. User signs in
-                                                          5. Google redirects back
-                             <────── with authorization code
-                             6. Exchange code for tokens
-                             7. Verify id_token (OIDC)
-                             8. Create/update user record
-                             9. Create session
-                             10. Set __volta_session cookie
-  <────── Redirect to app
-  11. Logged in!
+```text
+Browser                    volta-auth-proxy              Google
+
+1. Visit /auth/login       >
+                           2. Generate state + nonce
+                           3. Redirect to Google       >
+                                                        4. User signs in
+                                                        5. Google redirects back
+                           <       with authorization code
+                           6. Exchange code for tokens
+                           7. Verify id_token (OIDC)
+                           8. Create/update user record
+                           9. Create session
+                           10. Set __volta_session cookie
+<       Redirect to app
+11. Logged in!
 ```
 
 Key security measures during login:

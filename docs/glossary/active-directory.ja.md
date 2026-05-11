@@ -30,25 +30,15 @@ volta-auth-proxyにとってこれが重要な理由：
 
 ### オンプレミスAD（AD DS）
 
-```
-  ┌─────────────────────────────────────┐
-  │     企業ネットワーク                  │
-  │                                      │
-  │  ┌──────────────────────┐           │
-  │  │  ドメインコントローラー  │           │
-  │  │  （Active Directory）  │           │
-  │  │                       │           │
-  │  │  ユーザー、グループ、   │           │
-  │  │  コンピュータ、ポリシー │           │
-  │  └──────────┬────────────┘           │
-  │             │ LDAP / Kerberos        │
-  │             │                        │
-  │  ┌──────────┼────────────┐          │
-  │  │          │             │          │
-  │  ▼          ▼             ▼          │
-  │ Windows   ファイル     プリンター     │
-  │ PC        サーバー                    │
-  └─────────────────────────────────────┘
+```mermaid
+flowchart TD
+    DC["ドメインコントローラー<br/>(Active Directory)<br/>ユーザー、グループ、<br/>コンピュータ、ポリシー"]
+    PC[Windows PC]
+    FS[ファイルサーバー]
+    PR[プリンター]
+    DC -->|LDAP / Kerberos| PC
+    DC -->|LDAP / Kerberos| FS
+    DC -->|LDAP / Kerberos| PR
 ```
 
 主要プロトコル：
@@ -62,21 +52,15 @@ volta-auth-proxyにとってこれが重要な理由：
 
 ### クラウド：Microsoft Entra ID（Azure AD）
 
-```
-  ┌───────────────────────────────────────────┐
-  │          Microsoft Entra ID（クラウド）     │
-  │                                            │
-  │  ユーザー、グループ、アプリ登録             │
-  │  条件付きアクセスポリシー                   │
-  │  MFA、ID保護                               │
-  │                                            │
-  │     SAML / OIDC / SCIM                     │
-  │         │         │         │              │
-  └─────────┼─────────┼─────────┼──────────────┘
-            │         │         │
-            ▼         ▼         ▼
-         Microsoft  Salesforce  あなたのSaaS
-         365                    （volta経由）
+```mermaid
+flowchart TD
+    Entra["Microsoft Entra ID（クラウド）<br/>ユーザー、グループ、アプリ登録<br/>条件付きアクセスポリシー<br/>MFA、ID保護"]
+    M365["Microsoft 365"]
+    SF["Salesforce"]
+    SaaS["あなたのSaaS（volta経由）"]
+    Entra -->|SAML / OIDC / SCIM| M365
+    Entra -->|SAML / OIDC / SCIM| SF
+    Entra -->|SAML / OIDC / SCIM| SaaS
 ```
 
 ### ハイブリッド：AD Connect
@@ -102,24 +86,17 @@ volta-auth-proxyは**Phase 3**で、SAMLおよび/またはOIDCを使用してMi
 
 ### 統合アーキテクチャ（Phase 3）
 
-```
-  従業員 ──► volta-auth-proxy
-                  │
-                  │  SAML または OIDC
-                  ▼
-            Microsoft Entra ID
-                  │
-                  │  ユーザーを認証
-                  │  返却：メール、グループ、テナント情報
-                  │
-                  ▼
-            volta-auth-proxy
-                  │
-                  ├── Entraグループをvoltaロールにマッピング
-                  ├── voltaテナントを解決
-                  ├── ユーザーを作成/更新
-                  ├── セッションを作成
-                  └── volta JWTを発行
+```mermaid
+sequenceDiagram
+    participant E as 従業員
+    participant V as volta-auth-proxy
+    participant Entra as Microsoft Entra ID
+    E->>V: 保護リソースへアクセス
+    V->>Entra: SAML または OIDC リダイレクト
+    Entra->>Entra: ユーザーを認証
+    Entra-->>V: メール、グループ、テナント情報を返却
+    V->>V: Entra グループを volta ロールにマッピング<br/>volta テナントを解決<br/>ユーザーを作成/更新<br/>セッションを作成<br/>volta JWT を発行
+    V-->>E: 認証済みセッション
 ```
 
 ### SCIM統合（Phase 3+）

@@ -31,84 +31,78 @@ A plain [hash](hash-function.md) (SHA-256 alone) does not solve this because an 
 
 ### HMAC construction
 
-```
-  HMAC-SHA256(key, message):
+```text
+HMAC-SHA256(key, message):
 
-  ┌──────────────────────────────────────────────────┐
-  │  Step 1: Prepare key                             │
-  │  If key > block size: key = SHA256(key)          │
-  │  Pad key to block size (64 bytes for SHA-256)    │
-  │                                                  │
-  │  Step 2: Inner hash                              │
-  │  inner_pad = key XOR 0x36363636...               │
-  │  inner_hash = SHA256(inner_pad + message)        │
-  │                                                  │
-  │  Step 3: Outer hash                              │
-  │  outer_pad = key XOR 0x5C5C5C5C...               │
-  │  hmac = SHA256(outer_pad + inner_hash)           │
-  │                                                  │
-  │  Result: 32-byte (256-bit) authentication code   │
-  └──────────────────────────────────────────────────┘
+   Step 1: Prepare key
+   If key > block size: key = SHA256(key)
+   Pad key to block size (64 bytes for SHA-256)
+
+   Step 2: Inner hash
+   inner_pad = key XOR 0x36363636...
+   inner_hash = SHA256(inner_pad + message)
+
+   Step 3: Outer hash
+   outer_pad = key XOR 0x5C5C5C5C...
+   hmac = SHA256(outer_pad + inner_hash)
+
+   Result: 32-byte (256-bit) authentication code
 ```
 
 ### Why not just hash(key + message)?
 
-```
-  Naive approach: SHA256(key + message)
-  ┌──────────────────────────────────────────────┐
-  │  Problem: Length extension attack             │
-  │  SHA-256 is based on Merkle-Damgard.         │
-  │  Knowing SHA256(key + message), an attacker  │
-  │  can compute SHA256(key + message + extra)   │
-  │  WITHOUT knowing the key!                    │
-  │                                              │
-  │  HMAC prevents this with the double-hash     │
-  │  (inner + outer) construction.               │
-  └──────────────────────────────────────────────┘
+```text
+Naive approach: SHA256(key + message)
+
+   Problem: Length extension attack
+   SHA-256 is based on Merkle-Damgard.
+   Knowing SHA256(key + message), an attacker
+   can compute SHA256(key + message + extra)
+   WITHOUT knowing the key!
+
+   HMAC prevents this with the double-hash
+   (inner + outer) construction.
 ```
 
 ### HMAC vs. RSA signatures
 
-```
-  HMAC (symmetric):
-  ┌──────────────────────────────────────────────┐
-  │  Same key signs AND verifies                 │
-  │  Both parties must share the secret          │
-  │  Fast: ~100x faster than RSA                 │
-  │  Used for: cookie signing, webhooks          │
-  │                                              │
-  │  volta: SecurityUtils.hmacSha256Hex()        │
-  └──────────────────────────────────────────────┘
+```text
+HMAC (symmetric):
 
-  RSA signature (asymmetric):
-  ┌──────────────────────────────────────────────┐
-  │  Private key signs, public key verifies      │
-  │  Only signer needs the private key           │
-  │  Slower, but public key can be shared freely │
-  │  Used for: JWT signing (RS256)               │
-  │                                              │
-  │  volta: JwtService.issueToken()              │
-  └──────────────────────────────────────────────┘
+   Same key signs AND verifies
+   Both parties must share the secret
+   Fast: ~100x faster than RSA
+   Used for: cookie signing, webhooks
+
+   volta: SecurityUtils.hmacSha256Hex()
+
+RSA signature (asymmetric):
+
+   Private key signs, public key verifies
+   Only signer needs the private key
+   Slower, but public key can be shared freely
+   Used for: JWT signing (RS256)
+
+   volta: JwtService.issueToken()
 ```
 
 ### HMAC verification
 
-```
-  Server creates cookie:
-  value = "session-uuid"
-  sig = HMAC-SHA256(secret, value) = "a3f2c8..."
-  cookie = value + "." + sig
+```text
+Server creates cookie:
+value = "session-uuid"
+sig = HMAC-SHA256(secret, value) = "a3f2c8..."
+cookie = value + "." + sig
 
-  Later, server receives cookie:
-  ┌──────────────────────────────────────────┐
-  │  Split cookie → value, provided_sig      │
-  │  Recalculate: expected_sig =             │
-  │    HMAC-SHA256(secret, value)            │
-  │                                          │
-  │  constantTimeEquals(expected, provided)? │
-  │  YES → Cookie is authentic               │
-  │  NO  → Cookie was tampered → reject      │
-  └──────────────────────────────────────────┘
+Later, server receives cookie:
+
+   Split cookie → value, provided_sig
+   Recalculate: expected_sig =
+     HMAC-SHA256(secret, value)
+
+   constantTimeEquals(expected, provided)?
+   YES → Cookie is authentic
+   NO  → Cookie was tampered → reject
 ```
 
 ---

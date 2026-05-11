@@ -84,21 +84,15 @@ public class Example {
 }
 ```
 
-```
-  ┌─────────────────────────────────────────┐
-  │  クラススコープ                           │
-  │  appName = "volta-auth-proxy"            │
-  │                                          │
-  │  ┌───────────────────────────────────┐   │
-  │  │  メソッドスコープ                  │   │
-  │  │  userId = "550e8400-..."           │   │
-  │  │                                    │   │
-  │  │  ┌─────────────────────────────┐   │   │
-  │  │  │  ブロックスコープ            │   │   │
-  │  │  │  parsed = UUID(550e8400...) │   │   │
-  │  │  └─────────────────────────────┘   │   │
-  │  └───────────────────────────────────┘   │
-  └─────────────────────────────────────────┘
+```text
+クラススコープ
+appName = "volta-auth-proxy"
+
+   メソッドスコープ
+   userId = "550e8400-..."
+
+      ブロックスコープ
+      parsed = UUID(550e8400...)
 ```
 
 ### ミュータブル vs イミュータブル変数
@@ -144,16 +138,16 @@ String dbUrl = System.getenv("DATABASE_URL");
 
 voltaはすべての設定をハードコードされた値からではなく、環境変数から読み取ります：
 
-```
-  環境変数                       設定内容
-  ────────────────────          ──────────────────
-  VOLTA_PORT                     HTTPサーバーポート（デフォルト: 7070）
-  GOOGLE_CLIENT_ID               Google OIDCクライアントID
-  GOOGLE_CLIENT_SECRET           Google OIDCクライアントシークレット
-  DATABASE_URL                   PostgreSQL接続文字列
-  SESSION_TIMEOUT                セッション期間（デフォルト: 8h）
-  JWT_EXPIRY                     JWT有効期間（デフォルト: 5m）
-  VOLTA_BASE_URL                 voltaの公開URL
+```text
+環境変数                       設定内容
+
+VOLTA_PORT                     HTTPサーバーポート（デフォルト: 7070）
+GOOGLE_CLIENT_ID               Google OIDCクライアントID
+GOOGLE_CLIENT_SECRET           Google OIDCクライアントシークレット
+DATABASE_URL                   PostgreSQL接続文字列
+SESSION_TIMEOUT                セッション期間（デフォルト: 8h）
+JWT_EXPIRY                     JWT有効期間（デフォルト: 5m）
+VOLTA_BASE_URL                 voltaの公開URL
 ```
 
 これにより、同じJARファイルが環境変数を変えるだけで異なる環境（開発、ステージング、本番）で実行できます。

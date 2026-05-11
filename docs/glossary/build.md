@@ -32,65 +32,59 @@ A build tool like [Maven](maven.md) makes the process **reproducible** -- the sa
 
 ### The build pipeline
 
-```
-  Source Code                   Build Tool (Maven)              Output
-  ───────────                   ──────────────────              ──────
+```text
+Source Code                   Build Tool (Maven)              Output
 
-  src/main/java/*.java    ──>   1. Resolve dependencies   ──>  target/
-  src/main/jte/*.jte      ──>   2. Compile Java source         volta-auth-proxy.jar
-  src/main/resources/*    ──>   3. Compile jte templates        (single fat JAR,
-  src/test/java/*.java    ──>   4. Run unit tests               ~30MB, contains
-  pom.xml                 ──>   5. Run integration tests        everything needed
-                                6. Package into fat JAR         to run)
+src/main/java/*.java      >   1. Resolve dependencies     >  target/
+src/main/jte/*.jte        >   2. Compile Java source         volta-auth-proxy.jar
+src/main/resources/*      >   3. Compile jte templates        (single fat JAR,
+src/test/java/*.java      >   4. Run unit tests               ~30MB, contains
+pom.xml                   >   5. Run integration tests        everything needed
+                              6. Package into fat JAR         to run)
 ```
 
 ### Maven build phases
 
 Maven organizes the build into sequential phases. Each phase includes all previous phases:
 
-```
-  mvn compile     ──>  1. compile (Java + jte templates)
-  mvn test        ──>  1. compile → 2. test
-  mvn package     ──>  1. compile → 2. test → 3. package (create JAR)
-  mvn verify      ──>  1. compile → 2. test → 3. package → 4. verify
-  mvn install     ──>  1. compile → 2. test → 3. package → 4. verify → 5. install to local repo
+```text
+mvn compile       >  1. compile (Java + jte templates)
+mvn test          >  1. compile → 2. test
+mvn package       >  1. compile → 2. test → 3. package (create JAR)
+mvn verify        >  1. compile → 2. test → 3. package → 4. verify
+mvn install       >  1. compile → 2. test → 3. package → 4. verify → 5. install to local repo
 ```
 
 For volta, `mvn package` is the standard build command. It produces the deployable fat JAR.
 
 ### What happens during each phase
 
-```
-  Phase 1: compile
-  ┌─────────────────────────────────────────────────┐
-  │  javac compiles .java files to .class files      │
-  │  jte plugin compiles .jte templates to .class    │
-  │  Resources copied to target/classes/             │
-  │                                                   │
-  │  If ANY file has a type error → BUILD FAILS       │
-  └─────────────────────────────────────────────────┘
-           │
-           ▼
-  Phase 2: test
-  ┌─────────────────────────────────────────────────┐
-  │  JUnit runs all test classes in src/test/java/   │
-  │  Tests verify: auth logic, JWT creation,         │
-  │  role checks, session handling, etc.             │
-  │                                                   │
-  │  If ANY test fails → BUILD FAILS                  │
-  └─────────────────────────────────────────────────┘
-           │
-           ▼
-  Phase 3: package
-  ┌─────────────────────────────────────────────────┐
-  │  maven-shade-plugin creates the fat JAR:         │
-  │  1. Takes all compiled .class files              │
-  │  2. Unpacks all dependency JARs                  │
-  │  3. Merges everything into one JAR               │
-  │  4. Sets Main-Class in MANIFEST.MF               │
-  │                                                   │
-  │  Output: target/volta-auth-proxy.jar             │
-  └─────────────────────────────────────────────────┘
+```text
+Phase 1: compile
+
+   javac compiles .java files to .class files
+   jte plugin compiles .jte templates to .class
+   Resources copied to target/classes/
+
+   If ANY file has a type error → BUILD FAILS
+
+Phase 2: test
+
+   JUnit runs all test classes in src/test/java/
+   Tests verify: auth logic, JWT creation,
+   role checks, session handling, etc.
+
+   If ANY test fails → BUILD FAILS
+
+Phase 3: package
+
+   maven-shade-plugin creates the fat JAR:
+   1. Takes all compiled .class files
+   2. Unpacks all dependency JARs
+   3. Merges everything into one JAR
+   4. Sets Main-Class in MANIFEST.MF
+
+   Output: target/volta-auth-proxy.jar
 ```
 
 ### Build artifacts
@@ -176,22 +170,20 @@ Stage 1 has Maven and the full JDK (large image, ~500MB). Stage 2 has only the J
 
 Maven downloads dependencies from the [Maven Central repository](repository.md) on the first build:
 
-```
-  First build:
-  ┌─────────────────────────────────────────┐
-  │  pom.xml says: need HikariCP 5.1.0      │
-  │  Maven checks: ~/.m2/repository/        │
-  │  Not found → download from Maven Central │
-  │  Cache locally for future builds         │
-  └─────────────────────────────────────────┘
+```text
+First build:
 
-  Subsequent builds:
-  ┌─────────────────────────────────────────┐
-  │  pom.xml says: need HikariCP 5.1.0      │
-  │  Maven checks: ~/.m2/repository/        │
-  │  Found → use cached version              │
-  │  No network needed                       │
-  └─────────────────────────────────────────┘
+   pom.xml says: need HikariCP 5.1.0
+   Maven checks: ~/.m2/repository/
+   Not found → download from Maven Central
+   Cache locally for future builds
+
+Subsequent builds:
+
+   pom.xml says: need HikariCP 5.1.0
+   Maven checks: ~/.m2/repository/
+   Found → use cached version
+   No network needed
 ```
 
 ---

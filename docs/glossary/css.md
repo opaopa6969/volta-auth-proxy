@@ -16,19 +16,18 @@ It's OK not to know this! CSS works behind the scenes to make every website you 
 
 Imagine you have a plain, unpainted house (that's HTML):
 
-```
-  Without CSS (bare HTML):         With CSS (styled):
+```text
+Without CSS (bare HTML):         With CSS (styled):
 
-  ┌──────────────────┐             ┌──────────────────┐
-  │ Welcome           │             │ ✦ Welcome ✦      │
-  │ Click here        │             │                  │
-  │ Some text         │             │ [Click here]     │
-  │                   │             │                  │
-  │                   │             │ Some text in a   │
-  │                   │             │ nice font...     │
-  └──────────────────┘             └──────────────────┘
-    Gray, boring,                     Colors, spacing,
-    everything the same               buttons look nice
+  Welcome                           ✦ Welcome ✦
+  Click here
+  Some text                         [Click here]
+
+                                    Some text in a
+                                    nice font...
+
+  Gray, boring,                     Colors, spacing,
+  everything the same               buttons look nice
 ```
 
 CSS is the interior decorator. It says: "Make the heading blue and big. Put the button in the center. Add some space between paragraphs. Use this nice font."

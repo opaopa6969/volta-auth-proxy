@@ -37,40 +37,22 @@ In volta's world, integration means: how does volta-auth-proxy connect with Trae
 
 ### The integration flow in volta
 
-```
-  ┌──────┐     ┌──────────┐     ┌───────────────┐     ┌──────────┐
-  │Browser│────▶│  Traefik  │────▶│ volta-auth-   │────▶│  Google   │
-  │      │     │          │     │  proxy         │     │  OIDC     │
-  │      │◀────│          │◀────│               │◀────│          │
-  └──────┘     └─────┬────┘     └───────┬───────┘     └──────────┘
-                     │                  │
-                     │                  ▼
-                     │          ┌───────────────┐
-                     │          │  PostgreSQL    │
-                     ▼          └───────────────┘
-               ┌──────────┐
-               │ Your App  │
-               │ (reads    │
-               │ X-Volta-*)│
-               └──────────┘
+```mermaid
+flowchart LR
+    Browser --> Traefik --> Volta[volta-auth-proxy] --> Google[Google OIDC]
+    Volta --> PG[PostgreSQL]
+    Traefik --> App["Your App<br/>(reads X-Volta-*)"]
 ```
 
 ### Integration Point 1: Traefik ForwardAuth
 
 Traefik intercepts every request to your app and asks volta "is this user allowed?"
 
-```
-  Browser → Traefik → volta (ForwardAuth check)
-                         │
-                    ┌────┴────┐
-                    │         │
-                 200 OK    401/403
-                    │         │
-                    ▼         ▼
-            Traefik routes   Traefik returns
-            to your app      error to browser
-            with X-Volta-*
-            headers added
+```mermaid
+flowchart LR
+    Browser --> Traefik --> Volta["volta (ForwardAuth check)"]
+    Volta -->|200 OK| Route["Traefik routes to your app<br/>with X-Volta-* headers added"]
+    Volta -->|401/403| Err[Traefik returns error to browser]
 ```
 
 Traefik configuration (simplified):
@@ -120,12 +102,9 @@ String role     = request.getHeader("X-Volta-Role");
 
 For server-to-server integration, volta exposes an [Internal API](internal-api.md):
 
-```
-  Your Backend ──HTTP──▶ volta Internal API
-                          │
-                          ├─ GET /internal/users/{id}
-                          ├─ GET /internal/tenants/{id}/members
-                          └─ POST /internal/invitations
+```mermaid
+flowchart LR
+    Backend[Your Backend] -->|HTTP| API["volta Internal API<br/>GET /internal/users/{id}<br/>GET /internal/tenants/{id}/members<br/>POST /internal/invitations"]
 ```
 
 ---
@@ -134,29 +113,22 @@ For server-to-server integration, volta exposes an [Internal API](internal-api.m
 
 ### Integration map
 
-```
-  ┌─────────────────────────────────────────────────┐
-  │              volta-auth-proxy                    │
-  │                                                  │
-  │  Integrates with:                               │
-  │                                                  │
-  │  ┌─────────────┐  ┌─────────────┐              │
-  │  │ Google OIDC  │  │ PostgreSQL  │              │
-  │  │ (login)      │  │ (storage)   │              │
-  │  └─────────────┘  └─────────────┘              │
-  │                                                  │
-  │  ┌─────────────┐  ┌─────────────┐              │
-  │  │ Traefik      │  │ Your App    │              │
-  │  │ (ForwardAuth)│  │ (headers/   │              │
-  │  │              │  │  Int. API)  │              │
-  │  └─────────────┘  └─────────────┘              │
-  │                                                  │
-  │  Phase 2:                                       │
-  │  ┌─────────────┐                                │
-  │  │ Redis        │                                │
-  │  │ (sessions)   │                                │
-  │  └─────────────┘                                │
-  └─────────────────────────────────────────────────┘
+```text
+            volta-auth-proxy
+
+Integrates with:
+
+  Google OIDC       PostgreSQL
+  (login)           (storage)
+
+  Traefik           Your App
+  (ForwardAuth)     (headers/
+                     Int. API)
+
+Phase 2:
+
+  Redis
+  (sessions)
 ```
 
 ### What your app needs to integrate with volta

@@ -38,16 +38,14 @@ This creates a directory called `volta-auth-proxy/` containing the full reposito
 
 ### What clone downloads
 
-```
-  Remote (GitHub)                    Your machine (after clone)
-  ───────────────                    ──────────────────────────
-  ┌─────────────────┐               ┌─────────────────┐
-  │ All files        │               │ All files        │  (exact copy)
-  │ All branches     │  git clone    │ All branches     │
-  │ All commits      │ ─────────>   │ All commits      │
-  │ All tags         │               │ All tags         │
-  │                  │               │ .git/ directory  │  (metadata)
-  └─────────────────┘               └─────────────────┘
+```text
+Remote (GitHub)                    Your machine (after clone)
+
+  All files                          All files           (exact copy)
+  All branches        git clone      All branches
+  All commits                 >     All commits
+  All tags                           All tags
+                                     .git/ directory     (metadata)
 ```
 
 ### Clone vs. download ZIP
@@ -69,16 +67,16 @@ Always use `git clone`, never download a ZIP.
 
 After cloning, the repository has a hidden `.git/` directory. This is where git stores all its metadata:
 
-```
-  volta-auth-proxy/
-  ├── .git/                    ← git metadata (DO NOT edit manually)
-  │   ├── objects/             ← every version of every file
-  │   ├── refs/                ← branch and tag pointers
-  │   ├── HEAD                 ← current branch
-  │   └── config               ← remote URL, settings
-  ├── pom.xml                  ← working copy of files
-  ├── src/
-  └── ...
+```text
+volta-auth-proxy/
+    .git/                    ← git metadata (DO NOT edit manually)
+        objects/             ← every version of every file
+        refs/                ← branch and tag pointers
+        HEAD                 ← current branch
+        config               ← remote URL, settings
+    pom.xml                  ← working copy of files
+    src/
+    ...
 ```
 
 ### Clone with SSH vs. HTTPS
@@ -142,22 +140,22 @@ cd volta-auth-proxy
 
 This gives you the complete source code, including:
 
-```
-  After cloning, you have:
-  ├── pom.xml                  → Maven build configuration
-  ├── volta-config.yaml        → Runtime configuration template
-  ├── Dockerfile               → Container build instructions
-  ├── docker-compose.yml       → Local dev environment
-  ├── src/main/java/           → Java source code
-  │   └── dev/volta/
-  │       ├── Main.java        → Application entry point
-  │       ├── JwtService.java  → JWT creation/verification
-  │       └── ...
-  ├── src/main/jte/            → jte templates (login, etc.)
-  ├── src/main/resources/
-  │   └── db/migration/        → Flyway SQL migrations
-  ├── src/test/java/           → Test source code
-  └── docs/glossary/           → This glossary
+```text
+After cloning, you have:
+    pom.xml                  → Maven build configuration
+    volta-config.yaml        → Runtime configuration template
+    Dockerfile               → Container build instructions
+    docker-compose.yml       → Local dev environment
+    src/main/java/           → Java source code
+        dev/volta/
+            Main.java        → Application entry point
+            JwtService.java  → JWT creation/verification
+            ...
+    src/main/jte/            → jte templates (login, etc.)
+    src/main/resources/
+        db/migration/        → Flyway SQL migrations
+    src/test/java/           → Test source code
+    docs/glossary/           → This glossary
 ```
 
 ### Local development with docker-compose

@@ -34,14 +34,12 @@ The current landscape offers two paths, both with significant drawbacks:
 
 volta-auth-proxy takes a third path: **an auth proxy that is also an identity provider**.
 
-```
-Browser → Traefik → volta-auth-proxy (ForwardAuth) → App
-                          │
-                 auth + tenant resolution
-                          │
-              X-Volta-User-Id: abc123
-              X-Volta-Tenant-Id: t456
-              X-Volta-Role: MEMBER
+```mermaid
+flowchart LR
+    Browser --> Traefik
+    Traefik -->|ForwardAuth check| Volta[volta-auth-proxy]
+    Volta -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| Traefik
+    Traefik --> App
 ```
 
 Key design decisions:
@@ -90,16 +88,13 @@ This trust model is shared with all ForwardAuth solutions (Authelia, oauth2-prox
 
 ### 3.1 Architecture
 
-```
-┌─────────┐     ┌──────────┐     ┌──────────────────┐     ┌─────────┐
-│ Browser  │────▶│ Traefik  │────▶│ volta-auth-proxy  │────▶│  App    │
-└─────────┘     │(ForwardAuth)   │  (identity gateway)│     │(headers)│
-                └──────────┘     └──────────────────┘     └─────────┘
-                                       │
-                                 ┌─────┴─────┐
-                                 │ PostgreSQL │  Redis
-                                 │ (identity) │  (sessions)
-                                 └───────────┘
+```mermaid
+flowchart LR
+    Browser --> Traefik["Traefik<br/>(ForwardAuth)"]
+    Traefik --> Volta["volta-auth-proxy<br/>(identity gateway)"]
+    Volta --> App["App (headers)"]
+    Volta --> PG[("PostgreSQL<br/>(identity)")]
+    Volta --> Redis[("Redis<br/>(sessions)")]
 ```
 
 **SPOF consideration**: volta-auth-proxy is a single point of failure — if it goes down, all downstream apps become inaccessible. Mitigation: run multiple instances behind Traefik's load balancer with health checks. Redis-backed sessions enable stateless horizontal scaling.
@@ -164,10 +159,10 @@ tramli provides definition-time validated state machines with `requires()`/`prod
 
 ### 3.4 Multi-Tenant Model
 
-```
-User (1) ─── (*) Membership (*) ─── (1) Tenant
-                    │
-                  role: OWNER | ADMIN | MEMBER
+```mermaid
+flowchart LR
+    User -->|1 : N| Membership["Membership<br/>role: OWNER / ADMIN / MEMBER"]
+    Tenant -->|1 : N| Membership
 ```
 
 **Tenant isolation**: DB-level FK constraints ensure membership records reference valid users and tenants. Application-level filtering ensures a user can only access tenants where they have a membership. Row-level security (PostgreSQL RLS) is not yet implemented — currently, isolation is enforced at the application layer.

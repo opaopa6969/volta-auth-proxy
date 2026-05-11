@@ -29,27 +29,25 @@ Without a single source of truth:
 
 ### The problem: data duplication
 
-```
-  WITHOUT SSOT:
-  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-  │ Java code     │  │ Config file  │  │ Documentation│
-  │               │  │              │  │              │
-  │ timeout=8h    │  │ timeout=4h   │  │ timeout=12h  │
-  │ (updated)     │  │ (forgotten)  │  │ (outdated)   │
-  └──────────────┘  └──────────────┘  └──────────────┘
-      Which is correct?  Nobody knows.
+```text
+WITHOUT SSOT:
 
-  WITH SSOT:
-  ┌──────────────────────────────────────────────┐
-  │ dsl/policy.yaml (THE source)                 │
-  │                                              │
-  │ session:                                     │
-  │   expiry:                                    │
-  │     duration_seconds: 28800  # 8 hours       │
-  └──────────────────────────────────────────────┘
-      │              │               │
-      ▼              ▼               ▼
-  Java reads it   Docs generated   Tests verify it
+  Java code          Config file       Documentation
+
+  timeout=8h         timeout=4h        timeout=12h
+  (updated)          (forgotten)       (outdated)
+
+    Which is correct?  Nobody knows.
+
+WITH SSOT:
+
+  dsl/policy.yaml (THE source)
+
+  session:
+    expiry:
+      duration_seconds: 28800  # 8 hours
+
+Java reads it   Docs generated   Tests verify it
 ```
 
 ### Patterns for SSOT
@@ -84,20 +82,16 @@ Copies and caches are fine -- they are necessary for performance. The rule is: w
 
 volta's entire auth system has exactly one source of truth: the 4 [DSL](dsl.md) files in the `dsl/` directory.
 
-```
-  ┌──────────────────────────────────────────────────────┐
-  │ SINGLE SOURCE OF TRUTH                               │
-  │                                                      │
-  │ dsl/auth-machine.yaml → All states and transitions   │
-  │ dsl/protocol.yaml     → API contract and JWT spec    │
-  │ dsl/policy.yaml       → Roles, permissions, limits   │
-  │ dsl/errors.yaml       → All error codes and messages │
-  └───────────────┬──────────────────────────────────────┘
-                  │
-     ┌────────────┼────────────┬────────────┐
-     ▼            ▼            ▼            ▼
-  Java code    Tests      Glossary docs   AI tools
-  implements   verify     reference       generate from
+```text
+  SINGLE SOURCE OF TRUTH
+
+  dsl/auth-machine.yaml → All states and transitions
+  dsl/protocol.yaml     → API contract and JWT spec
+  dsl/policy.yaml       → Roles, permissions, limits
+  dsl/errors.yaml       → All error codes and messages
+
+Java code    Tests      Glossary docs   AI tools
+implements   verify     reference       generate from
 ```
 
 ### errors.yaml as cross-file SSOT
@@ -151,16 +145,16 @@ This hierarchy is referenced by:
 
 Some things are deliberately kept as environment variables or runtime config because they vary per deployment:
 
-```
-  SSOT in DSL:                    SSOT in environment:
-  ┌────────────────────────┐     ┌────────────────────────┐
-  │ Role hierarchy          │     │ GOOGLE_CLIENT_ID       │
-  │ Error messages          │     │ DATABASE_URL           │
-  │ State transitions       │     │ VOLTA_SERVICE_TOKEN    │
-  │ API endpoint contracts  │     │ COOKIE_DOMAIN          │
-  │ Guard expressions       │     │ SESSION_TIMEOUT_SECONDS│
-  └────────────────────────┘     └────────────────────────┘
-  Same across all deploys         Different per deployment
+```text
+SSOT in DSL:                    SSOT in environment:
+
+  Role hierarchy                  GOOGLE_CLIENT_ID
+  Error messages                  DATABASE_URL
+  State transitions               VOLTA_SERVICE_TOKEN
+  API endpoint contracts          COOKIE_DOMAIN
+  Guard expressions               SESSION_TIMEOUT_SECONDS
+
+Same across all deploys         Different per deployment
 ```
 
 ---

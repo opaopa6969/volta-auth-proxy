@@ -49,23 +49,23 @@
 
 volta は[認証](authentication-vs-authorization.ja.md)フローでリダイレクトを多用します：
 
-```
-  ステップ1: ユーザーが保護ページにアクセス
-  ブラウザ ──GET /dashboard──> リバースプロキシ ──ForwardAuth──> volta
-                                                                │
-  ステップ2: volta が「未認証」と判定                              │
-  volta の応答: 302 Location: /auth/login?redirect_to=/dashboard
-                                                                │
-  ステップ3: volta が Google にリダイレクト                         │
-  ブラウザ ──GET /auth/login──> volta                             │
-  volta の応答: 302 Location: https://accounts.google.com/...
-                                                                │
-  ステップ4: Google がリダイレクトバック                             │
-  ブラウザ ──GET /auth/callback?code=abc──> volta                 │
-                                                                │
-  ステップ5: volta が元のページにリダイレクト                        │
-  volta の応答: 302 Location: /dashboard                          │
-  ブラウザ ──GET /dashboard──>（認証済み！）
+```text
+ステップ1: ユーザーが保護ページにアクセス
+ブラウザ   GET /dashboard  > リバースプロキシ   ForwardAuth  > volta
+
+ステップ2: volta が「未認証」と判定
+volta の応答: 302 Location: /auth/login?redirect_to=/dashboard
+
+ステップ3: volta が Google にリダイレクト
+ブラウザ   GET /auth/login  > volta
+volta の応答: 302 Location: https://accounts.google.com/...
+
+ステップ4: Google がリダイレクトバック
+ブラウザ   GET /auth/callback?code=abc  > volta
+
+ステップ5: volta が元のページにリダイレクト
+volta の応答: 302 Location: /dashboard
+ブラウザ   GET /dashboard  >（認証済み！）
 ```
 
 **セキュリティ：リダイレクト URI 検証**

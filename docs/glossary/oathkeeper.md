@@ -24,36 +24,24 @@ Understanding Oathkeeper helps explain why volta-auth-proxy chose to implement i
 
 Oathkeeper processes requests through a pipeline of four stages:
 
-```
-  Incoming request
-       │
-       ▼
-  ┌──────────────────┐
-  │ 1. Authenticator  │  "Who are you?"
-  │    (cookie_session,│  Verify JWT, check cookie, call an API, etc.
-  │     jwt, oauth2,   │
-  │     anonymous...)  │
-  └──────────────────┘
-       │
-       ▼
-  ┌──────────────────┐
-  │ 2. Authorizer     │  "Are you allowed?"
-  │    (allow, deny,  │  Check permissions via Ory Keto, or static allow/deny
-  │     keto_engine)  │
-  └──────────────────┘
-       │
-       ▼
-  ┌──────────────────┐
-  │ 3. Mutator        │  "What should the downstream see?"
-  │    (header, cookie,│  Add X-User-Id headers, issue JWTs, set cookies
-  │     id_token...)  │
-  └──────────────────┘
-       │
-       ▼
-  ┌──────────────────┐
-  │ 4. Error Handler  │  "What to do on failure?"
-  │    (redirect, json)│  Redirect to login, return 401 JSON, etc.
-  └──────────────────┘
+```text
+Incoming request
+
+  1. Authenticator     "Who are you?"
+     (cookie_session,   Verify JWT, check cookie, call an API, etc.
+      jwt, oauth2,
+      anonymous...)
+
+  2. Authorizer        "Are you allowed?"
+     (allow, deny,     Check permissions via Ory Keto, or static allow/deny
+      keto_engine)
+
+  3. Mutator           "What should the downstream see?"
+     (header, cookie,   Add X-User-Id headers, issue JWTs, set cookies
+      id_token...)
+
+  4. Error Handler     "What to do on failure?"
+     (redirect, json)   Redirect to login, return 401 JSON, etc.
 ```
 
 Each stage is configured per-rule. A single Oathkeeper deployment can have hundreds of rules, each with different authenticators, authorizers, and mutators.
@@ -82,27 +70,25 @@ Each stage is configured per-rule. A single Oathkeeper deployment can have hundr
 
 Oathkeeper does not handle user authentication itself. It delegates to Ory Kratos (for identity/login), Ory Hydra (for OAuth2/OIDC), and Ory Keto (for permissions). Running the full Ory stack means operating four separate services:
 
-```
-  Ory Stack (full):
-  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-  │ Oathkeeper   │  │ Kratos       │  │ Hydra        │  │ Keto         │
-  │ (proxy)      │  │ (identity)   │  │ (OAuth2)     │  │ (permissions)│
-  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘
-       +                  +                 +                  +
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │ PostgreSQL (shared or separate databases)                          │
-  └─────────────────────────────────────────────────────────────────────┘
+```text
+Ory Stack (full):
 
-  volta Stack:
-  ┌──────────────┐
-  │ volta-auth-  │
-  │ proxy        │
-  │ (everything) │
-  └──────────────┘
-       +
-  ┌──────────────┐
-  │ PostgreSQL   │
-  └──────────────┘
+  Oathkeeper        Kratos            Hydra             Keto
+  (proxy)           (identity)        (OAuth2)          (permissions)
+
+     +                  +                 +                  +
+
+  PostgreSQL (shared or separate databases)
+
+volta Stack:
+
+  volta-auth-
+  proxy
+  (everything)
+
+     +
+
+  PostgreSQL
 ```
 
 volta chose to keep everything in one process. One thing to deploy, one thing to monitor, one thing to understand.

@@ -35,91 +35,90 @@ OIDC is built on top of OAuth 2.0 (see [oauth2.md](oauth2.md)). OAuth 2.0 handle
 
 This is the most common and most secure OIDC flow. It is what volta-auth-proxy uses.
 
-```
-  You (Browser)              volta-auth-proxy             Google
-  ============               ================             ======
+```text
+You (Browser)              volta-auth-proxy             Google
+============               ================             ======
 
-  1. Click "Login"
-  ──────────────────────►  2. Generate:
-                               - state (random, for CSRF)
-                               - nonce (random, for replay)
-                               - code_verifier + code_challenge (PKCE)
-                              Store them in DB
+1. Click "Login"
+                      >  2. Generate:
+                             - state (random, for CSRF)
+                             - nonce (random, for replay)
+                             - code_verifier + code_challenge (PKCE)
+                            Store them in DB
 
-                           3. Redirect browser to Google:
-  ◄────── 302 Redirect ──────
-       Location: https://accounts.google.com/o/oauth2/v2/auth
-               ?response_type=code
-               &client_id=YOUR_CLIENT_ID
-               &redirect_uri=http://localhost:7070/callback
-               &scope=openid email profile
-               &state=RANDOM_STATE
-               &nonce=RANDOM_NONCE
-               &code_challenge=CHALLENGE
-               &code_challenge_method=S256
+                         3. Redirect browser to Google:
+<       302 Redirect
+     Location: https://accounts.google.com/o/oauth2/v2/auth
+             ?response_type=code
+             &client_id=YOUR_CLIENT_ID
+             &redirect_uri=http://localhost:7070/callback
+             &scope=openid email profile
+             &state=RANDOM_STATE
+             &nonce=RANDOM_NONCE
+             &code_challenge=CHALLENGE
+             &code_challenge_method=S256
 
-  4. Browser follows redirect
-  ──────────────────────────────────────────────────────►
-                                                          5. Google shows
-                                                             "Choose account"
-                                                             page
-  6. User picks their
-     Google account
-  ──────────────────────────────────────────────────────►
-                                                          7. Google verifies
-                                                             the user
+4. Browser follows redirect
 
-                                                          8. Google redirects
-                                                             back with a CODE:
-  ◄──────────────────────────────────────────────────────
-       Location: http://localhost:7070/callback
-               ?code=AUTH_CODE_HERE
-               &state=RANDOM_STATE
+                                                        5. Google shows
+                                                           "Choose account"
+                                                           page
+6. User picks their
+   Google account
 
-  9. Browser follows redirect to volta callback
-  ──────────────────────►
-                          10. volta receives the code + state
-                              - Verify state matches what was stored
-                              - Exchange code for tokens (server-to-server):
+                                                        7. Google verifies
+                                                           the user
 
-                              POST https://oauth2.googleapis.com/token
-                              ──────────────────────────────────────────►
-                                body: code=AUTH_CODE
-                                      &client_id=YOUR_CLIENT_ID
-                                      &client_secret=YOUR_SECRET
-                                      &redirect_uri=CALLBACK_URL
-                                      &grant_type=authorization_code
-                                      &code_verifier=ORIGINAL_VERIFIER
+                                                        8. Google redirects
+                                                           back with a CODE:
 
-                                                          11. Google verifies:
-                                                              - code is valid
-                                                              - code_verifier
-                                                                matches challenge
-                                                              - client_secret
-                                                                is correct
+     Location: http://localhost:7070/callback
+             ?code=AUTH_CODE_HERE
+             &state=RANDOM_STATE
 
-                              ◄──────────────────────────────────────────
-                                { "id_token": "eyJhbGci...",
-                                  "access_token": "ya29..." }
+9. Browser follows redirect to volta callback
 
-                          12. volta validates the id_token:
-                              - Check signature (RS256, Google's public key)
-                              - Check issuer = accounts.google.com
-                              - Check audience = our client_id
-                              - Check nonce matches what was stored
-                              - Check email_verified = true
-                              - Check not expired
+                        10. volta receives the code + state
+                            - Verify state matches what was stored
+                            - Exchange code for tokens (server-to-server):
 
-                          13. Extract identity:
-                              email: jane@example.com
-                              name: Jane Smith
-                              google_sub: 1234567890
+                            POST https://oauth2.googleapis.com/token
 
-                          14. Create or find user in DB
-                          15. Create session
-                          16. Issue volta JWT
+                              body: code=AUTH_CODE
+                                    &client_id=YOUR_CLIENT_ID
+                                    &client_secret=YOUR_SECRET
+                                    &redirect_uri=CALLBACK_URL
+                                    &grant_type=authorization_code
+                                    &code_verifier=ORIGINAL_VERIFIER
 
-  ◄────── Set session cookie + redirect to app ──────
+                                                        11. Google verifies:
+                                                            - code is valid
+                                                            - code_verifier
+                                                              matches challenge
+                                                            - client_secret
+                                                              is correct
+
+                              { "id_token": "eyJhbGci...",
+                                "access_token": "ya29..." }
+
+                        12. volta validates the id_token:
+                            - Check signature (RS256, Google's public key)
+                            - Check issuer = accounts.google.com
+                            - Check audience = our client_id
+                            - Check nonce matches what was stored
+                            - Check email_verified = true
+                            - Check not expired
+
+                        13. Extract identity:
+                            email: jane@example.com
+                            name: Jane Smith
+                            google_sub: 1234567890
+
+                        14. Create or find user in DB
+                        15. Create session
+                        16. Issue volta JWT
+
+<       Set session cookie + redirect to app
 ```
 
 That is a lot of steps. But each one serves a purpose:
@@ -132,26 +131,22 @@ That is a lot of steps. But each one serves a purpose:
 
 ### Relationship with OAuth 2.0
 
-```
-  ┌─────────────────────────────────────────────┐
-  │              OAuth 2.0                       │
-  │                                              │
-  │  "What is this user allowed to do?"          │
-  │  (authorization)                             │
-  │                                              │
-  │  Gives you an access_token                   │
-  │  to call APIs on behalf of the user          │
-  │                                              │
-  │  ┌───────────────────────────────────────┐   │
-  │  │         OpenID Connect (OIDC)         │   │
-  │  │                                       │   │
-  │  │  "WHO is this user?"                  │   │
-  │  │  (authentication)                     │   │
-  │  │                                       │   │
-  │  │  Adds id_token on top of OAuth 2.0    │   │
-  │  │  with identity claims (email, name)   │   │
-  │  └───────────────────────────────────────┘   │
-  └─────────────────────────────────────────────┘
+```text
+            OAuth 2.0
+
+"What is this user allowed to do?"
+(authorization)
+
+Gives you an access_token
+to call APIs on behalf of the user
+
+          OpenID Connect (OIDC)
+
+   "WHO is this user?"
+   (authentication)
+
+   Adds id_token on top of OAuth 2.0
+   with identity claims (email, name)
 ```
 
 OAuth 2.0 alone does not tell you WHO the user is. It only gives you permission to do things. OIDC adds an identity layer on top, using the id_token (a JWT -- see [jwt.md](jwt.md)).

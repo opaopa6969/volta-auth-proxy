@@ -18,35 +18,27 @@ Suspension can be triggered by an admin action, a billing failure (via [Stripe w
 
 Suspension is a critical operations tool for multi-tenant SaaS:
 
-```
-  Scenario 1: Billing failure
-  ┌──────────────────────────────────────┐
-  │ Stripe: "Acme's payment failed"      │
-  │   → volta suspends Acme tenant       │
-  │   → All 50 Acme employees locked out │
-  │   → Acme updates payment method      │
-  │   → volta reactivates tenant         │
-  │   → All 50 employees can login again │
-  └──────────────────────────────────────┘
+**Scenario 1: Billing failure**
+- Stripe: "Acme's payment failed"
+- -> volta suspends Acme tenant
+- -> All 50 Acme employees locked out
+- -> Acme updates payment method
+- -> volta reactivates tenant
+- -> All 50 employees can login again
 
-  Scenario 2: Security incident
-  ┌──────────────────────────────────────┐
-  │ Suspicious activity detected          │
-  │   → Admin suspends tenant             │
-  │   → All sessions immediately revoked  │
-  │   → Investigation proceeds            │
-  │   → Issue resolved, tenant reactivated│
-  └──────────────────────────────────────┘
+**Scenario 2: Security incident**
+- Suspicious activity detected
+- -> Admin suspends tenant
+- -> All sessions immediately revoked
+- -> Investigation proceeds
+- -> Issue resolved, tenant reactivated
 
-  Scenario 3: Terms of service violation
-  ┌──────────────────────────────────────┐
-  │ Tenant violates ToS                   │
-  │   → Admin suspends tenant             │
-  │   → Data preserved for legal holds    │
-  │   → Tenant contacts support           │
-  │   → Issue resolved or data exported   │
-  └──────────────────────────────────────┘
-```
+**Scenario 3: Terms of service violation**
+- Tenant violates ToS
+- -> Admin suspends tenant
+- -> Data preserved for legal holds
+- -> Tenant contacts support
+- -> Issue resolved or data exported
 
 Without suspension, your only options are "active" or "deleted" -- there is no middle ground for temporary situations.
 
@@ -56,32 +48,16 @@ Without suspension, your only options are "active" or "deleted" -- there is no m
 
 ### Suspension mechanics
 
+```mermaid
+flowchart TD
+    T[Trigger: admin/billing/policy] --> S1["Set tenant.status = SUSPENDED<br/>Set tenant.suspended_at = NOW()<br/>Set tenant.suspended_reason = '...'"]
+    S1 --> S2["Revoke all active sessions<br/>DELETE FROM sessions<br/>WHERE tenant_id = :tid"]
+    S2 --> S3["Invalidate all cookies<br/>(sessions gone -> cookies orphaned)"]
+    S3 --> S4["Write to webhook outbox<br/>event: tenant.suspended"]
+    S4 --> S5["All subsequent login attempts -> 403<br/>'Your organization has been suspended'"]
 ```
-  ┌─────────────────────────────────────────────────┐
-  │              Suspension Process                   │
-  │                                                   │
-  │  1. Trigger (admin/billing/policy)                │
-  │     │                                             │
-  │  2. ▼ Set tenant.status = SUSPENDED               │
-  │     │  Set tenant.suspended_at = NOW()             │
-  │     │  Set tenant.suspended_reason = "..."         │
-  │     │                                             │
-  │  3. ▼ Revoke all active sessions                  │
-  │     │  DELETE FROM sessions                        │
-  │     │  WHERE tenant_id = :tid                      │
-  │     │                                             │
-  │  4. ▼ Invalidate all cookies                      │
-  │     │  (sessions gone → cookies are orphaned)      │
-  │     │                                             │
-  │  5. ▼ Write to webhook outbox                     │
-  │     │  event: tenant.suspended                     │
-  │     │                                             │
-  │  6. ▼ All subsequent login attempts → 403         │
-  │     │  "Your organization has been suspended"      │
-  │     │                                             │
-  │  ALL WITHIN ONE DATABASE TRANSACTION              │
-  └─────────────────────────────────────────────────┘
-```
+
+All within one database transaction.
 
 ### What gets blocked during suspension
 
@@ -99,48 +75,22 @@ Without suspension, your only options are "active" or "deleted" -- there is no m
 
 ### Reactivation
 
-```
-  ┌─────────────────────────────────────────────────┐
-  │              Reactivation Process                 │
-  │                                                   │
-  │  1. Trigger (admin/billing restoration)           │
-  │     │                                             │
-  │  2. ▼ Set tenant.status = ACTIVE                  │
-  │     │  Set tenant.reactivated_at = NOW()           │
-  │     │  Clear suspended_reason                      │
-  │     │                                             │
-  │  3. ▼ Write to webhook outbox                     │
-  │     │  event: tenant.reactivated                   │
-  │     │                                             │
-  │  4. ▼ Users can now log in again                  │
-  │     │  (they need new sessions - old ones          │
-  │     │   were revoked during suspension)            │
-  └─────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    T[Trigger: admin / billing restoration] --> R1["Set tenant.status = ACTIVE<br/>Set tenant.reactivated_at = NOW()<br/>Clear suspended_reason"]
+    R1 --> R2["Write to webhook outbox<br/>event: tenant.reactivated"]
+    R2 --> R3["Users can now log in again<br/>(need new sessions - old ones revoked)"]
 ```
 
 ### Tenant status state machine
 
-```
-  ┌──────────┐
-  │  ACTIVE  │◄────────────────────────────┐
-  │          │                             │
-  └────┬─────┘                             │
-       │                                   │
-       │ suspend()                reactivate()
-       │                                   │
-       ▼                                   │
-  ┌──────────┐                             │
-  │SUSPENDED │─────────────────────────────┘
-  │          │
-  └────┬─────┘
-       │
-       │ delete() (permanent, rare)
-       │
-       ▼
-  ┌──────────┐
-  │ DELETED  │  (soft delete, data retained
-  │          │   for compliance period)
-  └──────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE
+    ACTIVE --> SUSPENDED: suspend()
+    SUSPENDED --> ACTIVE: reactivate()
+    SUSPENDED --> DELETED: delete() (permanent, rare)
+    DELETED: DELETED<br/>(soft delete, data retained<br/>for compliance period)
 ```
 
 ---
@@ -170,19 +120,16 @@ Without suspension, your only options are "active" or "deleted" -- there is no m
 
 When volta [ingests](ingestion.md) a `customer.subscription.deleted` event from Stripe:
 
-```
-  Stripe                   volta-auth-proxy
-  ======                   ================
-
-  subscription.deleted ──► POST /webhooks/stripe
-                            │
-                            ├─ Verify Stripe signature
-                            ├─ Map Stripe customer → volta tenant
-                            ├─ tenant.suspend(reason="billing")
-                            │    ├─ Revoke all sessions
-                            │    ├─ Write outbox: tenant.suspended
-                            │    └─ Return success
-                            └─ Return 200 to Stripe
+```mermaid
+sequenceDiagram
+    participant Stripe
+    participant Volta as volta-auth-proxy
+    Stripe->>Volta: POST /webhooks/stripe (subscription.deleted)
+    Volta->>Volta: Verify Stripe signature
+    Volta->>Volta: Map Stripe customer -> volta tenant
+    Volta->>Volta: tenant.suspend(reason="billing")
+    Note over Volta: Revoke all sessions<br/>Write outbox: tenant.suspended
+    Volta-->>Stripe: 200 OK
 ```
 
 ### Checking suspension status in the auth flow

@@ -53,11 +53,11 @@ Compare this to the equivalent [nginx](nginx.md) config (15+ lines) or [Traefik]
 
 The `forward_auth` directive is Caddy's equivalent of Traefik's ForwardAuth middleware and nginx's `auth_request` module.
 
-```
-  Browser ──► Caddy ──► forward_auth ──► volta-auth-proxy
-                           │
-                           ├── 200 OK → copy headers → reverse_proxy → Backend
-                           └── 401/302 → return to browser
+```text
+Browser   > Caddy   > forward_auth   > volta-auth-proxy
+
+                             200 OK → copy headers → reverse_proxy → Backend
+                             401/302 → return to browser
 ```
 
 Configuration options:

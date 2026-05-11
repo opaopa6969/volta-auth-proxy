@@ -32,72 +32,66 @@ If signatures fail, the entire trust chain collapses. volta cannot prove its tok
 
 ### The signing process
 
-```
-  Input:  data (JWT header + payload)
-  Key:    private key (RSA-2048)
+```text
+Input:  data (JWT header + payload)
+Key:    private key (RSA-2048)
 
-  ┌──────────────────────────────────────────────┐
-  │  Step 1: Hash the data                       │
-  │  hash = SHA-256(data)                        │
-  │  Produces a fixed-size "fingerprint"         │
-  │                                              │
-  │  Step 2: Encrypt the hash with private key   │
-  │  signature = RSA_ENCRYPT(hash, private_key)  │
-  │                                              │
-  │  Step 3: Attach signature to data            │
-  │  result = data + "." + signature             │
-  └──────────────────────────────────────────────┘
+   Step 1: Hash the data
+   hash = SHA-256(data)
+   Produces a fixed-size "fingerprint"
 
-  Only the private key holder can produce this
-  signature for this data.
+   Step 2: Encrypt the hash with private key
+   signature = RSA_ENCRYPT(hash, private_key)
+
+   Step 3: Attach signature to data
+   result = data + "." + signature
+
+Only the private key holder can produce this
+signature for this data.
 ```
 
 ### The verification process
 
-```
-  Input:  data + signature
-  Key:    public key (corresponding to the private key)
+```text
+Input:  data + signature
+Key:    public key (corresponding to the private key)
 
-  ┌──────────────────────────────────────────────┐
-  │  Step 1: Hash the received data              │
-  │  hash1 = SHA-256(data)                       │
-  │                                              │
-  │  Step 2: Decrypt the signature with          │
-  │          public key                          │
-  │  hash2 = RSA_DECRYPT(signature, public_key)  │
-  │                                              │
-  │  Step 3: Compare hashes                      │
-  │  hash1 == hash2?                             │
-  │  YES → Signature is VALID                    │
-  │  NO  → Data was TAMPERED or FORGED           │
-  └──────────────────────────────────────────────┘
+   Step 1: Hash the received data
+   hash1 = SHA-256(data)
 
-  Anyone with the public key can verify, but
-  nobody can create a valid signature without
-  the private key.
+   Step 2: Decrypt the signature with
+           public key
+   hash2 = RSA_DECRYPT(signature, public_key)
+
+   Step 3: Compare hashes
+   hash1 == hash2?
+   YES → Signature is VALID
+   NO  → Data was TAMPERED or FORGED
+
+Anyone with the public key can verify, but
+nobody can create a valid signature without
+the private key.
 ```
 
 ### Signature vs. encryption
 
-```
-  ┌──────────────────────────────────────────────────┐
-  │  SIGNATURE:                                      │
-  │  Purpose: Prove authorship + integrity           │
-  │  Data: VISIBLE to everyone (not hidden)          │
-  │  Key:  Private key SIGNS, Public key VERIFIES    │
-  │  Example: JWT signature (RS256)                  │
-  │                                                  │
-  │  ENCRYPTION:                                     │
-  │  Purpose: Hide data from unauthorized readers    │
-  │  Data: HIDDEN (only key holder can read)         │
-  │  Key:  Public key ENCRYPTS, Private key DECRYPTS │
-  │  Example: Keys encrypted with AES-256-GCM        │
-  └──────────────────────────────────────────────────┘
+```text
+   SIGNATURE:
+   Purpose: Prove authorship + integrity
+   Data: VISIBLE to everyone (not hidden)
+   Key:  Private key SIGNS, Public key VERIFIES
+   Example: JWT signature (RS256)
 
-  volta uses SIGNATURES for JWTs (data is visible,
-  but guaranteed authentic).
-  volta uses ENCRYPTION for keys at rest (data is
-  hidden from database readers).
+   ENCRYPTION:
+   Purpose: Hide data from unauthorized readers
+   Data: HIDDEN (only key holder can read)
+   Key:  Public key ENCRYPTS, Private key DECRYPTS
+   Example: Keys encrypted with AES-256-GCM
+
+volta uses SIGNATURES for JWTs (data is visible,
+but guaranteed authentic).
+volta uses ENCRYPTION for keys at rest (data is
+hidden from database readers).
 ```
 
 ### Types of cryptographic signatures

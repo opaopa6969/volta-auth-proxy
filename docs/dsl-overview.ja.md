@@ -237,13 +237,17 @@ interface PolicyEvaluator {
 
 ### DSL → ドライバー変換
 
-```
-volta policy.yaml
-    ↓
-    ├── Phase 1-3: Java コード（AuthService.java の if/switch）
-    ├── Phase 4A:  → model.conf + policy.csv → jCasbin
-    ├── Phase 4B:  → Cedar ポリシー言語 → cedar-java (JNI)
-    └── Phase 4C:  → Rego → OPA サーバー (HTTP)
+```mermaid
+flowchart TB
+    YAML["volta policy.yaml"]
+    P13["Phase 1-3: Java コード (AuthService.java の if/switch)"]
+    P4A["Phase 4A: model.conf + policy.csv -> jCasbin"]
+    P4B["Phase 4B: Cedar ポリシー言語 -> cedar-java (JNI)"]
+    P4C["Phase 4C: Rego -> OPA サーバー (HTTP)"]
+    YAML --> P13
+    YAML --> P4A
+    YAML --> P4B
+    YAML --> P4C
 ```
 
 ### ドライバー比較

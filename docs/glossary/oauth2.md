@@ -46,15 +46,15 @@ OAuth 2.0 defines several "grant types" -- different flows for different situati
 
 This is the most common flow and the one volta uses (via OIDC). See [oidc.md](oidc.md) for the full step-by-step diagram.
 
-```
-  Browser ──► "Login with Google" ──► Google ──► "Allow?" ──► Yes
-                                                                │
-    Google gives a CODE to the browser (in the URL)             │
-    Browser sends CODE to your server                           │
-    Your server exchanges CODE for tokens (server-to-server)    │
-    Your server gets: access_token + id_token                   │
-                                                                │
-  ◄─────────────────────── Logged in! ──────────────────────────┘
+```text
+Browser   > "Login with Google"   > Google   > "Allow?"   > Yes
+
+  Google gives a CODE to the browser (in the URL)
+  Browser sends CODE to your server
+  Your server exchanges CODE for tokens (server-to-server)
+  Your server gets: access_token + id_token
+
+<                        Logged in!
 ```
 
 Key points:
@@ -66,14 +66,14 @@ Key points:
 
 This flow is for machine-to-machine (M2M) communication. No user is involved. See [client-credentials.md](client-credentials.md) for a full explanation.
 
-```
-  Service A ──► "Here are my client_id and client_secret"
-            ──► Auth server
-            ◄── "Here is your access_token"
+```text
+Service A   > "Here are my client_id and client_secret"
+            > Auth server
+          <   "Here is your access_token"
 
-  Service A ──► "Bearer <access_token>"
-            ──► Service B
-            ◄── Response
+Service A   > "Bearer <access_token>"
+            > Service B
+          <   Response
 ```
 
 ### Tokens in OAuth 2.0

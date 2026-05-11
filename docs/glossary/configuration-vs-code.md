@@ -16,8 +16,8 @@ Think of it like driving a car. Configuration is the settings: your seat positio
 
 There is a spectrum from pure configuration to pure code:
 
-```
-Pure configuration ◄─────────────────────────────► Pure code
+```text
+Pure configuration <                             > Pure code
 
 .env secrets    YAML settings    DSL rules    Application logic
 DATABASE_URL    allowed_roles    state machine  if/else in Java

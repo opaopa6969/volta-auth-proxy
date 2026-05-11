@@ -51,12 +51,12 @@ SELECT name FROM students WHERE age = 9;
 
 Result:
 
-```
-  name
-  ──────────────
-  Yuki Tanaka
-  Hiro Suzuki
-  Ken Sato
+```text
+name
+
+Yuki Tanaka
+Hiro Suzuki
+Ken Sato
 ```
 
 ### "Add a new student"
@@ -82,15 +82,13 @@ Reading it: **UPDATE** the students table, **SET** age to 10 **WHERE** the name 
 
 Almost everything you do with data boils down to four actions:
 
-```
-  ┌──────────────┬────────────────────────────────────┐
-  │  SQL Command  │  What it does (librarian version)  │
-  ├──────────────┼────────────────────────────────────┤
-  │  SELECT       │  "Show me..."                      │
-  │  INSERT       │  "Add a new..."                    │
-  │  UPDATE       │  "Change this..."                  │
-  │  DELETE       │  "Remove this..."                  │
-  └──────────────┴────────────────────────────────────┘
+```text
+SQL Command     What it does (librarian version)
+
+SELECT          "Show me..."
+INSERT          "Add a new..."
+UPDATE          "Change this..."
+DELETE          "Remove this..."
 ```
 
 That's it! These four commands cover most of what SQL does.

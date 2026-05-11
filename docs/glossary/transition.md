@@ -29,38 +29,35 @@ Transitions are where things actually happen in the auth system. Login, logout, 
 
 ### Anatomy of a transition
 
-```
-  Transition = Trigger + Guard + Actions + Next State
-  ┌──────────────────────────────────────────────────────┐
-  │ login_browser:                                        │
-  │   trigger: "GET /login"        ← What event?         │
-  │   guard: "!request.accept_json" ← What condition?    │
-  │   actions:                      ← What side effects? │
-  │     - create_oidc_flow                               │
-  │     - redirect to Google                             │
-  │   next: AUTH_PENDING            ← Where to go?       │
-  └──────────────────────────────────────────────────────┘
+```text
+Transition = Trigger + Guard + Actions + Next State
+
+  login_browser:
+    trigger: "GET /login"        ← What event?
+    guard: "!request.accept_json" ← What condition?
+    actions:                      ← What side effects?
+      - create_oidc_flow
+      - redirect to Google
+    next: AUTH_PENDING            ← Where to go?
 ```
 
 ### Trigger types
 
-```
-  HTTP triggers:
-  ┌──────────────────────────────────────┐
-  │ "GET /login"                         │
-  │ "POST /auth/logout"                  │
-  │ "GET /callback"                      │
-  │ "GET /invite/{code}"                 │
-  │ "POST /auth/switch-tenant"           │
-  │ "DELETE /auth/sessions/{id}"         │
-  └──────────────────────────────────────┘
+```text
+HTTP triggers:
 
-  Automatic triggers:
-  ┌──────────────────────────────────────┐
-  │ trigger: automatic                   │
-  │ (evaluated on every request)         │
-  │ Example: session_timeout             │
-  └──────────────────────────────────────┘
+  "GET /login"
+  "POST /auth/logout"
+  "GET /callback"
+  "GET /invite/{code}"
+  "POST /auth/switch-tenant"
+  "DELETE /auth/sessions/{id}"
+
+Automatic triggers:
+
+  trigger: automatic
+  (evaluated on every request)
+  Example: session_timeout
 ```
 
 ### Action types
@@ -120,21 +117,20 @@ forward_auth:
 
 ### The complete login flow as transitions
 
-```
-  UNAUTHENTICATED                AUTH_PENDING
-  ┌──────────────┐              ┌──────────────┐
-  │              ─┼─ login ────►│              ─┼─ callback_success ──►
-  │              ─┼─ login_api  │              ─┼─ callback_error ────►
-  │   (self)      │             │              ─┼─ callback_state_inv ►
-  └──────────────┘              │              ─┼─ callback_nonce_inv ►
-                                │   (timeout)   │
-                                └──────────────┘
+```text
+UNAUTHENTICATED                AUTH_PENDING
 
-  After callback_success, next_if branches to:
-  ├── INVITE_CONSENT  (if invite present)
-  ├── AUTHENTICATED   (if 1 tenant)
-  ├── TENANT_SELECT   (if multiple tenants)
-  └── NO_TENANT       (if 0 tenants, no invite)
+                   login     >                   callback_success   >
+                   login_api                     callback_error     >
+    (self)                                       callback_state_inv >
+                                                 callback_nonce_inv >
+                                  (timeout)
+
+After callback_success, next_if branches to:
+    INVITE_CONSENT  (if invite present)
+    AUTHENTICATED   (if 1 tenant)
+    TENANT_SELECT   (if multiple tenants)
+    NO_TENANT       (if 0 tenants, no invite)
 ```
 
 ### Global transitions

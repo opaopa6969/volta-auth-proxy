@@ -92,9 +92,9 @@ Examples: Ory Oathkeeper (in proxy mode), some API gateways.
 
 The auth proxy sits beside the reverse proxy, not in the traffic path. It only sees headers:
 
-```
+```text
 User → [Traefik] → App
-           │
+
       [volta-auth-proxy]
       (headers only)
 ```

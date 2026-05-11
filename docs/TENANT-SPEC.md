@@ -15,28 +15,14 @@ volta-auth-proxy は以下のデプロイメント形態をサポートする:
 
 ## 2. レイヤーアーキテクチャ
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Layer 1: Identity                                      │
-│  ユーザー認証: OIDC, Passkey, MFA, Magic Link           │
-│  → 「誰か」を確定する                                    │
-├─────────────────────────────────────────────────────────┤
-│  Layer 2: Tenancy                                       │
-│  テナント = 論理的セキュリティ境界 + 管理単位            │
-│  → 「どの組織/ワークスペースか」を確定する               │
-├─────────────────────────────────────────────────────────┤
-│  Layer 3: Access                                        │
-│  RBAC + per-resource ACL                                │
-│  → 「何ができるか」を確定する                            │
-├─────────────────────────────────────────────────────────┤
-│  Layer 4: Binding                                       │
-│  ユーザーとデータソースの紐づけ                          │
-│  → 「どのデータを見るか」を確定する                      │
-├─────────────────────────────────────────────────────────┤
-│  Layer 5: Isolation                                     │
-│  データの物理的分離                                      │
-│  → 「どう分離するか」を確定する                          │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    L1["Layer 1: Identity<br/>ユーザー認証: OIDC, Passkey, MFA, Magic Link<br/>→ 「誰か」を確定する"]
+    L2["Layer 2: Tenancy<br/>テナント = 論理的セキュリティ境界 + 管理単位<br/>→ 「どの組織/ワークスペースか」を確定する"]
+    L3["Layer 3: Access<br/>RBAC + per-resource ACL<br/>→ 「何ができるか」を確定する"]
+    L4["Layer 4: Binding<br/>ユーザーとデータソースの紐づけ<br/>→ 「どのデータを見るか」を確定する"]
+    L5["Layer 5: Isolation<br/>データの物理的分離<br/>→ 「どう分離するか」を確定する"]
+    L1 --> L2 --> L3 --> L4 --> L5
 ```
 
 各レイヤーは独立して設定可能。下位レイヤーは上位レイヤーの結果を入力として使う。
@@ -184,13 +170,10 @@ custom_domains:
 
 ### 6.1 User-to-Tenant 関係
 
-```
-┌─────────┐     ┌──────────────┐     ┌─────────┐
-│  User   │────>│  Membership  │<────│  Tenant  │
-│         │ N:N │  - role      │     │         │
-│  (Layer1)│     │  - joined_at │     │ (Layer2)│
-└─────────┘     │  - managed   │     └─────────┘
-                └──────────────┘
+```mermaid
+flowchart LR
+    User["User (Layer 1)"] -->|N:N| Membership["Membership<br/>- role<br/>- joined_at<br/>- managed"]
+    Membership --> Tenant["Tenant (Layer 2)"]
 ```
 
 ### 6.2 Managed vs Unmanaged Members

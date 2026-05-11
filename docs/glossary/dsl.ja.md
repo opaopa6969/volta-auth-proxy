@@ -30,29 +30,27 @@ DSLがなければ、認証ロジックは何十ものJavaファイル、Javalin
 
 ### 言語のスペクトラム
 
-```
-  汎用                                                ドメイン固有
-  ◄────────────────────────────────────────────────────────────────►
-  Java       Python      Terraform     SQL      正規表現   volta DSL
-  (何でも)   (何でも)    (インフラ)    (データ) (マッチ)   (認証)
+```text
+汎用                                                ドメイン固有
+
+Java       Python      Terraform     SQL      正規表現   volta DSL
+(何でも)   (何でも)    (インフラ)    (データ) (マッチ)   (認証)
 ```
 
 ### 外部DSL vs 内部DSL
 
-```
-  外部DSL：
-  ┌───────────────────────────────────────────┐
-  │ 独自の構文とパーサーを持つ。              │
-  │ 例：SQL、正規表現、Terraform HCL          │
-  │ volta：起動時にパースされるYAMLファイル    │
-  └───────────────────────────────────────────┘
+```text
+外部DSL：
 
-  内部DSL：
-  ┌───────────────────────────────────────────┐
-  │ 汎用言語の中でホストされる。              │
-  │ 例：RSpec (Ruby)、Gradle (Groovy)         │
-  │ volta：このアプローチは使っていない       │
-  └───────────────────────────────────────────┘
+  独自の構文とパーサーを持つ。
+  例：SQL、正規表現、Terraform HCL
+  volta：起動時にパースされるYAMLファイル
+
+内部DSL：
+
+  汎用言語の中でホストされる。
+  例：RSpec (Ruby)、Gradle (Groovy)
+  volta：このアプローチは使っていない
 ```
 
 voltaはYAMLで書かれた**外部DSL**を使用しています。Javaアプリケーションが起動時にYAMLファイルを読み込み解釈します。DSL自体が持つ要素：
@@ -64,19 +62,19 @@ voltaはYAMLで書かれた**外部DSL**を使用しています。Javaアプリ
 
 ### なぜYAMLで独自構文ではないのか？
 
-```
-  独自構文：               YAML：
-  ┌──────────────────┐    ┌──────────────────────────────┐
-  │ state AUTH {      │    │ states:                      │
-  │   on login ->     │    │   AUTHENTICATED:             │
-  │     if valid      │    │     transitions:             │
-  │     goto DONE     │    │       forward_auth:          │
-  │ }                 │    │         guard: "session.valid"│
-  └──────────────────┘    │         next: AUTHENTICATED   │
-                          └──────────────────────────────┘
-  カスタムパーサーが必要    標準YAMLパーサー（SnakeYAML）
-  エディタ対応なし          どこでもシンタックスハイライト
-  学習コストあり            ほとんどの開発者が既に知っている
+```text
+独自構文：               YAML：
+
+  state AUTH {             states:
+    on login ->              AUTHENTICATED:
+      if valid                 transitions:
+      goto DONE                  forward_auth:
+  }                                guard: "session.valid"
+                                  next: AUTHENTICATED
+
+カスタムパーサーが必要    標準YAMLパーサー（SnakeYAML）
+エディタ対応なし          どこでもシンタックスハイライト
+学習コストあり            ほとんどの開発者が既に知っている
 ```
 
 ---
@@ -85,12 +83,12 @@ voltaはYAMLで書かれた**外部DSL**を使用しています。Javaアプリ
 
 ### 4つのDSLファイル
 
-```
-  dsl/
-  ├── auth-machine.yaml   ← 状態マシン：8状態、すべての遷移
-  ├── protocol.yaml       ← ForwardAuth契約、JWT仕様、APIエンドポイント
-  ├── policy.yaml         ← ロール階層、権限、制約
-  └── errors.yaml         ← すべてのエラーコード、メッセージ、回復アクション
+```text
+dsl/
+    auth-machine.yaml   ← 状態マシン：8状態、すべての遷移
+    protocol.yaml       ← ForwardAuth契約、JWT仕様、APIエンドポイント
+    policy.yaml         ← ロール階層、権限、制約
+    errors.yaml         ← すべてのエラーコード、メッセージ、回復アクション
 ```
 
 各ファイルの責務：
@@ -137,19 +135,18 @@ guard: "oidc_flow.state_valid && oidc_flow.nonce_valid && oidc_flow.email_verifi
 
 DSLファイルは仕様です。Javaコード（`AuthService.java`、`Main.java`）は仕様に従う実装です。DSLとコードに食い違いがあれば、DSLが正しくコードにバグがあります。
 
-```
-  DSL（仕様）                     Java（実装）
-  ┌──────────────────────┐        ┌──────────────────────────────┐
-  │ auth-machine.yaml    │───────►│ AuthService.java             │
-  │   transition:        │  読む  │   authenticate()             │
-  │     guard: "..."     │        │   issueSession()             │
-  │     next: STATE      │        │   verify()                   │
-  │     actions: [...]   │        │                              │
-  └──────────────────────┘        └──────────────────────────────┘
-  │                                │
-  │  errors.yaml         ───────►  │  ApiException.java          │
-  │  policy.yaml         ───────►  │  AppConfig + AppRegistry    │
-  │  protocol.yaml       ───────►  │  HttpSupport.java           │
+```text
+DSL（仕様）                     Java（実装）
+
+  auth-machine.yaml            >  AuthService.java
+    transition:           読む      authenticate()
+      guard: "..."                  issueSession()
+      next: STATE                   verify()
+      actions: [...]
+
+   errors.yaml                >     ApiException.java
+   policy.yaml                >     AppConfig + AppRegistry
+   protocol.yaml              >     HttpSupport.java
 ```
 
 ---

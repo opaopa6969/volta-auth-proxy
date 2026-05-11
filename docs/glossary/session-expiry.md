@@ -31,81 +31,76 @@ Session expiry is the safety net. Even if every other defense fails (HttpOnly by
 
 ### Two types of expiry
 
-```
-  Absolute timeout:
-  ┌──────────────────────────────────────────────┐
-  │  Session created at 09:00                    │
-  │  Absolute timeout: 8 hours                   │
-  │  Dies at: 17:00 (no matter what)             │
-  │                                              │
-  │  09:00 ═══════════════════════════ 17:00     │
-  │  Login                              Dead     │
-  │                                              │
-  │  Even if user is actively using the app,     │
-  │  the session expires at 17:00.               │
-  └──────────────────────────────────────────────┘
+```text
+Absolute timeout:
 
-  Sliding window (idle timeout):
-  ┌──────────────────────────────────────────────┐
-  │  Session created at 09:00                    │
-  │  Sliding window: 8 hours                     │
-  │                                              │
-  │  09:00  Request → expires resets to 17:00    │
-  │  11:00  Request → expires resets to 19:00    │
-  │  14:00  Request → expires resets to 22:00    │
-  │  ...user goes home...                        │
-  │  22:00  No request since 14:00 → EXPIRED     │
-  │                                              │
-  │  Timer resets on EVERY activity.             │
-  │  Expires only when user is IDLE.             │
-  └──────────────────────────────────────────────┘
+   Session created at 09:00
+   Absolute timeout: 8 hours
+   Dies at: 17:00 (no matter what)
+
+   09:00                             17:00
+   Login                              Dead
+
+   Even if user is actively using the app,
+   the session expires at 17:00.
+
+Sliding window (idle timeout):
+
+   Session created at 09:00
+   Sliding window: 8 hours
+
+   09:00  Request → expires resets to 17:00
+   11:00  Request → expires resets to 19:00
+   14:00  Request → expires resets to 22:00
+   ...user goes home...
+   22:00  No request since 14:00 → EXPIRED
+
+   Timer resets on EVERY activity.
+   Expires only when user is IDLE.
 ```
 
 ### volta uses sliding window
 
-```
-  volta's session expiry: 8-hour sliding window
+```text
+volta's session expiry: 8-hour sliding window
 
-  Time ──────────────────────────────────────────►
+Time                                           >
 
-  09:00  Login → session.expires_at = 17:00
-         │
-  10:30  API call → session.expires_at = 18:30
-         │                (slid forward by 8h from now)
-  12:00  Page load → session.expires_at = 20:00
-         │
-  14:00  Form submit → session.expires_at = 22:00
-         │
-  ...user leaves for the day...
-         │
-  22:00  No activity → SESSION EXPIRED
-         │
-  Next morning: user visits site → 401 → login page
+09:00  Login → session.expires_at = 17:00
+
+10:30  API call → session.expires_at = 18:30
+                        (slid forward by 8h from now)
+12:00  Page load → session.expires_at = 20:00
+
+14:00  Form submit → session.expires_at = 22:00
+
+...user leaves for the day...
+
+22:00  No activity → SESSION EXPIRED
+
+Next morning: user visits site → 401 → login page
 ```
 
 ### Expiry check flow
 
-```
-  Request arrives with __volta_session cookie
-         │
-         ▼
-  Look up session in database
-         │
-         ├── Not found? → 401 (session deleted or never existed)
-         │
-         ├── Found. Check expires_at:
-         │   │
-         │   ├── expires_at < now → EXPIRED → delete session → 401
-         │   │
-         │   └── expires_at > now → VALID
-         │       │
-         │       ▼
-         │   Update expires_at = now + 8h  (slide the window)
-         │       │
-         │       ▼
-         │   Continue processing request
-         │
-         └── Set-Cookie with updated Max-Age
+```text
+Request arrives with __volta_session cookie
+
+Look up session in database
+
+           Not found? → 401 (session deleted or never existed)
+
+           Found. Check expires_at:
+
+               expires_at < now → EXPIRED → delete session → 401
+
+               expires_at > now → VALID
+
+           Update expires_at = now + 8h  (slide the window)
+
+           Continue processing request
+
+           Set-Cookie with updated Max-Age
 ```
 
 ---
@@ -125,35 +120,32 @@ On every authenticated request, volta:
 3. If valid, updates `expires_at` to `now + 8 hours`
 4. Re-sends the cookie with a fresh `Max-Age=28800`
 
-```
-  sessions table:
-  ┌────────────────────────────────────────────────┐
-  │ id:         550e8400-e29b-41d4-a716-...        │
-  │ user_id:    alice-uuid                         │
-  │ tenant_id:  acme-uuid                          │
-  │ expires_at: 2026-04-01T22:00:00Z  ← slides    │
-  │ created_at: 2026-04-01T09:00:00Z  ← fixed     │
-  └────────────────────────────────────────────────┘
+```text
+sessions table:
+
+  id:         550e8400-e29b-41d4-a716-...
+  user_id:    alice-uuid
+  tenant_id:  acme-uuid
+  expires_at: 2026-04-01T22:00:00Z  ← slides
+  created_at: 2026-04-01T09:00:00Z  ← fixed
 ```
 
 ### Interaction with JWT expiry
 
 volta has two expiry clocks running simultaneously:
 
-```
-  ┌─────────────────────────────────────────────┐
-  │  Session:  8h sliding window                │
-  │  JWT:      5 min absolute                   │
-  │                                             │
-  │  Session expires → no new JWTs can be       │
-  │  issued → user must re-login                │
-  │                                             │
-  │  JWT expires → client does silent refresh   │
-  │  → new JWT issued (if session still valid)  │
-  │                                             │
-  │  Session expiry: "are you still logged in?" │
-  │  JWT expiry: "is this specific token fresh?"│
-  └─────────────────────────────────────────────┘
+```text
+Session:  8h sliding window
+JWT:      5 min absolute
+
+Session expires → no new JWTs can be
+issued → user must re-login
+
+JWT expires → client does silent refresh
+→ new JWT issued (if session still valid)
+
+Session expiry: "are you still logged in?"
+JWT expiry: "is this specific token fresh?"
 ```
 
 ### Cleanup

@@ -35,34 +35,30 @@ For organizations that must keep traffic on-premise (healthcare, finance, govern
 
 ### Architecture
 
-```
-  User's Browser
-       │
-       │  HTTPS
-       ▼
-  ┌──────────────────────────┐
-  │  Cloudflare Edge Network  │
-  │                           │
-  │  1. Receive request       │
-  │  2. Check for CF token    │
-  │     (cookie/header)       │
-  │                           │
-  │  No token:                │
-  │  3. Redirect to IdP       │──► Google / Okta / Azure AD
-  │  4. User authenticates    │◄── (OIDC callback)
-  │  5. Issue CF access token │
-  │                           │
-  │  Has valid token:         │
-  │  6. Check access policy   │
-  │  7. Forward to origin     │
-  └──────────────────────────┘
-       │
-       │  Cloudflare Tunnel (or DNS)
-       ▼
-  ┌──────────────┐
-  │  Your Server  │  (origin, never exposed directly)
-  │  (app)        │
-  └──────────────┘
+```text
+User's Browser
+
+        HTTPS
+
+   Cloudflare Edge Network
+
+   1. Receive request
+   2. Check for CF token
+      (cookie/header)
+
+   No token:
+   3. Redirect to IdP          > Google / Okta / Azure AD
+   4. User authenticates     <   (OIDC callback)
+   5. Issue CF access token
+
+   Has valid token:
+   6. Check access policy
+   7. Forward to origin
+
+        Cloudflare Tunnel (or DNS)
+
+   Your Server     (origin, never exposed directly)
+   (app)
 ```
 
 ### Key components
@@ -93,9 +89,9 @@ Policy: Deny
 
 Traditionally, to put a web app behind Cloudflare, you need to expose a public IP. Cloudflare Tunnel eliminates this by running a small daemon (`cloudflared`) on your server that creates an outbound-only connection to Cloudflare:
 
-```
-  Internet ──► Cloudflare Edge ◄──── cloudflared ──── Your App
-                                  (outbound only)
+```text
+Internet   > Cloudflare Edge <     cloudflared      Your App
+                                (outbound only)
 ```
 
 Your server has no open inbound ports. Attackers cannot reach it directly.

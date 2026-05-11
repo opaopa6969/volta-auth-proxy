@@ -14,22 +14,19 @@
 
 浄水場と近所の家がつながっている様子を想像してください：
 
-```
-  水源（雨、川）
-       │
-       ▼
-  ┌──────────────────────┐
-  │  浄水場               │  ← 水を浄化して検査する
-  │                       │     （volta-auth-proxy）
-  └──────────────────────┘
-       │
-       ├──── 家A（wikiアプリ）         ← きれいな水が届く
-       ├──── 家B（管理パネル）         ← きれいな水が届く
-       └──── 家C（ダッシュボードアプリ）← きれいな水が届く
+```text
+水源（雨、川）
 
-  家は「下流」にある -- 浄水場の後にある。
-  すでに浄化・検査済みの水を受け取る。
-  自分で浄水設備を持つ必要はない。
+   浄水場                  ← 水を浄化して検査する
+                              （volta-auth-proxy）
+
+           家A（wikiアプリ）         ← きれいな水が届く
+           家B（管理パネル）         ← きれいな水が届く
+           家C（ダッシュボードアプリ）← きれいな水が届く
+
+家は「下流」にある -- 浄水場の後にある。
+すでに浄化・検査済みの水を受け取る。
+自分で浄水設備を持つ必要はない。
 ```
 
 このたとえでは：
@@ -106,28 +103,27 @@ apps:
 
 ## 簡単な例
 
-```
-  wikiと管理パネルの2つのアプリを作っているとしましょう。
-  どちらもvoltaの下流です。
+```text
+wikiと管理パネルの2つのアプリを作っているとしましょう。
+どちらもvoltaの下流です。
 
-  太郎（ACME CorpのMEMBER）からのリクエスト：
+太郎（ACME CorpのMEMBER）からのリクエスト：
 
-  太郎のブラウザ
-       │
-       ▼
-  volta-auth-proxy
-       │ 「太郎はACME CorpのMEMBER」
-       │
-       ├──→ wiki.example.com
-       │    voltaが追加：X-Volta-User-Id: taro-uuid
-       │                 X-Volta-Tenant-Id: acme-uuid
-       │                 X-Volta-Roles: MEMBER
-       │    Wikiアプリ：「ようこそ太郎さん！ACMEのwikiページです」
-       │    結果：200 OK
-       │
-       └──→ admin.example.com
-            voltaが確認：MEMBERは[ADMIN, OWNER]に含まれない
-            結果：403 Forbidden（リクエストは管理アプリに届かない）
+太郎のブラウザ
+
+volta-auth-proxy
+       「太郎はACME CorpのMEMBER」
+
+        → wiki.example.com
+          voltaが追加：X-Volta-User-Id: taro-uuid
+                       X-Volta-Tenant-Id: acme-uuid
+                       X-Volta-Roles: MEMBER
+          Wikiアプリ：「ようこそ太郎さん！ACMEのwikiページです」
+          結果：200 OK
+
+        → admin.example.com
+          voltaが確認：MEMBERは[ADMIN, OWNER]に含まれない
+          結果：403 Forbidden（リクエストは管理アプリに届かない）
 ```
 
 管理パネルでは、voltaがリクエストをアプリに届ける前にブロックしていることに注目してください。下流アプリが太郎を拒否する必要はありません。voltaが無料でやってくれます。

@@ -45,26 +45,23 @@ Without base64:
 
 Base64 converts every 3 bytes (24 bits) into 4 characters (6 bits each):
 
-```
-  Input: 3 bytes = 24 bits
-  ┌────────────────────────────────────────┐
-  │ Byte 1: 01001101  (M = 77)            │
-  │ Byte 2: 01100001  (a = 97)            │
-  │ Byte 3: 01101110  (n = 110)           │
-  └────────────────────────────────────────┘
+```text
+Input: 3 bytes = 24 bits
 
-  Regroup into 6-bit chunks:
-  ┌────────┬────────┬────────┬────────┐
-  │ 010011 │ 010110 │ 000101 │ 101110 │
-  │  = 19  │  = 22  │  = 5   │  = 46  │
-  └────────┴────────┴────────┴────────┘
+  Byte 1: 01001101  (M = 77)
+  Byte 2: 01100001  (a = 97)
+  Byte 3: 01101110  (n = 110)
 
-  Look up in base64 alphabet:
-  ┌─────┬─────┬─────┬─────┐
-  │  T  │  W  │  F  │  u  │
-  └─────┴─────┴─────┴─────┘
+Regroup into 6-bit chunks:
 
-  "Man" → "TWFu"
+  010011   010110   000101   101110
+   = 19     = 22     = 5      = 46
+
+Look up in base64 alphabet:
+
+   T     W     F     u
+
+"Man" → "TWFu"
 ```
 
 ### The base64 alphabet
@@ -122,15 +119,15 @@ Base64 encoding increases size by ~33%:
 
 A [JWT](jwt.md) consists of three base64url-encoded parts separated by dots:
 
-```
-  JWT = base64url(header) + "." + base64url(payload) + "." + base64url(signature)
+```text
+JWT = base64url(header) + "." + base64url(payload) + "." + base64url(signature)
 
-  Example:
-  eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyLXV1aWQiLCJ2b2x0YV90aWQiOiJhY21lIn0.signature...
-  ├─── header ────────┤ ├──────────── payload ────────────────────────────────┤ ├── sig ──┤
+Example:
+eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyLXV1aWQiLCJ2b2x0YV90aWQiOiJhY21lIn0.signature...
+     header                         payload                                       sig
 
-  Decoded header:  {"alg":"RS256"}
-  Decoded payload: {"sub":"user-uuid","volta_tid":"acme"}
+Decoded header:  {"alg":"RS256"}
+Decoded payload: {"sub":"user-uuid","volta_tid":"acme"}
 ```
 
 ### Invitation codes

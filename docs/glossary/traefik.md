@@ -28,22 +28,19 @@ Without Traefik (or something like it), you would need to either embed authentic
 
 ### Architecture overview
 
-```
-  Internet
-     │
-     ▼
-  ┌──────────────┐
-  │   Traefik    │  (reverse proxy, entrypoint)
-  │              │
-  │  1. Receive  │
-  │     request  │
-  │              │
-  │  2. Check    │──── ForwardAuth ────► volta-auth-proxy
-  │     auth     │◄─── 200 OK ─────────  (or 401/302)
-  │              │
-  │  3. Forward  │──── Only if 200 ───► Your App
-  │     request  │
-  └──────────────┘
+```text
+Internet
+
+    Traefik       (reverse proxy, entrypoint)
+
+   1. Receive
+      request
+
+   2. Check          ForwardAuth     > volta-auth-proxy
+      auth      <    200 OK            (or 401/302)
+
+   3. Forward        Only if 200    > Your App
+      request
 ```
 
 ### Key concepts
@@ -111,12 +108,12 @@ Traefik is volta-auth-proxy's **recommended reverse proxy**. The entire ForwardA
 
 ### The recommended stack
 
-```
-  Browser ──► Traefik ──► volta-auth-proxy (ForwardAuth)
-                 │
-                 ├──► App service A (protected)
-                 ├──► App service B (protected)
-                 └──► Public service C (no auth middleware)
+```text
+Browser   > Traefik   > volta-auth-proxy (ForwardAuth)
+
+                  > App service A (protected)
+                  > App service B (protected)
+                  > Public service C (no auth middleware)
 ```
 
 volta's Docker Compose examples use Traefik by default. The setup requires:

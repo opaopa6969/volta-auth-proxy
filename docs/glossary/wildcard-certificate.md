@@ -49,20 +49,19 @@ With a wildcard certificate, adding a new tenant subdomain requires zero certifi
 
 volta's multi-tenant architecture relies heavily on wildcard certificates:
 
-```
-  Certificate: *.app.example.com
-  ┌────────────────────────────────────────┐
-  │  Covers:                               │
-  │  ✓ acme.app.example.com               │
-  │  ✓ globex.app.example.com             │
-  │  ✓ initech.app.example.com            │
-  │  ✓ any-new-tenant.app.example.com     │
-  │                                        │
-  │  Does NOT cover:                       │
-  │  ✗ app.example.com (no wildcard part)  │
-  │  ✗ auth.example.com (different branch) │
-  │  ✗ deep.sub.app.example.com           │
-  └────────────────────────────────────────┘
+```text
+Certificate: *.app.example.com
+
+   Covers:
+   ✓ acme.app.example.com
+   ✓ globex.app.example.com
+   ✓ initech.app.example.com
+   ✓ any-new-tenant.app.example.com
+
+   Does NOT cover:
+   ✗ app.example.com (no wildcard part)
+   ✗ auth.example.com (different branch)
+   ✗ deep.sub.app.example.com
 ```
 
 In practice, a volta deployment typically needs:

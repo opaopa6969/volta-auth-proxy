@@ -31,13 +31,13 @@ For companies with hundreds of engineers building Netflix or Amazon, microservic
 
 volta-auth-proxy could have been built as microservices:
 
-```
+```text
 Microservice approach (NOT what volta does):
-┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐
-│ OIDC      │  │ Session   │  │ JWT       │  │ ForwardAuth│
-│ Service   │──│ Service   │──│ Service   │──│ Service    │
-│ (login)   │  │ (storage) │  │ (signing) │  │ (verify)   │
-└───────────┘  └───────────┘  └───────────┘  └───────────┘
+
+  OIDC           Session        JWT            ForwardAuth
+  Service        Service        Service        Service
+  (login)        (storage)      (signing)      (verify)
+
      Network hop    Network hop    Network hop
 
 Problems:
@@ -48,15 +48,14 @@ Problems:
 - 4 separate log streams to correlate
 ```
 
-```
+```text
 volta's approach (single process):
-┌──────────────────────────────────────────┐
-│ volta-auth-proxy                          │
-│                                          │
-│  OIDC → Session → JWT → ForwardAuth     │
-│  (all in one process, method calls)      │
-│                                          │
-└──────────────────────────────────────────┘
+
+  volta-auth-proxy
+
+   OIDC → Session → JWT → ForwardAuth
+   (all in one process, method calls)
+
      No network hops. One log. One stack trace.
 ```
 

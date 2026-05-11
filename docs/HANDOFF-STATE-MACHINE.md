@@ -27,30 +27,23 @@
 
 ## Architecture Summary
 
-```
-┌─────────────────────────────────────────────┐
-│  HTTP Layer (Javalin routes)                │
-│  OidcFlowRouter / PasskeyFlowRouter / ...   │
-├─────────────────────────────────────────────┤
-│  FlowEngine (generic, ~120 lines)           │
-│  ├── FlowDefinition builder DSL             │
-│  ├── MermaidGenerator                       │
-│  └── TransitionLogger (audit)               │
-├──────────────┬──────────────────────────────┤
-│ Session SM   │  Flow SM (per-flow)          │
-│ 4 states     │  OIDC (8), Passkey (6),     │
-│ + scopes     │  MFA (4), Invite (7)        │
-├──────────────┴──────────────────────────────┤
-│  Processors / Guards / BranchProcessors     │
-│  (1 class per transition arrow)             │
-├─────────────────────────────────────────────┤
-│  FlowContext (accumulator + @FlowData)      │
-│  requires() / produces() → boot validation  │
-├─────────────────────────────────────────────┤
-│  PostgreSQL                                 │
-│  sessions (auth_state) + auth_flows         │
-│  + auth_flow_transitions + session_scopes   │
-└─────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    HTTP["HTTP Layer (Javalin routes)<br/>OidcFlowRouter / PasskeyFlowRouter / ..."]
+    Engine["FlowEngine (generic, ~120 lines)<br/>- FlowDefinition builder DSL<br/>- MermaidGenerator<br/>- TransitionLogger (audit)"]
+    SessionSM["Session SM<br/>4 states + scopes"]
+    FlowSM["Flow SM (per-flow)<br/>OIDC (8), Passkey (6), MFA (4), Invite (7)"]
+    Proc["Processors / Guards / BranchProcessors<br/>(1 class per transition arrow)"]
+    Ctx["FlowContext (accumulator + @FlowData)<br/>requires() / produces() -> boot validation"]
+    DB["PostgreSQL<br/>sessions (auth_state) + auth_flows<br/>+ auth_flow_transitions + session_scopes"]
+
+    HTTP --> Engine
+    Engine --> SessionSM
+    Engine --> FlowSM
+    SessionSM --> Proc
+    FlowSM --> Proc
+    Proc --> Ctx
+    Ctx --> DB
 ```
 
 ## Next Step: Phase 1 (backlog/010)

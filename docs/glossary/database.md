@@ -16,17 +16,15 @@ It's OK not to know this! Databases are everywhere, quietly storing everything f
 
 Think of a school class roster:
 
-```
-  ┌─────────────────────────────────────────────────────┐
-  │  CLASS 3A - Student Roster                          │
-  │                                                     │
-  │  Student ID │ Name          │ Age │ Favorite Color  │
-  │  ───────────┼───────────────┼─────┼──────────────── │
-  │  001        │ Yuki Tanaka   │ 9   │ Blue            │
-  │  002        │ Hiro Suzuki   │ 9   │ Red             │
-  │  003        │ Mei Watanabe  │ 10  │ Green           │
-  │  004        │ Ken Sato      │ 9   │ Blue            │
-  └─────────────────────────────────────────────────────┘
+```text
+CLASS 3A - Student Roster
+
+Student ID   Name            Age   Favorite Color
+
+001          Yuki Tanaka     9     Blue
+002          Hiro Suzuki     9     Red
+003          Mei Watanabe    10    Green
+004          Ken Sato        9     Blue
 ```
 
 This roster is basically a **table** in a database! Let's learn the vocabulary:

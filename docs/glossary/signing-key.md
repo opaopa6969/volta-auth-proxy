@@ -30,61 +30,49 @@ This is why volta implements multiple layers of protection: [encryption at rest]
 
 ### Signing vs. verification
 
-```
-  Signing (private key -- SECRET):
-  ┌──────────────────────────────────────────────┐
-  │                                              │
-  │  JWT Header + Payload                        │
-  │         │                                    │
-  │         ▼                                    │
-  │  RS256 algorithm + Private Key               │
-  │         │                                    │
-  │         ▼                                    │
-  │  Signature (appended to JWT)                 │
-  │                                              │
-  │  Only volta can do this.                     │
-  └──────────────────────────────────────────────┘
+```text
+Signing (private key -- SECRET):
 
-  Verification (public key -- SHARED):
-  ┌──────────────────────────────────────────────┐
-  │                                              │
-  │  JWT Header + Payload + Signature            │
-  │         │                                    │
-  │         ▼                                    │
-  │  RS256 algorithm + Public Key                │
-  │         │                                    │
-  │         ▼                                    │
-  │  Valid? YES / NO                             │
-  │                                              │
-  │  Anyone with the public key can do this.     │
-  └──────────────────────────────────────────────┘
+   JWT Header + Payload
+
+   RS256 algorithm + Private Key
+
+   Signature (appended to JWT)
+
+   Only volta can do this.
+
+Verification (public key -- SHARED):
+
+   JWT Header + Payload + Signature
+
+   RS256 algorithm + Public Key
+
+   Valid? YES / NO
+
+   Anyone with the public key can do this.
 ```
 
 ### Key pair relationship
 
-```
-  ┌──────────────────────────────────┐
-  │  RSA-2048 Key Pair               │
-  │                                  │
-  │  Private key (signing key):      │
-  │  ┌────────────────────────────┐  │
-  │  │ 2048-bit RSA private key  │  │
-  │  │ Used to SIGN JWTs         │  │
-  │  │ Stored encrypted in DB    │  │
-  │  │ Never leaves the server   │  │
-  │  └────────────────────────────┘  │
-  │           │                      │
-  │           │ mathematically       │
-  │           │ derived              │
-  │           ▼                      │
-  │  Public key (verification key):  │
-  │  ┌────────────────────────────┐  │
-  │  │ Corresponding public key  │  │
-  │  │ Used to VERIFY JWTs       │  │
-  │  │ Published at JWKS endpoint│  │
-  │  │ Safe to share with anyone │  │
-  │  └────────────────────────────┘  │
-  └──────────────────────────────────┘
+```text
+RSA-2048 Key Pair
+
+Private key (signing key):
+
+  2048-bit RSA private key
+  Used to SIGN JWTs
+  Stored encrypted in DB
+  Never leaves the server
+
+           mathematically
+           derived
+
+Public key (verification key):
+
+  Corresponding public key
+  Used to VERIFY JWTs
+  Published at JWKS endpoint
+  Safe to share with anyone
 ```
 
 ### Key identification (kid)
@@ -109,15 +97,14 @@ During [key rotation](key-rotation.md), multiple keys may coexist. The `kid` ens
 
 Signing keys are stored in the `signing_keys` table, encrypted with AES-256-GCM:
 
-```
-  signing_keys table:
-  ┌────────────────────────────────────────────────┐
-  │ kid         │ "key-2026-04-01T12-00"           │
-  │ public_pem  │ "v1:IV_base64:encrypted_base64"  │
-  │ private_pem │ "v1:IV_base64:encrypted_base64"  │
-  │ status      │ "active"                         │
-  │ created_at  │ 2026-04-01T12:00:00Z             │
-  └────────────────────────────────────────────────┘
+```text
+signing_keys table:
+
+  kid           "key-2026-04-01T12-00"
+  public_pem    "v1:IV_base64:encrypted_base64"
+  private_pem   "v1:IV_base64:encrypted_base64"
+  status        "active"
+  created_at    2026-04-01T12:00:00Z
 ```
 
 ### Signing a JWT

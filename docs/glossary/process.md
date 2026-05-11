@@ -30,48 +30,40 @@ Understanding processes matters because:
 
 ### Process lifecycle
 
-```
-  Program (file on disk)              Process (running in memory)
-  ──────────────────────              ─────────────────────────────
+```text
+Program (file on disk)              Process (running in memory)
 
-  volta-auth-proxy.jar                PID: 12345
-  (just a file, doing nothing)        State: Running
-                                      Memory: 256MB
-       │                              CPU: 2.3%
-       │                              Port: 7070
-       │    java -jar volta.jar       Threads: 24
-       └────────────────────────────> (accepting HTTP requests)
-                                           │
-                                           │  kill 12345 / Ctrl+C
-                                           │
-                                           ▼
-                                      State: Terminated
-                                      Memory: freed
-                                      Port: released
+volta-auth-proxy.jar                PID: 12345
+(just a file, doing nothing)        State: Running
+                                    Memory: 256MB
+                                    CPU: 2.3%
+                                    Port: 7070
+          java -jar volta.jar       Threads: 24
+                                  > (accepting HTTP requests)
+
+                                            kill 12345 / Ctrl+C
+
+                                    State: Terminated
+                                    Memory: freed
+                                    Port: released
 ```
 
 ### Process vs. thread
 
-```
-  ┌───────────────────────────────────────────┐
-  │              Process (PID: 12345)          │
-  │              volta-auth-proxy              │
-  │                                            │
-  │  ┌────────┐  ┌────────┐  ┌────────┐      │
-  │  │Thread 1│  │Thread 2│  │Thread 3│ ...   │
-  │  │(main)  │  │(HTTP   │  │(HTTP   │       │
-  │  │        │  │ req 1) │  │ req 2) │       │
-  │  └────────┘  └────────┘  └────────┘       │
-  │                                            │
-  │  Shared memory space                       │
-  │  (all threads see the same data)           │
-  │                                            │
-  │  ┌─────────────────────────────────────┐   │
-  │  │  HikariCP pool (shared)             │   │
-  │  │  Caffeine cache (shared)            │   │
-  │  │  RSA key pair (shared)              │   │
-  │  └─────────────────────────────────────┘   │
-  └───────────────────────────────────────────┘
+```text
+            Process (PID: 12345)
+            volta-auth-proxy
+
+ Thread 1    Thread 2    Thread 3  ...
+ (main)      (HTTP       (HTTP
+              req 1)      req 2)
+
+Shared memory space
+(all threads see the same data)
+
+   HikariCP pool (shared)
+   Caffeine cache (shared)
+   RSA key pair (shared)
 ```
 
 A process is a container. Threads are the workers inside that container. Multiple threads share the same memory, which is why [Caffeine cache](caffeine-cache.md) and [HikariCP](hikaricp.md) pools work efficiently -- all threads access the same cache and pool.
@@ -124,22 +116,16 @@ The OS communicates with processes via signals:
 
 volta runs as a single [JVM](jvm.md) process. Everything -- HTTP server, session management, JWT services, database connections, cache -- runs inside one process:
 
-```
-  ┌─────────────────────────────────────────────────┐
-  │         volta-auth-proxy (single process)        │
-  │                                                  │
-  │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
-  │  │  Javalin  │  │  Session  │  │  JwtService  │  │
-  │  │  (HTTP)   │  │  Manager  │  │  (RS256)     │  │
-  │  └──────────┘  └──────────┘  └──────────────┘  │
-  │                                                  │
-  │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
-  │  │ HikariCP │  │ Caffeine │  │  Flyway       │  │
-  │  │ (DB pool)│  │ (cache)  │  │  (migrations) │  │
-  │  └──────────┘  └──────────┘  └──────────────┘  │
-  │                                                  │
-  │  One PID. One JVM. One process.                 │
-  └─────────────────────────────────────────────────┘
+```text
+       volta-auth-proxy (single process)
+
+   Javalin        Session        JwtService
+   (HTTP)         Manager        (RS256)
+
+  HikariCP      Caffeine       Flyway
+  (DB pool)     (cache)        (migrations)
+
+One PID. One JVM. One process.
 ```
 
 This simplicity is intentional. No message queues, no worker processes, no process managers. One process handles everything.
@@ -182,15 +168,14 @@ Docker maps [port](port.md) 7070 on the host to port 7070 in the container, forw
 
 When volta receives SIGTERM:
 
-```
-  SIGTERM received
-       │
-       ▼
-  1. Stop accepting new HTTP requests
-  2. Finish in-flight requests (up to timeout)
-  3. Close HikariCP connections
-  4. Flush any pending writes
-  5. Exit with code 0
+```text
+SIGTERM received
+
+1. Stop accepting new HTTP requests
+2. Finish in-flight requests (up to timeout)
+3. Close HikariCP connections
+4. Flush any pending writes
+5. Exit with code 0
 ```
 
 ---

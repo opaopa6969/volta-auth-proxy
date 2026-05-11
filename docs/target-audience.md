@@ -52,16 +52,21 @@ Python/Node/Go teams don't want to maintain a [Java](glossary/java.md) proxy. [F
 
 ## Market Position
 
-```
-              Full-featured →
-        ┌────────────────────────────┐
-        │ Keycloak   Auth0   WorkOS  │
-Self    │ ZITADEL    Clerk           │ Cloud
-hosted  │                            │ only
-        │ ★ volta-auth-proxy         │
-        │                            │
-        └────────────────────────────┘
-              Minimal →
+```mermaid
+quadrantChart
+    title Market Position
+    x-axis Minimal --> Full-featured
+    y-axis Self-hosted --> Cloud-only
+    quadrant-1 "Cloud / Full-featured"
+    quadrant-2 "Cloud / Minimal"
+    quadrant-3 "Self-hosted / Minimal"
+    quadrant-4 "Self-hosted / Full-featured"
+    "volta-auth-proxy (★)": [0.15, 0.15]
+    "Keycloak": [0.85, 0.10]
+    "ZITADEL": [0.75, 0.15]
+    "Auth0": [0.85, 0.90]
+    "Clerk": [0.60, 0.90]
+    "WorkOS": [0.80, 0.90]
 ```
 
 volta sits at **self-hosted × minimal**. The lightest, most controllable option. The [trade-off](../docs/glossary/tradeoff.md): you own the security.
@@ -147,20 +152,15 @@ Today's volta can't do enterprise. Here's what's needed:
 | Non-[Java](glossary/java.md) support | Java only | [Docker](glossary/docker.md) image (hide Java) or Go rewrite |
 | [SLA](glossary/sla.md) | None | Managed hosting option |
 
-```
-Phase Roadmap to Enterprise
+**Phase Roadmap to Enterprise**
 
-Phase 1 (Now)          Phase 2                Phase 3               Phase 4
-─────────────────      ─────────────────      ─────────────────     ─────────────────
-Google OIDC            Multiple IdPs           SAML / SSO            SOC2 ready
-Single-tenant          Multi-IdP routing       Tenant-specific IdP   Pen test results
-JWT RS256              Redis sessions          Attribute-based AC    HA + SLA
-Audit logs             Horizontal scale        MFA                   Enterprise support
-ForwardAuth            HA cluster              SCIM provisioning     Compliance docs
-─────────────────      ─────────────────      ─────────────────     ─────────────────
-Indie Hackers          Early Startups          B2B SaaS (SMB)        Enterprise (500+)
-Internal Tools         Growing Startups        Multi-tenant B2B      SOC2 audits pass
-Solo dev teams         10-50 people            Tenant SSO needed     Okta/Auth0 replace
+```mermaid
+flowchart LR
+    P1["Phase 1 (Now)<br/>- Google OIDC<br/>- Single-tenant<br/>- JWT RS256<br/>- Audit logs<br/>- ForwardAuth<br/>Targets: Indie Hackers, Internal Tools, Solo dev teams"]
+    P2["Phase 2<br/>- Multiple IdPs<br/>- Multi-IdP routing<br/>- Redis sessions<br/>- Horizontal scale<br/>- HA cluster<br/>Targets: Early Startups, Growing Startups, 10-50 people"]
+    P3["Phase 3<br/>- SAML / SSO<br/>- Tenant-specific IdP<br/>- Attribute-based AC<br/>- MFA<br/>- SCIM provisioning<br/>Targets: B2B SaaS (SMB), Multi-tenant B2B, Tenant SSO needed"]
+    P4["Phase 4<br/>- SOC2 ready<br/>- Pen test results<br/>- HA + SLA<br/>- Enterprise support<br/>- Compliance docs<br/>Targets: Enterprise (500+), SOC2 audits pass, Okta/Auth0 replace"]
+    P1 --> P2 --> P3 --> P4
 ```
 
 ### The Design + AI Advantage

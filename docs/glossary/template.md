@@ -34,23 +34,19 @@ Templates solve all three problems:
 
 ### The template rendering cycle
 
-```
-  Template File (login.jte)          Data (Java object)
-  ─────────────────────────          ──────────────────
-  <h1>Welcome to ${tenantName}</h1>  tenantName = "ACME Corp"
-  <p>Hello, ${userName}</p>          userName = "Taro Yamada"
-           │                                  │
-           └──────────┬───────────────────────┘
-                      │
-                      ▼
-               Template Engine
-              (fills placeholders)
-                      │
-                      ▼
-          Rendered HTML (sent to browser)
-          ──────────────────────────────
-          <h1>Welcome to ACME Corp</h1>
-          <p>Hello, Taro Yamada</p>
+```text
+Template File (login.jte)          Data (Java object)
+
+<h1>Welcome to ${tenantName}</h1>  tenantName = "ACME Corp"
+<p>Hello, ${userName}</p>          userName = "Taro Yamada"
+
+             Template Engine
+            (fills placeholders)
+
+        Rendered HTML (sent to browser)
+
+        <h1>Welcome to ACME Corp</h1>
+        <p>Hello, Taro Yamada</p>
 ```
 
 ### Placeholders and expressions
@@ -103,18 +99,18 @@ jte auto-escapes by default. If a user's name is `<script>alert('xss')</script>`
 
 Traditional template engines accept any object and fail at runtime if the data is wrong. [Type-safe](type-safe.md) templates like jte check at [compile](compile.md) time:
 
-```
-  Traditional (runtime error):
-  ──────────────────────────
-  Template:  ${user.nmae}        ← typo: "nmae" instead of "name"
-  Compile:   ✓ no error          ← compiler doesn't check templates
-  Runtime:   ✗ NullPointerException on line 47   ← user finds the bug
+```text
+Traditional (runtime error):
 
-  Type-safe / jte (compile error):
-  ─────────────────────────────
-  Template:  ${user.nmae}        ← typo: "nmae" instead of "name"
-  Compile:   ✗ error: cannot find symbol "nmae"  ← developer finds the bug
-  Runtime:   never reached        ← bug caught before deployment
+Template:  ${user.nmae}        ← typo: "nmae" instead of "name"
+Compile:   ✓ no error          ← compiler doesn't check templates
+Runtime:   ✗ NullPointerException on line 47   ← user finds the bug
+
+Type-safe / jte (compile error):
+
+Template:  ${user.nmae}        ← typo: "nmae" instead of "name"
+Compile:   ✗ error: cannot find symbol "nmae"  ← developer finds the bug
+Runtime:   never reached        ← bug caught before deployment
 ```
 
 ---
@@ -125,14 +121,14 @@ Traditional template engines accept any object and fail at runtime if the data i
 
 volta uses jte templates for its server-rendered pages:
 
-```
-  volta templates (src/main/jte/):
-  ├── login.jte           → Login page with Google OIDC button
-  ├── tenant-select.jte   → Multi-tenant selector after login
-  ├── invite-accept.jte   → Invitation acceptance page
-  ├── error.jte           → Error display page
-  └── layout/
-      └── main.jte        → Shared layout (header, footer, CSS)
+```text
+volta templates (src/main/jte/):
+    login.jte           → Login page with Google OIDC button
+    tenant-select.jte   → Multi-tenant selector after login
+    invite-accept.jte   → Invitation acceptance page
+    error.jte           → Error display page
+    layout/
+        main.jte        → Shared layout (header, footer, CSS)
 ```
 
 ### Rendering a template in a handler

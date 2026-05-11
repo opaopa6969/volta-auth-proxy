@@ -30,61 +30,51 @@ volta-auth-proxyでは、メンバーシップは`tenant_members`テーブルに
 
 ### メンバーシップのデータモデル
 
-```
-  ┌─────────────────────────────────────────────────────┐
-  │ tenant_membersテーブル                               │
-  │                                                     │
-  │ id:         uuid (主キー)                           │
-  │ user_id:    uuid → users.id                         │
-  │ tenant_id:  uuid → tenants.id                       │
-  │ role:       enum [OWNER, ADMIN, MEMBER, VIEWER]     │
-  │ is_active:  boolean                                 │
-  │ joined_at:  timestamp                               │
-  │ invited_by: uuid → users.id (nullable)              │
-  │                                                     │
-  │ UNIQUE制約: (user_id, tenant_id)                    │
-  │ ユーザーは1テナントにつき1つのメンバーシップのみ。   │
-  └─────────────────────────────────────────────────────┘
+```text
+tenant_membersテーブル
+
+id:         uuid (主キー)
+user_id:    uuid → users.id
+tenant_id:  uuid → tenants.id
+role:       enum [OWNER, ADMIN, MEMBER, VIEWER]
+is_active:  boolean
+joined_at:  timestamp
+invited_by: uuid → users.id (nullable)
+
+UNIQUE制約: (user_id, tenant_id)
+ユーザーは1テナントにつき1つのメンバーシップのみ。
 ```
 
 ### 多対多の関係
 
-```
-  ユーザー              メンバーシップ             テナント
-  ┌──────────┐          ┌──────────────┐         ┌──────────┐
-  │ Alice    │─────────►│ ADMIN        │◄────────│ Acme     │
-  │          │          └──────────────┘         │          │
-  │          │─────────►│ VIEWER       │◄────────│ Side LLC │
-  └──────────┘          └──────────────┘         └──────────┘
-  ┌──────────┐          ┌──────────────┐
-  │ Bob      │─────────►│ OWNER        │◄────────┐
-  │          │          └──────────────┘         │ Acme
-  │          │─────────►│ MEMBER       │◄────────┘
-  └──────────┘          └──────────────┘         ┌──────────┐
-                        │ MEMBER       │◄────────│ OpenOrg  │
-                        └──────────────┘         └──────────┘
+```text
+ユーザー              メンバーシップ             テナント
+
+  Alice              >  ADMIN         <          Acme
+
+                     >  VIEWER        <          Side LLC
+
+  Bob                >  OWNER         <
+                                                 Acme
+                     >  MEMBER        <
+
+                        MEMBER        <          OpenOrg
 ```
 
 ### メンバーシップのライフサイクル
 
-```
-  ┌──────────────┐    招待承認        ┌──────────────┐
-  │メンバーシップ │ ─────────────────►│ アクティブ    │
-  │ なし         │                   │ メンバー      │
-  └──────────────┘                   │ (is_active=  │
-                                     │  true)       │
-                                     └──────┬───────┘
-                                            │
-                              ┌──────────────┤
-                              │              │
-                         ロール変更     管理者による削除
-                              │              │
-                              ▼              ▼
-                     ┌──────────────┐ ┌──────────────┐
-                     │ アクティブ    │ │ 無効化       │
-                     │ メンバー      │ │ (is_active=  │
-                     │ (新ロール)   │ │  false)       │
-                     └──────────────┘ └──────────────┘
+```text
+                   招待承認
+メンバーシップ                    >  アクティブ
+ なし                               メンバー
+                                    (is_active=
+                                     true)
+
+                      ロール変更     管理者による削除
+
+                    アクティブ        無効化
+                    メンバー          (is_active=
+                    (新ロール)        false)
 ```
 
 ---

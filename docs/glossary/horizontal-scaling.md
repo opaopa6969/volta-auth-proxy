@@ -28,19 +28,18 @@ Horizontal scaling is how modern web applications handle millions of users. Inst
 
 ### Vertical vs horizontal scaling
 
-```
-  Vertical Scaling:                Horizontal Scaling:
-  (bigger server)                  (more servers)
+```text
+Vertical Scaling:                Horizontal Scaling:
+(bigger server)                  (more servers)
 
-  Before:        After:            Before:         After:
-  ┌──────┐     ┌──────────┐       ┌──────┐      ┌──────┐ ┌──────┐
-  │ 2 CPU│     │  8 CPU   │       │ 2 CPU│      │ 2 CPU│ │ 2 CPU│
-  │ 4 GB │     │  32 GB   │       │ 4 GB │      │ 4 GB │ │ 4 GB │
-  │      │     │          │       │      │      │      │ │      │
-  └──────┘     └──────────┘       └──────┘      └──────┘ └──────┘
-  1 server      1 bigger server    1 server       2 servers
-  Cost: $$$     Cost: $$$$$$       Cost: $$$      Cost: $$$$$$
-                                                  (but more flexible)
+Before:        After:            Before:         After:
+
+  2 CPU         8 CPU             2 CPU         2 CPU    2 CPU
+  4 GB          32 GB             4 GB          4 GB     4 GB
+
+1 server      1 bigger server    1 server       2 servers
+Cost: $$$     Cost: $$$$$$       Cost: $$$      Cost: $$$$$$
+                                                (but more flexible)
 ```
 
 ### Requirements for horizontal scaling
@@ -57,61 +56,47 @@ To run multiple instances of the same application, you need:
 
 ### The scaling flow
 
-```
-  Single instance (Phase 1):
+```text
+Single instance (Phase 1):
 
-  All traffic → ┌──────────┐ → PostgreSQL
-                │ volta (1) │
-                └──────────┘
+All traffic →              → PostgreSQL
+                volta (1)
 
-  Horizontally scaled (Phase 2):
+Horizontally scaled (Phase 2):
 
-                ┌──────────────┐
-  All traffic → │Load Balancer │
-                └──┬───┬───┬──┘
-                   │   │   │
-                ┌──┴┐ ┌┴──┐ ┌┴──┐
-                │ v1│ │ v2│ │ v3│  ← identical instances
-                └─┬─┘ └─┬─┘ └─┬─┘
-                  │     │     │
-                  ▼     ▼     ▼
-               ┌──────────────────┐
-               │    PostgreSQL    │ ← shared database
-               └──────────────────┘
-               ┌──────────────────┐
-               │      Redis       │ ← shared sessions + cache
-               └──────────────────┘
+All traffic →  Load Balancer
+
+                v1    v2    v3   ← identical instances
+
+                  PostgreSQL      ← shared database
+
+                    Redis         ← shared sessions + cache
 ```
 
 ### What "stateless" means
 
 An application is stateless if any instance can handle any request without needing data that only lives in that specific instance's memory.
 
-```
-  STATEFUL (cannot scale horizontally):
-  ┌──────────┐
-  │ Instance 1│
-  │           │
-  │ Session A │ ← only instance 1 knows about session A
-  │ Session B │
-  └──────────┘
+```text
+STATEFUL (cannot scale horizontally):
 
-  Request for session A hits instance 2 → FAIL (session not found)
+  Instance 1
 
-  STATELESS (can scale horizontally):
-  ┌──────────┐  ┌──────────┐
-  │ Instance 1│  │ Instance 2│
-  │           │  │           │
-  │ (no local │  │ (no local │
-  │  sessions)│  │  sessions)│
-  └─────┬─────┘  └─────┬─────┘
-        │              │
-        ▼              ▼
-  ┌──────────────────────┐
-  │  Redis (all sessions)│
-  └──────────────────────┘
+  Session A   ← only instance 1 knows about session A
+  Session B
 
-  Request for session A hits instance 2 → checks Redis → FOUND
+Request for session A hits instance 2 → FAIL (session not found)
+
+STATELESS (can scale horizontally):
+
+  Instance 1     Instance 2
+
+  (no local      (no local
+   sessions)      sessions)
+
+   Redis (all sessions)
+
+Request for session A hits instance 2 → checks Redis → FOUND
 ```
 
 ---
@@ -126,37 +111,23 @@ volta currently runs as a [single process](single-process.md). Session state liv
 
 Phase 2 adds the infrastructure needed to run multiple volta instances:
 
-```
-  Phase 2 architecture:
+```text
+Phase 2 architecture:
 
-  ┌──────────────────────────────────────────┐
-  │              Internet                     │
-  └─────────────────┬────────────────────────┘
-                    │
-                    ▼
-  ┌──────────────────────────────────────────┐
-  │         Traefik (Load Balancer)          │
-  │   Round-robin across volta instances     │
-  └────┬──────────┬──────────┬──────────────┘
-       │          │          │
-       ▼          ▼          ▼
-  ┌────────┐ ┌────────┐ ┌────────┐
-  │volta-1 │ │volta-2 │ │volta-3 │
-  │        │ │        │ │        │
-  │Caffeine│ │Caffeine│ │Caffeine│  ← L1 cache (local)
-  └───┬────┘ └───┬────┘ └───┬────┘
-      │          │          │
-      ▼          ▼          ▼
-  ┌──────────────────────────────────┐
-  │           Redis                   │  ← L2 cache (shared)
-  │   Sessions, rate limits           │
-  └──────────────────────────────────┘
-      │          │          │
-      ▼          ▼          ▼
-  ┌──────────────────────────────────┐
-  │         PostgreSQL                │  ← Source of truth
-  │   Users, tenants, memberships     │
-  └──────────────────────────────────┘
+               Internet
+
+          Traefik (Load Balancer)
+    Round-robin across volta instances
+
+ volta-1    volta-2    volta-3
+
+ Caffeine   Caffeine   Caffeine   ← L1 cache (local)
+
+            Redis                      ← L2 cache (shared)
+    Sessions, rate limits
+
+          PostgreSQL                   ← Source of truth
+    Users, tenants, memberships
 ```
 
 ### What changes from Phase 1 to Phase 2

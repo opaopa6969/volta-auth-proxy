@@ -27,16 +27,15 @@ This led to the infamous "it works on my machine" problem. Different environment
 
 Fat JARs solve this by making deployment simple:
 
-```
-  Traditional deployment:              Fat JAR deployment:
-  ┌─────────────────────┐              ┌─────────────────────┐
-  │ Install Java         │              │ Install Java         │
-  │ Install Tomcat       │              │ java -jar app.jar    │
-  │ Configure Tomcat     │              │                      │
-  │ Deploy WAR file      │              │ That's it.           │
-  │ Configure classpath  │              └─────────────────────┘
-  │ Pray it works        │
-  └─────────────────────┘
+```text
+Traditional deployment:              Fat JAR deployment:
+
+  Install Java                          Install Java
+  Install Tomcat                        java -jar app.jar
+  Configure Tomcat
+  Deploy WAR file                       That's it.
+  Configure classpath
+  Pray it works
 ```
 
 ### How a fat JAR is created
@@ -104,22 +103,20 @@ No application server needed. No separate web server. No classpath configuration
 
 The fat JAR approach makes [self-hosting](self-hosting.md) volta simple:
 
-```
-  What you need to run volta:
-  ┌──────────────────────────┐
-  │ 1. Java 21 (runtime)     │
-  │ 2. PostgreSQL database   │
-  │ 3. volta-auth-proxy.jar  │
-  │ 4. .env + config YAML    │
-  └──────────────────────────┘
+```text
+What you need to run volta:
 
-  What you DON'T need:
-  ┌──────────────────────────┐
-  │ ✗ Tomcat                 │
-  │ ✗ Application server     │
-  │ ✗ Library management     │
-  │ ✗ Complex deployment     │
-  └──────────────────────────┘
+  1. Java 21 (runtime)
+  2. PostgreSQL database
+  3. volta-auth-proxy.jar
+  4. .env + config YAML
+
+What you DON'T need:
+
+  ✗ Tomcat
+  ✗ Application server
+  ✗ Library management
+  ✗ Complex deployment
 ```
 
 In a Docker container, this becomes even simpler -- the Java runtime is baked into the image, so you just need `docker run volta-auth-proxy`.

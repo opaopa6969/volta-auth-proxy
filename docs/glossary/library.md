@@ -60,20 +60,20 @@ Notice: **your code** is in control. You decide when to create the pool, when to
 
 Libraries often depend on other libraries. This creates a tree:
 
-```
-  volta-auth-proxy
-  ├── javalin (framework, but also a dependency)
-  │   ├── jetty-server
-  │   ├── jetty-webapp
-  │   └── slf4j-api
-  ├── hikaricp (library)
-  │   └── slf4j-api
-  ├── nimbus-jose-jwt (library)
-  │   └── jcip-annotations
-  ├── caffeine (library)
-  │   └── checker-qual
-  ├── postgresql (library - JDBC driver)
-  └── jte (library - template engine)
+```text
+volta-auth-proxy
+    javalin (framework, but also a dependency)
+        jetty-server
+        jetty-webapp
+        slf4j-api
+    hikaricp (library)
+        slf4j-api
+    nimbus-jose-jwt (library)
+        jcip-annotations
+    caffeine (library)
+        checker-qual
+    postgresql (library - JDBC driver)
+    jte (library - template engine)
 ```
 
 Maven resolves this tree automatically, downloading transitive dependencies. This is why a project with 10 direct dependencies might have 50+ JARs in the final [fat JAR](fat-jar.md).
@@ -107,25 +107,17 @@ volta-auth-proxy deliberately chooses small, focused libraries instead of a larg
 
 ### The volta library stack
 
-```
-  ┌─────────────────────────────────────────────┐
-  │              volta-auth-proxy                │
-  │                                              │
-  │  ┌──────────┐  ┌──────────┐  ┌───────────┐  │
-  │  │ HikariCP │  │ Caffeine │  │ nimbus-   │  │
-  │  │ (DB pool)│  │ (cache)  │  │ jose-jwt  │  │
-  │  └──────────┘  └──────────┘  └───────────┘  │
-  │                                              │
-  │  ┌──────────┐  ┌──────────┐  ┌───────────┐  │
-  │  │ Flyway   │  │  jte     │  │ PostgreSQL│  │
-  │  │ (migrate)│  │(template)│  │  (driver)  │  │
-  │  └──────────┘  └──────────┘  └───────────┘  │
-  │                                              │
-  │  ┌──────────────────────────────────────┐    │
-  │  │         Javalin (framework)          │    │
-  │  │         Jetty (HTTP server)          │    │
-  │  └──────────────────────────────────────┘    │
-  └─────────────────────────────────────────────┘
+```text
+          volta-auth-proxy
+
+HikariCP      Caffeine      nimbus-
+(DB pool)     (cache)       jose-jwt
+
+Flyway         jte          PostgreSQL
+(migrate)    (template)      (driver)
+
+        Javalin (framework)
+        Jetty (HTTP server)
 ```
 
 ### Why small libraries instead of Spring Boot?

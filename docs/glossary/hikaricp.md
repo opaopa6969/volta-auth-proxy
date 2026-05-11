@@ -65,30 +65,21 @@ It is the default connection pool in Spring Boot, which says a lot about its qua
 
 volta-auth-proxy uses HikariCP to manage its connections to PostgreSQL. Every database operation -- session lookups, user queries, tenant resolution, audit logging -- goes through the HikariCP pool.
 
-```
-  volta-auth-proxy
-  ┌─────────────────────────────────────┐
-  │                                     │
-  │  ForwardAuth handler ──┐            │
-  │  Login handler ────────┤            │
-  │  API handlers ─────────┤            │
-  │  Flyway migrations ────┤            │
-  │                        ▼            │
-  │  ┌─────────────────────────────┐    │
-  │  │  HikariCP Connection Pool   │    │
-  │  │  ┌────┐ ┌────┐ ┌────┐      │    │
-  │  │  │conn│ │conn│ │conn│ ...   │    │
-  │  │  └────┘ └────┘ └────┘      │    │
-  │  └─────────────┬───────────────┘    │
-  │                │                    │
-  └────────────────┼────────────────────┘
-                   │
-                   ▼
-  ┌─────────────────────────────────────┐
-  │  PostgreSQL                         │
-  │  (sessions, users, tenants,         │
-  │   audit logs, etc.)                 │
-  └─────────────────────────────────────┘
+```text
+volta-auth-proxy
+
+   ForwardAuth handler
+   Login handler
+   API handlers
+   Flyway migrations
+
+      HikariCP Connection Pool
+
+       conn   conn   conn  ...
+
+   PostgreSQL
+   (sessions, users, tenants,
+    audit logs, etc.)
 ```
 
 ### Pool configuration in volta

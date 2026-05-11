@@ -36,18 +36,17 @@ Service tokens provide a clean, auditable, revocable way for machines to call th
 
 ### Authentication flow
 
-```
-  Background job                          volta-auth-proxy
-  ┌──────────────┐                       ┌──────────────────┐
-  │              │  Authorization:        │                  │
-  │ GET /api/v1/ │  Bearer volta-service: │  1. Extract token│
-  │ tenants/{id}/│  {VOLTA_SERVICE_TOKEN} │  2. Compare with │
-  │ members      │  ─────────────────────►│     env var      │
-  │              │  X-Volta-Tenant-Id:    │  3. Match? →     │
-  │              │  {tenant-uuid}         │     AuthPrincipal│
-  │              │                        │     (service)    │
-  │              │◄─── 200 [{members}] ───│                  │
-  └──────────────┘                       └──────────────────┘
+```text
+Background job                          volta-auth-proxy
+
+                  Authorization:
+  GET /api/v1/    Bearer volta-service:    1. Extract token
+  tenants/{id}/   {VOLTA_SERVICE_TOKEN}    2. Compare with
+  members                              >      env var
+                  X-Volta-Tenant-Id:       3. Match? →
+                  {tenant-uuid}               AuthPrincipal
+                                              (service)
+                <    200 [{members}]
 ```
 
 ### Service AuthPrincipal
@@ -72,33 +71,31 @@ The `serviceToken: true` flag lets downstream code distinguish between user requ
 
 ### Token format
 
-```
-  Authorization: Bearer volta-service:abc123xyz789...
-                        ├──────────────┤├────────────┤
-                        prefix          actual token
-                        (identifies     (matches
-                         token type)    VOLTA_SERVICE_TOKEN env var)
+```text
+Authorization: Bearer volta-service:abc123xyz789...
+
+                      prefix          actual token
+                      (identifies     (matches
+                       token type)    VOLTA_SERVICE_TOKEN env var)
 ```
 
 The `volta-service:` prefix distinguishes service tokens from JWTs, which do not have a prefix.
 
 ### Security constraints
 
-```
-  ┌─────────────────────────────────────────────────────┐
-  │ Service token capabilities:                         │
-  │                                                     │
-  │ ✓ Call any /api/v1/* endpoint                       │
-  │ ✓ Act on behalf of any tenant (via header)          │
-  │ ✓ Bypass session/cookie requirements                │
-  │                                                     │
-  │ Service token limitations:                          │
-  │                                                     │
-  │ ✗ Cannot access browser-only endpoints (/login, etc)│
-  │ ✗ Must be on Docker internal network                │
-  │ ✗ Cannot be used from the public internet           │
-  │ ✗ No role hierarchy — SERVICE role is flat           │
-  └─────────────────────────────────────────────────────┘
+```text
+Service token capabilities:
+
+✓ Call any /api/v1/* endpoint
+✓ Act on behalf of any tenant (via header)
+✓ Bypass session/cookie requirements
+
+Service token limitations:
+
+✗ Cannot access browser-only endpoints (/login, etc)
+✗ Must be on Docker internal network
+✗ Cannot be used from the public internet
+✗ No role hierarchy — SERVICE role is flat
 ```
 
 ---
@@ -152,13 +149,11 @@ service_context:
 
 Service token requests are logged with the synthetic `service@volta.local` actor:
 
-```
-  ┌────────────────────────────────────────────────┐
-  │ event_type:  MEMBER_ROLE_CHANGED               │
-  │ actor_id:    00000000-0000-0000-0000-0000...   │
-  │ actor_ip:    172.18.0.5 (Docker internal)      │
-  │ detail:      { "via": "service-token" }        │
-  └────────────────────────────────────────────────┘
+```text
+event_type:  MEMBER_ROLE_CHANGED
+actor_id:    00000000-0000-0000-0000-0000...
+actor_ip:    172.18.0.5 (Docker internal)
+detail:      { "via": "service-token" }
 ```
 
 ---

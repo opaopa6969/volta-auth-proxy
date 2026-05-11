@@ -71,27 +71,26 @@ In a typical volta setup, [Traefik](https://traefik.io/) is used as the reverse 
 
 Here is how the pieces fit together:
 
-```
-  User's browser visits wiki.example.com
-       │
-       ▼
-  Traefik (reverse proxy)
-       │
-       │  "wiki.example.com? Let me check my routing rules..."
-       │  "Rule: wiki.example.com → forward to wiki app on port 8080"
-       │
-       │  But first! "ForwardAuth is enabled for this route."
-       │  "Let me check with volta-auth-proxy first..."
-       │
-       ├──→ volta-auth-proxy (ForwardAuth check)
-       │    volta: "Is this user logged in? What tenant? What role?"
-       │    volta: "Yes, this is Taro, MEMBER of ACME. Here are the headers."
-       │    volta returns: 200 OK + identity headers
-       │
-       │  Traefik: "volta approved! Adding the identity headers to the request."
-       │
-       └──→ wiki app (port 8080)
-            Receives request with X-Volta-User-Id, X-Volta-Tenant-Id, etc.
+```text
+User's browser visits wiki.example.com
+
+Traefik (reverse proxy)
+
+        "wiki.example.com? Let me check my routing rules..."
+        "Rule: wiki.example.com → forward to wiki app on port 8080"
+
+        But first! "ForwardAuth is enabled for this route."
+        "Let me check with volta-auth-proxy first..."
+
+        → volta-auth-proxy (ForwardAuth check)
+          volta: "Is this user logged in? What tenant? What role?"
+          volta: "Yes, this is Taro, MEMBER of ACME. Here are the headers."
+          volta returns: 200 OK + identity headers
+
+        Traefik: "volta approved! Adding the identity headers to the request."
+
+        → wiki app (port 8080)
+          Receives request with X-Volta-User-Id, X-Volta-Tenant-Id, etc.
 ```
 
 Traefik handles the networking (which request goes where), and volta handles the identity (who is making the request and are they allowed).

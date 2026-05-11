@@ -37,61 +37,52 @@ Every application has vulnerabilities. The question is whether you find them fir
 
 ### The penetration testing process
 
-```
-  Phase 1: Scoping
-  ┌────────────────────────────────────┐
-  │  What is in scope?                 │
-  │  - Web application                 │
-  │  - API endpoints                   │
-  │  - Authentication flows            │
-  │                                    │
-  │  What is out of scope?             │
-  │  - Third-party services (Google)   │
-  │  - Physical infrastructure         │
-  │  - Social engineering              │
-  └────────────────────────────────────┘
-              │
-              ▼
-  Phase 2: Reconnaissance
-  ┌────────────────────────────────────┐
-  │  - Map all endpoints               │
-  │  - Identify technologies           │
-  │  - Find entry points               │
-  │  - Review authentication flows     │
-  └────────────────────────────────────┘
-              │
-              ▼
-  Phase 3: Vulnerability discovery
-  ┌────────────────────────────────────┐
-  │  - Test for injection (SQL, XSS)   │
-  │  - Test authentication bypass      │
-  │  - Test authorization (IDOR, priv  │
-  │    escalation)                     │
-  │  - Test session management         │
-  │  - Test CSRF protection            │
-  │  - Test for info disclosure        │
-  └────────────────────────────────────┘
-              │
-              ▼
-  Phase 4: Exploitation
-  ┌────────────────────────────────────┐
-  │  Attempt to exploit found vulns:   │
-  │  - Can I access another tenant's   │
-  │    data?                           │
-  │  - Can I escalate from MEMBER to   │
-  │    OWNER?                          │
-  │  - Can I bypass the auth proxy?    │
-  └────────────────────────────────────┘
-              │
-              ▼
-  Phase 5: Reporting
-  ┌────────────────────────────────────┐
-  │  For each finding:                 │
-  │  - Severity (Critical/High/Med/Low)│
-  │  - Description                     │
-  │  - Proof of concept                │
-  │  - Remediation recommendation      │
-  └────────────────────────────────────┘
+```text
+Phase 1: Scoping
+
+   What is in scope?
+   - Web application
+   - API endpoints
+   - Authentication flows
+
+   What is out of scope?
+   - Third-party services (Google)
+   - Physical infrastructure
+   - Social engineering
+
+Phase 2: Reconnaissance
+
+   - Map all endpoints
+   - Identify technologies
+   - Find entry points
+   - Review authentication flows
+
+Phase 3: Vulnerability discovery
+
+   - Test for injection (SQL, XSS)
+   - Test authentication bypass
+   - Test authorization (IDOR, priv
+     escalation)
+   - Test session management
+   - Test CSRF protection
+   - Test for info disclosure
+
+Phase 4: Exploitation
+
+   Attempt to exploit found vulns:
+   - Can I access another tenant's
+     data?
+   - Can I escalate from MEMBER to
+     OWNER?
+   - Can I bypass the auth proxy?
+
+Phase 5: Reporting
+
+   For each finding:
+   - Severity (Critical/High/Med/Low)
+   - Description
+   - Proof of concept
+   - Remediation recommendation
 ```
 
 ### Severity ratings
@@ -127,21 +118,21 @@ volta-auth-proxy has not undergone a formal penetration test yet. This is planne
 
 volta's single-process, tight-coupling philosophy makes penetration testing easier:
 
-```
-  Microservices pentest:
-  ┌──────┐  ┌──────┐  ┌──────┐  ┌──────┐
-  │Svc A │──│Svc B │──│Svc C │──│Svc D │
-  └──────┘  └──────┘  └──────┘  └──────┘
-  4 services, 6 interfaces, 4 auth boundaries
-  Hard to test, easy to miss gaps
+```text
+Microservices pentest:
 
-  volta pentest:
-  ┌──────────────────────────────────┐
-  │        volta-auth-proxy          │
-  │  (single process, one boundary)  │
-  └──────────────────────────────────┘
-  1 service, 1 interface, 1 auth boundary
-  Easy to test thoroughly
+ Svc A     Svc B     Svc C     Svc D
+
+4 services, 6 interfaces, 4 auth boundaries
+Hard to test, easy to miss gaps
+
+volta pentest:
+
+         volta-auth-proxy
+   (single process, one boundary)
+
+1 service, 1 interface, 1 auth boundary
+Easy to test thoroughly
 ```
 
 ### Pentest preparation checklist

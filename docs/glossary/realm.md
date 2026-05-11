@@ -22,32 +22,28 @@ Understanding realms explains one of the core reasons volta-auth-proxy was built
 
 ## How realms work in Keycloak
 
-```
-  Keycloak Server
-  ┌───────────────────────────────────────────────────────┐
-  │                                                       │
-  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
-  │  │ Realm: Acme  │  │ Realm: Beta  │  │ Realm: Gamma│  │
-  │  │              │  │              │  │             │  │
-  │  │ Users:       │  │ Users:       │  │ Users:      │  │
-  │  │  - alice     │  │  - bob       │  │  - charlie  │  │
-  │  │  - dave      │  │  - eve       │  │  - frank    │  │
-  │  │              │  │              │  │             │  │
-  │  │ Clients:     │  │ Clients:     │  │ Clients:    │  │
-  │  │  - wiki-app  │  │  - wiki-app  │  │  - wiki-app │  │
-  │  │  - admin-app │  │  - admin-app │  │             │  │
-  │  │              │  │              │  │             │  │
-  │  │ Roles:       │  │ Roles:       │  │ Roles:      │  │
-  │  │  - admin     │  │  - admin     │  │  - admin    │  │
-  │  │  - user      │  │  - user      │  │  - user     │  │
-  │  │              │  │              │  │             │  │
-  │  │ Theme:       │  │ Theme:       │  │ Theme:      │  │
-  │  │  custom-acme │  │  default     │  │  default    │  │
-  │  └─────────────┘  └─────────────┘  └─────────────┘  │
-  │                                                       │
-  │  Each realm is a completely separate world.           │
-  │  Nothing is shared.                                   │
-  └───────────────────────────────────────────────────────┘
+```text
+Keycloak Server
+
+     Realm: Acme       Realm: Beta       Realm: Gamma
+
+     Users:            Users:            Users:
+      - alice           - bob             - charlie
+      - dave            - eve             - frank
+
+     Clients:          Clients:          Clients:
+      - wiki-app        - wiki-app        - wiki-app
+      - admin-app       - admin-app
+
+     Roles:            Roles:            Roles:
+      - admin           - admin           - admin
+      - user            - user            - user
+
+     Theme:            Theme:            Theme:
+      custom-acme       default           default
+
+   Each realm is a completely separate world.
+   Nothing is shared.
 ```
 
 Each realm is fully independent. This means:
@@ -65,20 +61,19 @@ Each realm is fully independent. This means:
 
 In many SaaS platforms, a single person belongs to multiple organizations. Alice might be an ADMIN in Acme Corp and a VIEWER in Beta Inc. With Keycloak realms:
 
-```
-  alice@gmail.com wants to be in Acme AND Beta:
+```text
+alice@gmail.com wants to be in Acme AND Beta:
 
-  Option A: Create separate accounts
-  ┌─────────────┐  ┌─────────────┐
-  │ Realm: Acme  │  │ Realm: Beta  │
-  │ alice (admin)│  │ alice (viewer)│  ← Two accounts, two passwords,
-  └─────────────┘  └─────────────┘    two login sessions. Confusing.
+Option A: Create separate accounts
 
-  Option B: Build cross-realm federation
-  ┌─────────────┐  ┌─────────────┐
-  │ Realm: Acme  │──│ Realm: Beta  │  ← Complex. Not natively supported.
-  │ alice (admin)│  │ alice (viewer)│    Requires custom SPI development.
-  └─────────────┘  └─────────────┘
+  Realm: Acme       Realm: Beta
+  alice (admin)     alice (viewer)   ← Two accounts, two passwords,
+                                    two login sessions. Confusing.
+
+Option B: Build cross-realm federation
+
+  Realm: Acme       Realm: Beta     ← Complex. Not natively supported.
+  alice (admin)     alice (viewer)     Requires custom SPI development.
 ```
 
 Neither option is good. SaaS users expect one account, one login, multiple workspaces.
@@ -101,23 +96,21 @@ Every realm needs its own client configuration, role definitions, identity provi
 
 volta takes a fundamentally different approach:
 
-```
-  volta data model:
-  ┌──────────────────────────────────────────────────┐
-  │ PostgreSQL                                        │
-  │                                                    │
-  │  users              tenants          memberships   │
-  │  ┌──────────┐      ┌──────────┐    ┌───────────┐ │
-  │  │ alice     │──┐   │ Acme     │    │ alice     │ │
-  │  │ bob       │  ├──►│ Beta     │◄───│  → Acme   │ │
-  │  │ charlie   │  │   │ Gamma    │    │    (ADMIN) │ │
-  │  └──────────┘  │   └──────────┘    │  → Beta   │ │
-  │                │                    │    (VIEWER)│ │
-  │                │                    │ bob       │ │
-  │                └───────────────────►│  → Acme   │ │
-  │                                     │    (MEMBER)│ │
-  │                                     └───────────┘ │
-  └──────────────────────────────────────────────────┘
+```text
+volta data model:
+
+  PostgreSQL
+
+   users              tenants          memberships
+
+     alice              Acme            alice
+     bob             >  Beta      <      → Acme
+     charlie            Gamma              (ADMIN)
+                                        → Beta
+                                           (VIEWER)
+                                        bob
+                                     >   → Acme
+                                           (MEMBER)
 ```
 
 | Aspect | Keycloak Realm | volta Tenant |

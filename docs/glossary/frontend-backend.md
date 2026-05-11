@@ -29,27 +29,22 @@ Understanding the frontend-backend split is essential because:
 
 ### The split
 
-```
-  ┌────────────────────────────────────┐     ┌────────────────────────────────┐
-  │           FRONTEND                  │     │           BACKEND              │
-  │      (runs in browser)              │     │      (runs on server)          │
-  │                                     │     │                                │
-  │  ┌──────────┐  ┌──────────────┐    │     │  ┌─────────────┐              │
-  │  │  HTML     │  │ JavaScript   │    │     │  │ Route        │              │
-  │  │ (structure│  │ (behavior)   │    │ HTTP│  │ handlers     │              │
-  │  │  of page) │  │              │    │────>│  │              │              │
-  │  └──────────┘  │ fetch(url)   │    │     │  └──────┬───────┘              │
-  │                │ onClick()    │    │<────│         │                       │
-  │  ┌──────────┐  │ render()     │    │     │  ┌──────▼───────┐              │
-  │  │  CSS      │  └──────────────┘    │     │  │ Business     │              │
-  │  │ (styling) │                      │     │  │ logic        │              │
-  │  └──────────┘                       │     │  └──────┬───────┘              │
-  │                                     │     │  ┌──────▼───────┐              │
-  │                                     │     │  │ Database     │              │
-  │                                     │     │  │              │              │
-  │                                     │     │  └──────────────┘              │
-  └────────────────────────────────────┘     └────────────────────────────────┘
-       User's computer                             Server (data center)
+```text
+       FRONTEND                                    BACKEND
+  (runs in browser)                           (runs on server)
+
+ HTML          JavaScript                   Route
+(structure     (behavior)          HTTP     handlers
+ of page)                             >
+              fetch(url)
+              onClick()          <
+              render()                          v
+ CSS                                        Business
+(styling)                                   logic
+
+                                            Database
+
+User's computer                             Server (data center)
 ```
 
 ### What lives where
@@ -68,30 +63,28 @@ Understanding the frontend-backend split is essential because:
 
 The frontend and backend communicate over [HTTP](http.md):
 
-```
-  Frontend (Browser)                    Backend (Server)
-  ──────────────────                    ────────────────
-  User clicks "Save"
-       │
-       ▼
-  JavaScript builds request:
-  POST /api/v1/tenants
-  Body: {"name":"ACME Corp"}
-  Cookie: JSESSIONID=abc123
-       │
-       ├──── HTTP Request ────────────>  Receives request
-       │                                 Validates session (cookie)
-       │                                 Checks role (OWNER/ADMIN?)
-       │                                 Inserts into database
-       │                                 Returns result
-       │<──── HTTP Response ───────────
-       │
-  HTTP 201 Created
-  Body: {"id":"uuid-here","name":"ACME Corp"}
-       │
-       ▼
-  JavaScript updates the page
-  (adds new tenant to the list)
+```text
+Frontend (Browser)                    Backend (Server)
+
+User clicks "Save"
+
+JavaScript builds request:
+POST /api/v1/tenants
+Body: {"name":"ACME Corp"}
+Cookie: JSESSIONID=abc123
+
+           HTTP Request             >  Receives request
+                                       Validates session (cookie)
+                                       Checks role (OWNER/ADMIN?)
+                                       Inserts into database
+                                       Returns result
+      <     HTTP Response
+
+HTTP 201 Created
+Body: {"id":"uuid-here","name":"ACME Corp"}
+
+JavaScript updates the page
+(adds new tenant to the list)
 ```
 
 ### Server-rendered vs. client-rendered
@@ -99,27 +92,27 @@ The frontend and backend communicate over [HTTP](http.md):
 There are two approaches to who generates the HTML:
 
 **Server-rendered (volta's auth pages):**
-```
-  Browser                              Server
-  ───────                              ──────
-  GET /auth/login  ──────────────────> Server runs jte template
-                                       Fills in data (tenant name, etc.)
-                                       Generates complete HTML
-                   <────────────────── Returns <html>...</html>
-  Browser displays the finished HTML
+```text
+Browser                              Server
+
+GET /auth/login                    > Server runs jte template
+                                     Fills in data (tenant name, etc.)
+                                     Generates complete HTML
+                 <                   Returns <html>...</html>
+Browser displays the finished HTML
 ```
 
 **Client-rendered ([SPA](spa.md)):**
-```
-  Browser                              Server
-  ───────                              ──────
-  GET /            ──────────────────> Returns index.html + app.js
-                   <──────────────────
-  JavaScript runs
-  GET /api/v1/users/me ──────────────> Returns JSON data
-                       <──────────────
-  JavaScript builds HTML from data
-  Browser displays the result
+```text
+Browser                              Server
+
+GET /                              > Returns index.html + app.js
+
+JavaScript runs
+GET /api/v1/users/me               > Returns JSON data
+
+JavaScript builds HTML from data
+Browser displays the result
 ```
 
 ### Full-stack = frontend + backend
@@ -138,12 +131,12 @@ volta-auth-proxy is a [Java](java.md) backend application. Its primary job is ha
 
 volta does serve some HTML pages directly for auth flows:
 
-```
-  volta's frontend pages (server-rendered via jte):
-  ├── /auth/login          → Login page with "Sign in with Google" button
-  ├── /auth/tenant-select  → Tenant selector after login
-  ├── /auth/invite/accept  → Invitation acceptance page
-  └── /error               → Error pages
+```text
+volta's frontend pages (server-rendered via jte):
+    /auth/login          → Login page with "Sign in with Google" button
+    /auth/tenant-select  → Tenant selector after login
+    /auth/invite/accept  → Invitation acceptance page
+    /error               → Error pages
 ```
 
 These pages are [server-rendered](template.md) using [jte](jte.md) templates. They are not a [SPA](spa.md). This is intentional -- auth pages should work without JavaScript.
@@ -152,35 +145,34 @@ These pages are [server-rendered](template.md) using [jte](jte.md) templates. Th
 
 For [downstream apps](downstream-app.md), volta is the authentication layer between their frontend and their backend:
 
-```
-  ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-  │  App Frontend    │     │  volta-auth-proxy │     │  App Backend     │
-  │  (React SPA)     │     │  (auth gateway)   │     │  (your API)      │
-  │                  │     │                   │     │                  │
-  │  fetch("/api")───┼────>│  Check session    │     │                  │
-  │                  │     │  Add X-Volta-*    │────>│  Read X-Volta-*  │
-  │                  │     │  headers          │     │  Trust them      │
-  │  <───────────────┼─────┼──────────────────┼─────│  Return data     │
-  └──────────────────┘     └──────────────────┘     └──────────────────┘
-      Browser side              Server side              Server side
-      (FRONTEND)                (BACKEND)                (BACKEND)
+```text
+App Frontend             volta-auth-proxy          App Backend
+(React SPA)              (auth gateway)            (your API)
+
+fetch("/api")        >   Check session
+                         Add X-Volta-*         >   Read X-Volta-*
+                         headers                   Trust them
+<                                                 Return data
+
+ Browser side              Server side              Server side
+ (FRONTEND)                (BACKEND)                (BACKEND)
 ```
 
 ### The trust boundary
 
 The critical security concept: **never trust the frontend**.
 
-```
-  UNTRUSTED                          TRUSTED
-  ─────────────────────────────────  ─────────────────────────────
-  Browser (frontend)                 volta-auth-proxy (backend)
-  ├── User can modify JavaScript     ├── Validates session cookies
-  ├── User can edit HTML             ├── Signs JWTs with private key
-  ├── User can forge headers         ├── Checks roles in database
-  ├── User can replay requests       ├── Enforces rate limits
-  └── User can read all cookies*     └── Stores secrets securely
+```text
+UNTRUSTED                          TRUSTED
 
-  * except HttpOnly cookies, which JavaScript cannot read
+Browser (frontend)                 volta-auth-proxy (backend)
+    User can modify JavaScript         Validates session cookies
+    User can edit HTML                 Signs JWTs with private key
+    User can forge headers             Checks roles in database
+    User can replay requests           Enforces rate limits
+    User can read all cookies*         Stores secrets securely
+
+* except HttpOnly cookies, which JavaScript cannot read
 ```
 
 volta sets session cookies with `HttpOnly` and `Secure` flags, so the frontend JavaScript cannot read or modify them. The backend is the only place where trust is established.

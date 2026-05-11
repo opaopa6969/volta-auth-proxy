@@ -39,41 +39,31 @@ Middleware centralizes cross-cutting concerns. Write the auth check once, apply 
 
 Middleware forms a chain. Each piece runs in order, and each can decide whether to continue to the next piece or stop.
 
-```
-  HTTP Request
-       │
-       ▼
-  ┌─────────────────┐
-  │ Middleware 1     │  Logging: log method, path, timestamp
-  │ (logging)       │
-  └────────┬────────┘
-           │ pass
-           ▼
-  ┌─────────────────┐
-  │ Middleware 2     │  Auth: check session cookie, reject if invalid
-  │ (authentication)│
-  └────────┬────────┘
-           │ pass (or 401 reject)
-           ▼
-  ┌─────────────────┐
-  │ Middleware 3     │  RBAC: check role >= ADMIN for this path
-  │ (authorization) │
-  └────────┬────────┘
-           │ pass (or 403 reject)
-           ▼
-  ┌─────────────────┐
-  │ Route Handler   │  Your actual business logic
-  │ (your code)     │
-  └────────┬────────┘
-           │
-           ▼
-  ┌─────────────────┐
-  │ After-middleware │  Add security headers, log response time
-  │ (response hooks)│
-  └────────┬────────┘
-           │
-           ▼
-  HTTP Response
+```text
+HTTP Request
+
+  Middleware 1        Logging: log method, path, timestamp
+  (logging)
+
+           pass
+
+  Middleware 2        Auth: check session cookie, reject if invalid
+  (authentication)
+
+           pass (or 401 reject)
+
+  Middleware 3        RBAC: check role >= ADMIN for this path
+  (authorization)
+
+           pass (or 403 reject)
+
+  Route Handler      Your actual business logic
+  (your code)
+
+  After-middleware    Add security headers, log response time
+  (response hooks)
+
+HTTP Response
 ```
 
 ### Before vs. after middleware
@@ -108,37 +98,31 @@ app.before("/api/v1/admin/*", ctx -> {
 
 This creates a layered security model:
 
-```
-  Path                        Middleware applied
-  ─────────────────────────   ────────────────────────────
-  /auth/login                 logging only
-  /auth/callback              logging only
-  /api/v1/users/me            logging + auth
-  /api/v1/admin/tenants       logging + auth + admin check
+```text
+Path                        Middleware applied
+
+/auth/login                 logging only
+/auth/callback              logging only
+/api/v1/users/me            logging + auth
+/api/v1/admin/tenants       logging + auth + admin check
 ```
 
 ### Short-circuiting
 
 When middleware decides to reject a request, it "short-circuits" the chain -- the remaining middleware and the handler never run:
 
-```
-  Request: GET /api/v1/users/me (no session cookie)
-       │
-       ▼
-  ┌─────────────────┐
-  │ Logging MW      │  ✓ logs the request
-  └────────┬────────┘
-           │
-           ▼
-  ┌─────────────────┐
-  │ Auth MW         │  ✗ no valid session!
-  │                 │  → returns 401 Unauthorized
-  └─────────────────┘
-           │
-           ╳ (chain stops here)
+```text
+Request: GET /api/v1/users/me (no session cookie)
 
-  Route handler NEVER executes.
-  Authorization MW NEVER runs.
+  Logging MW         ✓ logs the request
+
+  Auth MW            ✗ no valid session!
+                     → returns 401 Unauthorized
+
+         ╳ (chain stops here)
+
+Route handler NEVER executes.
+Authorization MW NEVER runs.
 ```
 
 This is how middleware protects [endpoints](endpoint.md) without the endpoint needing to know about security.
@@ -151,23 +135,21 @@ This is how middleware protects [endpoints](endpoint.md) without the endpoint ne
 
 volta-auth-proxy uses Javalin's `before()` handlers to implement a layered security model:
 
-```
-  ┌──────────────────────────────────────────────┐
-  │                All requests                   │
-  │  before("/*"): request logging               │
-  ├──────────────────────────────────────────────┤
-  │            /api/* requests                    │
-  │  before("/api/*"): session/JWT validation     │
-  │  → sets X-Volta-User-Id on context           │
-  │  → sets X-Volta-Tenant-Id on context         │
-  ├──────────────────────────────────────────────┤
-  │         /api/v1/admin/* requests              │
-  │  before("/api/v1/admin/*"): role >= ADMIN    │
-  ├──────────────────────────────────────────────┤
-  │              ForwardAuth requests             │
-  │  before("/forwardauth"): session check       │
-  │  → returns X-Volta-* headers to Traefik     │
-  └──────────────────────────────────────────────┘
+```text
+              All requests
+before("/*"): request logging
+
+          /api/* requests
+before("/api/*"): session/JWT validation
+→ sets X-Volta-User-Id on context
+→ sets X-Volta-Tenant-Id on context
+
+       /api/v1/admin/* requests
+before("/api/v1/admin/*"): role >= ADMIN
+
+            ForwardAuth requests
+before("/forwardauth"): session check
+→ returns X-Volta-* headers to Traefik
 ```
 
 ### Authentication middleware

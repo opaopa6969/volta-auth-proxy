@@ -23,15 +23,15 @@ You're sitting in Restaurant A, but the dish you want is on Restaurant B's menu 
 
 An **origin** is the combination of three things:
 
-```
-  https://app.example.com:443
-  ──┬──   ───────┬───────  ─┬─
-  scheme      domain       port
+```text
+https://app.example.com:443
 
-  Different origin if ANY of these differ:
-  http://app.example.com        ← different scheme
-  https://api.example.com       ← different domain
-  https://app.example.com:8080  ← different port
+scheme      domain       port
+
+Different origin if ANY of these differ:
+http://app.example.com        ← different scheme
+https://api.example.com       ← different domain
+https://app.example.com:8080  ← different port
 ```
 
 ---
@@ -55,16 +55,15 @@ volta deals with cross-origin requests in several ways:
 
 **Where cross-origin occurs in volta:**
 
-```
-  https://app.acme.example.com    (app frontend)
-           │
-           │ JavaScript fetch() to:
-           │ https://auth.example.com/auth/refresh
-           │
-           ▼
-  Different origin! (different subdomain)
-  Browser sends preflight OPTIONS request first
-  volta must respond with proper CORS headers
+```text
+https://app.acme.example.com    (app frontend)
+
+           JavaScript fetch() to:
+           https://auth.example.com/auth/refresh
+
+Different origin! (different subdomain)
+Browser sends preflight OPTIONS request first
+volta must respond with proper CORS headers
 ```
 
 **volta's CORS configuration:**

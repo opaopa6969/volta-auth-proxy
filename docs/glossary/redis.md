@@ -28,28 +28,20 @@ The key difference from application-level caching (like [Caffeine](caffeine-cach
 
 ### Redis architecture
 
-```
-  ┌─────────────────────────────────────────┐
-  │              Redis Server                │
-  │                                          │
-  │  ┌──────────────────────────────────┐   │
-  │  │           RAM                     │   │
-  │  │                                   │   │
-  │  │  "session:abc123" → {user, role}  │   │
-  │  │  "session:def456" → {user, role}  │   │
-  │  │  "rate:192.168.1.1" → 47          │   │
-  │  │  "tenant:acme:config" → {...}     │   │
-  │  │                                   │   │
-  │  └──────────────────────────────────┘   │
-  │                                          │
-  │  Optional: persist snapshots to disk     │
-  └─────────────────────────────────────────┘
-        ▲           ▲           ▲
-        │           │           │
-  ┌─────┴──┐  ┌────┴───┐  ┌───┴────┐
-  │ volta  │  │ volta  │  │ volta  │
-  │ inst.1 │  │ inst.2 │  │ inst.3 │
-  └────────┘  └────────┘  └────────┘
+```text
+             Redis Server
+
+             RAM
+
+    "session:abc123" → {user, role}
+    "session:def456" → {user, role}
+    "rate:192.168.1.1" → 47
+    "tenant:acme:config" → {...}
+
+ Optional: persist snapshots to disk
+
+volta       volta       volta
+inst.1      inst.2      inst.3
 ```
 
 ### Redis data types
@@ -65,41 +57,41 @@ The key difference from application-level caching (like [Caffeine](caffeine-cach
 
 ### Basic Redis operations
 
-```
-  SET session:abc123 '{"userId":"u1","role":"ADMIN"}' EX 3600
-  │                    │                                │
-  │                    │                                └─ Expires in 1 hour
-  │                    └─ The value (JSON string)
-  └─ The key
+```text
+SET session:abc123 '{"userId":"u1","role":"ADMIN"}' EX 3600
 
-  GET session:abc123
-  → '{"userId":"u1","role":"ADMIN"}'
+                                                         Expires in 1 hour
+                        The value (JSON string)
+   The key
 
-  DEL session:abc123
-  → (key deleted, session invalidated)
+GET session:abc123
+→ '{"userId":"u1","role":"ADMIN"}'
 
-  INCR rate:192.168.1.1
-  → 48 (atomic increment, perfect for rate limiting)
+DEL session:abc123
+→ (key deleted, session invalidated)
+
+INCR rate:192.168.1.1
+→ 48 (atomic increment, perfect for rate limiting)
 ```
 
 ### Caffeine (local) vs Redis (shared)
 
-```
-  Caffeine (Phase 1):              Redis (Phase 2):
-  ┌────────────┐                   ┌────────────────┐
-  │ volta (1)  │                   │    Redis       │
-  │            │                   │  (shared)      │
-  │ ┌────────┐ │                   └──┬──────┬──────┘
-  │ │Caffeine│ │                      │      │
-  │ │ cache  │ │                   ┌──┴──┐ ┌─┴───┐
-  │ └────────┘ │                   │volta│ │volta│
-  └────────────┘                   │  1  │ │  2  │
-                                   └─────┘ └─────┘
-  Only 1 instance can see          All instances see
-  the cached data.                 the same data.
+```text
+Caffeine (Phase 1):              Redis (Phase 2):
 
-  Session cached in inst.1?        Session cached in Redis?
-  inst.2 doesn't know about it.    All instances can read it.
+  volta (1)                           Redis
+                                    (shared)
+
+   Caffeine
+    cache
+                                  volta   volta
+                                    1       2
+
+Only 1 instance can see          All instances see
+the cached data.                 the same data.
+
+Session cached in inst.1?        Session cached in Redis?
+inst.2 doesn't know about it.    All instances can read it.
 ```
 
 ---
@@ -114,70 +106,61 @@ In Phase 1, volta runs as a [single process](single-process.md). Sessions are st
 
 When volta scales to multiple instances, the in-memory Caffeine cache becomes a problem. If user A logs in on instance 1, instance 2 does not have that session in its local cache. Redis solves this:
 
-```
-  Phase 2 session flow:
+```text
+Phase 2 session flow:
 
-  1. User logs in → volta instance 1 creates session
-  2. Session stored in PostgreSQL (permanent)
-  3. Session cached in Redis (fast shared access)
-  4. Next request hits volta instance 2
-  5. Instance 2 checks Redis → session found!
-  6. User is authenticated without hitting PostgreSQL
+1. User logs in → volta instance 1 creates session
+2. Session stored in PostgreSQL (permanent)
+3. Session cached in Redis (fast shared access)
+4. Next request hits volta instance 2
+5. Instance 2 checks Redis → session found!
+6. User is authenticated without hitting PostgreSQL
 
-  ┌──────────────────────────────────────────────┐
-  │  Request flow with Redis:                    │
-  │                                               │
-  │  Browser → Load Balancer → volta instance 2   │
-  │                              │                │
-  │                              ▼                │
-  │                         Check Redis           │
-  │                              │                │
-  │                     ┌────────┴────────┐       │
-  │                     │                 │       │
-  │                  Cache hit         Cache miss  │
-  │                     │                 │       │
-  │                     ▼                 ▼       │
-  │               Return session    Query Postgres │
-  │               (fast: <1ms)      Cache in Redis │
-  │                                 Return session │
-  └──────────────────────────────────────────────┘
+   Request flow with Redis:
+
+   Browser → Load Balancer → volta instance 2
+
+                          Check Redis
+
+                   Cache hit         Cache miss
+
+                Return session    Query Postgres
+                (fast: <1ms)      Cache in Redis
+                                  Return session
 ```
 
 ### Phase 2: Redis for rate limiting
 
 Rate limiting counters must be shared. If instance 1 counts 30 requests from an IP and instance 2 counts 30, the attacker has made 60 requests but each instance thinks they made only 30.
 
-```
-  Without Redis (broken):        With Redis (correct):
-  ┌──────┐  ┌──────┐            ┌──────┐  ┌──────┐
-  │volta1│  │volta2│            │volta1│  │volta2│
-  │ 30   │  │ 30   │            │      │  │      │
-  └──────┘  └──────┘            └──┬───┘  └───┬──┘
-  Total: 60 but each sees 30       │          │
-  Attacker bypasses limit!          ▼          ▼
-                                 ┌──────────────┐
-                                 │    Redis      │
-                                 │   count: 60   │
-                                 └──────────────┘
-                                 Correct total, limit enforced
+```text
+Without Redis (broken):        With Redis (correct):
+
+ volta1    volta2              volta1    volta2
+  30        30
+
+Total: 60 but each sees 30
+Attacker bypasses limit!          v          v
+
+                                    Redis
+                                   count: 60
+
+                               Correct total, limit enforced
 ```
 
 ### Phase 2: Redis Pub/Sub for cache invalidation
 
 When a session is revoked on instance 1, instance 2 needs to know. Redis Pub/Sub broadcasts the invalidation:
 
-```
-  Admin revokes session on instance 1
-       │
-       ▼
-  Instance 1: DELETE from Postgres + Redis
-  Instance 1: PUBLISH "session:revoked" "abc123"
-       │
-       ▼
-  Redis broadcasts to all subscribers
-       │
-       ▼
-  Instance 2: receives message, removes from local Caffeine cache
+```text
+Admin revokes session on instance 1
+
+Instance 1: DELETE from Postgres + Redis
+Instance 1: PUBLISH "session:revoked" "abc123"
+
+Redis broadcasts to all subscribers
+
+Instance 2: receives message, removes from local Caffeine cache
 ```
 
 ---

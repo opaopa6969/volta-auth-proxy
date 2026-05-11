@@ -32,93 +32,91 @@ WebAuthn solves the two biggest problems with passwords and TOTP:
 
 ### Registration (one-time setup)
 
-```
-  User                         Browser                    volta-auth-proxy
-  ====                         =======                    ================
+```text
+User                         Browser                    volta-auth-proxy
+====                         =======                    ================
 
-  1. Navigate to /settings/security
-     Click "Register passkey"
-                               ──────────────────────────►
-                                                           2. Generate challenge
-                                                              (random bytes)
-                                                              Store challenge
-                               ◄──────────────────────────
-                                                           3. Send challenge +
-                                                              server info
+1. Navigate to /settings/security
+   Click "Register passkey"
 
-                               4. Browser calls
-                                  navigator.credentials.create()
+                                                         2. Generate challenge
+                                                            (random bytes)
+                                                            Store challenge
 
-  5. Device prompts:
-     "Touch your security key"
-     or "Use Face ID"
-     or "Use fingerprint"
+                                                         3. Send challenge +
+                                                            server info
 
-  6. User authenticates
-     with biometric/touch
+                             4. Browser calls
+                                navigator.credentials.create()
 
-                               7. Device generates a NEW key pair:
-                                  - Private key (stays on device, NEVER leaves)
-                                  - Public key (sent to server)
+5. Device prompts:
+   "Touch your security key"
+   or "Use Face ID"
+   or "Use fingerprint"
 
-                               8. Device signs the challenge
-                                  with the new private key
+6. User authenticates
+   with biometric/touch
 
-                               9. Device returns:
-                                  - Public key
-                                  - Signed challenge
-                                  - Credential ID
-                                  - Attestation data
+                             7. Device generates a NEW key pair:
+                                - Private key (stays on device, NEVER leaves)
+                                - Public key (sent to server)
 
-                               ──────────────────────────►
-                                                           10. Verify signature
-                                                               Store public key
-                                                               + credential ID
-                                                               in database
-                               ◄──────────────────────────
-                                                           11. "Passkey registered!"
+                             8. Device signs the challenge
+                                with the new private key
+
+                             9. Device returns:
+                                - Public key
+                                - Signed challenge
+                                - Credential ID
+                                - Attestation data
+
+                                                         10. Verify signature
+                                                             Store public key
+                                                             + credential ID
+                                                             in database
+
+                                                         11. "Passkey registered!"
 ```
 
 ### Authentication (on every login)
 
-```
-  User                         Browser                    volta-auth-proxy
-  ====                         =======                    ================
+```text
+User                         Browser                    volta-auth-proxy
+====                         =======                    ================
 
-  1. Navigate to /login
-     Click "Sign in with passkey"
-                               ──────────────────────────►
-                                                           2. Generate new challenge
-                                                              Look up user's
-                                                              credential IDs
-                               ◄──────────────────────────
-                                                           3. Send challenge +
-                                                              allowed credential IDs
+1. Navigate to /login
+   Click "Sign in with passkey"
 
-                               4. Browser calls
-                                  navigator.credentials.get()
+                                                         2. Generate new challenge
+                                                            Look up user's
+                                                            credential IDs
 
-  5. Device prompts:
-     "Touch your security key"
-     or "Use Face ID"
+                                                         3. Send challenge +
+                                                            allowed credential IDs
 
-  6. User authenticates
+                             4. Browser calls
+                                navigator.credentials.get()
 
-                               7. Device finds the matching
-                                  private key for this domain
+5. Device prompts:
+   "Touch your security key"
+   or "Use Face ID"
 
-                               8. Device signs the challenge
-                                  with the private key
+6. User authenticates
 
-                               9. Returns signed challenge
-                                  + credential ID
+                             7. Device finds the matching
+                                private key for this domain
 
-                               ──────────────────────────►
-                                                           10. Look up public key
-                                                               by credential ID
-                                                           11. Verify signature
-                                                               against public key
-                                                           12. If valid: login!
+                             8. Device signs the challenge
+                                with the private key
+
+                             9. Returns signed challenge
+                                + credential ID
+
+                                                         10. Look up public key
+                                                             by credential ID
+                                                         11. Verify signature
+                                                             against public key
+                                                         12. If valid: login!
 ```
 
 ### Why phishing does not work

@@ -34,51 +34,48 @@ With hierarchy:
 
 ### Role inheritance
 
-```
-  OWNER (highest)
-  │
-  │ inherits everything from ADMIN, plus:
-  │   - delete_tenant
-  │   - transfer_ownership
-  │   - manage_signing_keys
-  │   - change_tenant_slug
-  │
-  └── ADMIN
-      │
-      │ inherits everything from MEMBER, plus:
-      │   - invite_members
-      │   - remove_members
-      │   - change_member_role
-      │   - view_audit_logs
-      │
-      └── MEMBER
-          │
-          │ inherits everything from VIEWER, plus:
-          │   - use_apps
-          │   - manage_own_sessions
-          │   - switch_tenant
-          │   - accept_invitation
-          │
-          └── VIEWER (lowest)
-              │
-              │ base permissions:
-              │   - read_only
-              └──
+```text
+OWNER (highest)
+
+  inherits everything from ADMIN, plus:
+    - delete_tenant
+    - transfer_ownership
+    - manage_signing_keys
+    - change_tenant_slug
+
+    ADMIN
+
+      inherits everything from MEMBER, plus:
+        - invite_members
+        - remove_members
+        - change_member_role
+        - view_audit_logs
+
+        MEMBER
+
+          inherits everything from VIEWER, plus:
+            - use_apps
+            - manage_own_sessions
+            - switch_tenant
+            - accept_invitation
+
+            VIEWER (lowest)
+
+              base permissions:
+                - read_only
 ```
 
 ### Effective permissions
 
 The effective permissions for a role are its own permissions PLUS all inherited permissions:
 
-```
-  ┌─────────┬────────────────────────────────────────────────┐
-  │ Role    │ Effective permissions                          │
-  │─────────│────────────────────────────────────────────────│
-  │ VIEWER  │ read_only                                     │
-  │ MEMBER  │ read_only + use_apps + manage_sessions + ...  │
-  │ ADMIN   │ all MEMBER perms + invite + remove + audit    │
-  │ OWNER   │ all ADMIN perms + delete_tenant + transfer    │
-  └─────────┴────────────────────────────────────────────────┘
+```text
+Role      Effective permissions
+
+VIEWER    read_only
+MEMBER    read_only + use_apps + manage_sessions + ...
+ADMIN     all MEMBER perms + invite + remove + audit
+OWNER     all ADMIN perms + delete_tenant + transfer
 ```
 
 ### Hierarchy comparison operator
@@ -174,16 +171,16 @@ The hierarchy enforces that users cannot promote others above their own level:
   enforcement: "ADMIN can promote to ADMIN max. Only OWNER can promote to OWNER"
 ```
 
-```
-  ADMIN tries to promote MEMBER to OWNER?
-  ├── ADMIN < OWNER → DENIED
-  │
-  ADMIN tries to promote MEMBER to ADMIN?
-  ├── ADMIN >= ADMIN → ALLOWED
-  │
-  OWNER tries to promote MEMBER to OWNER?
-  ├── This is "transfer ownership", a special operation
-  └── Requires POST /tenants/{id}/transfer-ownership
+```text
+ADMIN tries to promote MEMBER to OWNER?
+    ADMIN < OWNER → DENIED
+
+ADMIN tries to promote MEMBER to ADMIN?
+    ADMIN >= ADMIN → ALLOWED
+
+OWNER tries to promote MEMBER to OWNER?
+    This is "transfer ownership", a special operation
+    Requires POST /tenants/{id}/transfer-ownership
 ```
 
 ### Guard expressions using hierarchy

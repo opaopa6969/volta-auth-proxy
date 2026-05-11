@@ -18,22 +18,21 @@ Invitation codes are a critical part of volta's controlled [provisioning](provis
 
 In a multi-tenant SaaS application, you cannot let just anyone join any tenant:
 
-```
-  Open registration (dangerous for B2B):
-  ┌──────────┐
-  │ Anyone   │──── Signs up ────► Joins "Acme Corp" tenant?!
-  │ on the   │                    (Who authorized this?)
-  │ internet │
-  └──────────┘
+```text
+Open registration (dangerous for B2B):
 
-  Invitation-based (controlled):
-  ┌──────────┐     ┌──────────┐     ┌──────────┐
-  │ Acme     │────►│ volta    │────►│ Alice    │
-  │ Admin    │     │ generates│     │ receives │
-  │ invites  │     │ code     │     │ invite   │
-  │ Alice    │     │          │     │ joins    │
-  └──────────┘     └──────────┘     └──────────┘
-  (authorized)     (secure code)    (verified)
+  Anyone         Signs up     > Joins "Acme Corp" tenant?!
+  on the                        (Who authorized this?)
+  internet
+
+Invitation-based (controlled):
+
+  Acme          >  volta         >  Alice
+  Admin            generates        receives
+  invites          code             invite
+  Alice                             joins
+
+(authorized)     (secure code)    (verified)
 ```
 
 Key benefits:
@@ -70,48 +69,44 @@ volta generates invitation codes using cryptographically secure random bytes:
 
 ### The invitation flow
 
-```
-  Admin                    volta-auth-proxy              Invitee
-  =====                    ================              =======
+```text
+Admin                    volta-auth-proxy              Invitee
+=====                    ================              =======
 
-  1. POST /api/v1/tenants/{tid}/invitations
-     {"email": "alice@example.com", "role": "MEMBER"}
-  ──────────────────────────────────────►
+1. POST /api/v1/tenants/{tid}/invitations
+   {"email": "alice@example.com", "role": "MEMBER"}
 
-                           2. Generate code:
-                              code = base64url(SecureRandom(32))
-                              Store in DB:
-                              ┌────────────────────────────┐
-                              │ invitation_id: inv-uuid     │
-                              │ tenant_id: acme-uuid        │
-                              │ email: alice@example.com    │
-                              │ code_hash: SHA256(code)     │
-                              │ role: MEMBER                │
-                              │ invited_by: admin-uuid      │
-                              │ expires_at: +7 days         │
-                              │ used: false                 │
-                              └────────────────────────────┘
+                         2. Generate code:
+                            code = base64url(SecureRandom(32))
+                            Store in DB:
 
-                           3. Send invitation email with link:
-                              https://app.com/invite?code=ej-ykYH3mQ_7vKxN...
-                           ──────────────────────────────────────►
+                              invitation_id: inv-uuid
+                              tenant_id: acme-uuid
+                              email: alice@example.com
+                              code_hash: SHA256(code)
+                              role: MEMBER
+                              invited_by: admin-uuid
+                              expires_at: +7 days
+                              used: false
 
-                                                          4. Click link
-                                                          5. Complete registration
+                         3. Send invitation email with link:
+                            https://app.com/invite?code=ej-ykYH3mQ_7vKxN...
 
-                           6. POST /auth/accept-invitation
-                              {"code": "ej-ykYH3mQ_7vKxN..."}
-  ◄────────────────────────────────────────────────────────────
+                                                        4. Click link
+                                                        5. Complete registration
 
-                           7. Verify:
-                              - Hash the presented code
-                              - Find invitation by code_hash
-                              - Check not expired
-                              - Check not already used
-                              - Check email matches
-                              → Create user in tenant
-                              → Mark invitation as used
-                              → Fire invitation.accepted webhook
+                         6. POST /auth/accept-invitation
+                            {"code": "ej-ykYH3mQ_7vKxN..."}
+
+                         7. Verify:
+                            - Hash the presented code
+                            - Find invitation by code_hash
+                            - Check not expired
+                            - Check not already used
+                            - Check email matches
+                            → Create user in tenant
+                            → Mark invitation as used
+                            → Fire invitation.accepted webhook
 ```
 
 ### Why hash the code in the database?
@@ -175,21 +170,17 @@ volta stores `SHA256(code)` in the database, not the raw code. This is the same 
 
 ### Invitation states
 
-```
-  ┌──────────┐     ┌──────────┐     ┌──────────┐
-  │ PENDING  │────►│ ACCEPTED │     │ EXPIRED  │
-  │          │     │          │     │          │
-  │ Created, │     │ User     │     │ TTL      │
-  │ awaiting │     │ joined   │     │ exceeded │
-  │ response │     │ tenant   │     │          │
-  └──────────┘     └──────────┘     └──────────┘
-       │                                  ▲
-       │           ┌──────────┐           │
-       └──────────►│ REVOKED  │           │
-                   │          │     (auto-transition
-                   │ Admin    │      after expiry)
-                   │ cancelled│
-                   └──────────┘
+```text
+PENDING       >  ACCEPTED         EXPIRED
+
+Created,         User             TTL
+awaiting         joined           exceeded
+response         tenant
+
+              >  REVOKED
+                                (auto-transition
+                 Admin           after expiry)
+                 cancelled
 ```
 
 ### Integration with other volta features

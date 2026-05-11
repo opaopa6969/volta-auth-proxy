@@ -31,82 +31,73 @@ Verification is the gatekeeper that makes all of volta's security guarantees rea
 
 ### JWT verification steps
 
-```
-  Incoming JWT: header.payload.signature
-         │
-         ▼
-  Step 1: Parse the JWT
-         │  Split into header, payload, signature
-         │
-         ▼
-  Step 2: Check the algorithm
-         │  header.alg MUST be RS256
-         │  Reject "none", "HS256", or anything else
-         │
-         ▼
-  Step 3: Verify the signature
-         │  Recalculate: RS256(header + "." + payload, public_key)
-         │  Compare with provided signature
-         │  MATCH → token was signed by volta
-         │  MISMATCH → token is forged or tampered → REJECT
-         │
-         ▼
-  Step 4: Validate claims
-         │  ├── iss == configured issuer?
-         │  ├── aud contains configured audience?
-         │  ├── exp > current time?
-         │  └── All required claims present?
-         │
-         ▼
-  Step 5: Token is verified. Extract claims and proceed.
+```text
+Incoming JWT: header.payload.signature
+
+Step 1: Parse the JWT
+          Split into header, payload, signature
+
+Step 2: Check the algorithm
+          header.alg MUST be RS256
+          Reject "none", "HS256", or anything else
+
+Step 3: Verify the signature
+          Recalculate: RS256(header + "." + payload, public_key)
+          Compare with provided signature
+          MATCH → token was signed by volta
+          MISMATCH → token is forged or tampered → REJECT
+
+Step 4: Validate claims
+              iss == configured issuer?
+              aud contains configured audience?
+              exp > current time?
+              All required claims present?
+
+Step 5: Token is verified. Extract claims and proceed.
 ```
 
 ### Signature verification in detail
 
-```
-  JWT:  eyJhbGciOi...  .  eyJzdWIiOi...  .  SflKxwRJSM...
-        ─────────────     ─────────────     ─────────────
-        header (B64)      payload (B64)     signature (B64)
+```text
+JWT:  eyJhbGciOi...  .  eyJzdWIiOi...  .  SflKxwRJSM...
 
-  Verification:
-  ┌──────────────────────────────────────────────────┐
-  │                                                  │
-  │  input = base64(header) + "." + base64(payload)  │
-  │                                                  │
-  │  expected_sig = RS256_SIGN(input, private_key)   │
-  │  (we don't have private key -- so instead...)    │
-  │                                                  │
-  │  RS256_VERIFY(input, signature, public_key)      │
-  │  → true: signature was created with matching     │
-  │          private key                             │
-  │  → false: signature is invalid                   │
-  │                                                  │
-  │  This is the magic of asymmetric crypto:         │
-  │  You can VERIFY without being able to SIGN.      │
-  └──────────────────────────────────────────────────┘
+      header (B64)      payload (B64)     signature (B64)
+
+Verification:
+
+   input = base64(header) + "." + base64(payload)
+
+   expected_sig = RS256_SIGN(input, private_key)
+   (we don't have private key -- so instead...)
+
+   RS256_VERIFY(input, signature, public_key)
+   → true: signature was created with matching
+           private key
+   → false: signature is invalid
+
+   This is the magic of asymmetric crypto:
+   You can VERIFY without being able to SIGN.
 ```
 
 ### What gets verified vs. what gets checked
 
-```
-  VERIFIED (cryptographic proof):
-  ┌──────────────────────────────────────────┐
-  │  "This token was signed by the holder    │
-  │   of volta's private key, and no byte    │
-  │   has been modified since signing."       │
-  └──────────────────────────────────────────┘
+```text
+VERIFIED (cryptographic proof):
 
-  CHECKED (business logic):
-  ┌──────────────────────────────────────────┐
-  │  "This token is not expired."            │
-  │  "This token was issued for my audience."│
-  │  "This token was issued by volta."       │
-  │  "This user has the required role."      │
-  └──────────────────────────────────────────┘
+   "This token was signed by the holder
+    of volta's private key, and no byte
+    has been modified since signing."
 
-  Both are required. Verification without claim
-  checks accepts expired or misdirected tokens.
-  Claim checks without verification accepts forgeries.
+CHECKED (business logic):
+
+   "This token is not expired."
+   "This token was issued for my audience."
+   "This token was issued by volta."
+   "This user has the required role."
+
+Both are required. Verification without claim
+checks accepts expired or misdirected tokens.
+Claim checks without verification accepts forgeries.
 ```
 
 ---

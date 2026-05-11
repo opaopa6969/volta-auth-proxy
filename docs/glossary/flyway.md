@@ -16,25 +16,23 @@ Think of it like a recipe book for your database. Imagine you are building a hou
 
 Without a migration tool, database changes are chaos:
 
-```
-  Without Flyway:
-  ┌──────────────────────────────────────────┐
-  │ Developer A: "I added a users table"      │
-  │ Developer B: "I added a column to users"  │
-  │ Production:  "What? I have neither."      │
-  │ Staging:     "I have the table but not    │
-  │              the column"                   │
-  │ Everyone:    "Let me send you my SQL file" │
-  └──────────────────────────────────────────┘
+```text
+Without Flyway:
 
-  With Flyway:
-  ┌──────────────────────────────────────────┐
-  │ V1__init.sql      → Creates base tables  │
-  │ V2__add_column.sql → Adds the column     │
-  │ Every environment runs these in order.    │
-  │ Flyway tracks what has been applied.      │
-  │ Nobody sends SQL files over Slack.        │
-  └──────────────────────────────────────────┘
+  Developer A: "I added a users table"
+  Developer B: "I added a column to users"
+  Production:  "What? I have neither."
+  Staging:     "I have the table but not
+               the column"
+  Everyone:    "Let me send you my SQL file"
+
+With Flyway:
+
+  V1__init.sql      → Creates base tables
+  V2__add_column.sql → Adds the column
+  Every environment runs these in order.
+  Flyway tracks what has been applied.
+  Nobody sends SQL files over Slack.
 ```
 
 ### The V1__ naming convention
@@ -91,19 +89,19 @@ You never manually run SQL against the database. You never worry about whether t
 
 ### volta's migration files
 
-```
+```text
 src/main/resources/db/migration/
-├── V1__init.sql                         ← Base tables (users, tenants, etc.)
-├── V2__oidc_flows.sql                   ← OIDC state tracking
-├── V3__csrf_token.sql                   ← CSRF protection
-├── V4__phase2_phase4_foundations.sql     ← M2M, webhooks, IdP config
-├── V5__phase2_phase4_features.sql       ← MFA, SCIM, billing
-├── V6__outbox_delivery_retry.sql        ← Webhook retry tracking
-├── V7__mfa_unique_constraint.sql        ← MFA data integrity
-├── V8__outbox_claim_lock.sql            ← Webhook worker locking
-├── V9__sessions_mfa_verified.sql        ← MFA session state
-├── V10__phase2_user_identities_backfill.sql  ← User identity backfill
-└── V11__idp_x509_cert.sql              ← SAML certificate storage
+    V1__init.sql                         ← Base tables (users, tenants, etc.)
+    V2__oidc_flows.sql                   ← OIDC state tracking
+    V3__csrf_token.sql                   ← CSRF protection
+    V4__phase2_phase4_foundations.sql     ← M2M, webhooks, IdP config
+    V5__phase2_phase4_features.sql       ← MFA, SCIM, billing
+    V6__outbox_delivery_retry.sql        ← Webhook retry tracking
+    V7__mfa_unique_constraint.sql        ← MFA data integrity
+    V8__outbox_claim_lock.sql            ← Webhook worker locking
+    V9__sessions_mfa_verified.sql        ← MFA session state
+    V10__phase2_user_identities_backfill.sql  ← User identity backfill
+    V11__idp_x509_cert.sql              ← SAML certificate storage
 ```
 
 Each file adds something new to the database schema. They are applied in version order. V1 creates the base tables that everything else builds on. V11 adds SAML certificate storage that was needed later.

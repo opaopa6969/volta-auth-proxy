@@ -42,17 +42,17 @@ The result: switching auth providers is typically a 2-6 month engineering projec
 
 When you self-host your authentication (like volta-auth-proxy), you own everything:
 
-```
-  Cloud-hosted (Auth0/Clerk):        Self-hosted (volta):
-  ┌──────────────────────┐           ┌──────────────────────┐
-  │  Their servers       │           │  Your servers         │
-  │  Their database      │           │  Your database        │
-  │  Their SDK           │           │  Standard headers     │
-  │  Their rules engine  │           │  Your code            │
-  │  Their login UI      │           │  Your templates       │
-  │  Their pricing       │           │  Your pricing ($0)    │
-  └──────────────────────┘           └──────────────────────┘
-       You rent everything.              You own everything.
+```text
+Cloud-hosted (Auth0/Clerk):        Self-hosted (volta):
+
+   Their servers                      Your servers
+   Their database                     Your database
+   Their SDK                          Standard headers
+   Their rules engine                 Your code
+   Their login UI                     Your templates
+   Their pricing                      Your pricing ($0)
+
+     You rent everything.              You own everything.
 ```
 
 With volta:

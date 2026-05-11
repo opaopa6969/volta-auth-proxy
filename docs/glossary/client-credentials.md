@@ -16,11 +16,9 @@ Think of it like an employee badge for a robot. The robot does not have a person
 
 In modern architectures, services talk to each other constantly:
 
-```
-  ┌────────────┐     ┌────────────┐     ┌────────────┐
-  │ Billing    │────►│ User       │────►│ Notification│
-  │ Service    │     │ Service    │     │ Service     │
-  └────────────┘     └────────────┘     └────────────┘
+```text
+Billing         >  User            >  Notification
+Service            Service            Service
 ```
 
 Each service needs to verify that the calling service is authorized. Without proper M2M authentication:
@@ -38,67 +36,59 @@ Client Credentials provides a standardized way for services to authenticate with
 
 ### The flow
 
-```
-  Service A (the client)              volta-auth-proxy (the auth server)
-  ========================              ================================
+```text
+Service A (the client)              volta-auth-proxy (the auth server)
+========================              ================================
 
-  1. Service A needs to call volta's API to list tenant members.
-     It does not act on behalf of a user -- it needs its own identity.
+1. Service A needs to call volta's API to list tenant members.
+   It does not act on behalf of a user -- it needs its own identity.
 
-  2. Service A sends its credentials:
+2. Service A sends its credentials:
 
-     POST /oauth/token
-     Content-Type: application/x-www-form-urlencoded
+   POST /oauth/token
+   Content-Type: application/x-www-form-urlencoded
 
-     grant_type=client_credentials
-     &client_id=billing-service
-     &client_secret=s3cr3t-k3y-for-billing
-     &scope=read:members write:billing
+   grant_type=client_credentials
+   &client_id=billing-service
+   &client_secret=s3cr3t-k3y-for-billing
+   &scope=read:members write:billing
 
-  ──────────────────────────────────────────────────────────►
+                                      3. volta checks:
+                                         - Is client_id registered?
+                                         - Does client_secret match?
+                                         - Are requested scopes allowed
+                                           for this client?
 
-                                        3. volta checks:
-                                           - Is client_id registered?
-                                           - Does client_secret match?
-                                           - Are requested scopes allowed
-                                             for this client?
+                                      4. volta issues a JWT:
+                                         {
+                                           "sub": "billing-service",
+                                           "volta_client": true,
+                                           "volta_client_id": "billing-service",
+                                           "volta_tid": "acme-uuid",
+                                           "volta_roles": ["read:members",
+                                                           "write:billing"],
+                                           "exp": <5 minutes from now>
+                                         }
 
-                                        4. volta issues a JWT:
-                                           {
-                                             "sub": "billing-service",
-                                             "volta_client": true,
-                                             "volta_client_id": "billing-service",
-                                             "volta_tid": "acme-uuid",
-                                             "volta_roles": ["read:members",
-                                                             "write:billing"],
-                                             "exp": <5 minutes from now>
-                                           }
+5. Service A receives:
+   {
+     "access_token": "eyJhbGci...",
+     "token_type": "bearer",
+     "expires_in": 300
+   }
 
-  ◄──────────────────────────────────────────────────────────
+6. Service A uses the token to call APIs:
 
-  5. Service A receives:
-     {
-       "access_token": "eyJhbGci...",
-       "token_type": "bearer",
-       "expires_in": 300
-     }
+   GET /api/v1/tenants/acme-uuid/members
+   Authorization: Bearer eyJhbGci...
 
-  6. Service A uses the token to call APIs:
+                                      7. volta verifies the JWT
+                                         - Check volta_client=true
+                                         - Check scopes include
+                                           "read:members"
+                                         - Return member list
 
-     GET /api/v1/tenants/acme-uuid/members
-     Authorization: Bearer eyJhbGci...
-
-  ──────────────────────────────────────────────────────────►
-
-                                        7. volta verifies the JWT
-                                           - Check volta_client=true
-                                           - Check scopes include
-                                             "read:members"
-                                           - Return member list
-
-  ◄──────────────────────────────────────────────────────────
-
-  8. Service A receives the member list and processes it.
+8. Service A receives the member list and processes it.
 ```
 
 ### When to use Client Credentials vs Authorization Code
@@ -148,18 +138,17 @@ This is functional but limited:
 
 The planned implementation adds proper M2M authentication:
 
-```
-  Database: oauth_clients table
-  ┌─────────────────────────────────────────────────────┐
-  │  client_id:     "billing-service"                    │
-  │  client_secret: <bcrypt hash>                        │
-  │  tenant_id:     acme-uuid                            │
-  │  scopes:        ["read:members", "write:billing"]    │
-  │  name:          "Billing Service"                    │
-  │  active:        true                                 │
-  │  created_by:    admin-uuid                           │
-  │  created_at:    2026-03-31T09:00:00Z                 │
-  └─────────────────────────────────────────────────────┘
+```text
+Database: oauth_clients table
+
+   client_id:     "billing-service"
+   client_secret: <bcrypt hash>
+   tenant_id:     acme-uuid
+   scopes:        ["read:members", "write:billing"]
+   name:          "Billing Service"
+   active:        true
+   created_by:    admin-uuid
+   created_at:    2026-03-31T09:00:00Z
 ```
 
 Benefits over static token:

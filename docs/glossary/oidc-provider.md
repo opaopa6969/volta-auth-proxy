@@ -38,34 +38,30 @@ OIDC Providers solve this by centralizing identity. Google, for example, already
 
 volta-auth-proxy talks to **Google** as its OIDC Provider. When a user clicks "Sign in with Google" in volta's login page, the following happens:
 
-```
-  User clicks                volta-auth-proxy         Google (OIDC Provider)
-  "Sign in with Google"
-  ─────────────────────►
-                             1. Generate state, nonce, PKCE
-                             2. Redirect user to Google
-                             ─────────────────────────────►
+```text
+User clicks                volta-auth-proxy         Google (OIDC Provider)
+"Sign in with Google"
 
-                                                      3. Google shows login page
-                                                      4. User enters password / passkey
-                                                      5. Google verifies identity
-                                                      6. Google redirects back with code
+                           1. Generate state, nonce, PKCE
+                           2. Redirect user to Google
 
-                             ◄─────────────────────────────
-                             7. Exchange code for tokens
-                             ─────────────────────────────►
+                                                    3. Google shows login page
+                                                    4. User enters password / passkey
+                                                    5. Google verifies identity
+                                                    6. Google redirects back with code
 
-                                                      8. Google returns:
-                                                         - id_token (who is this person)
-                                                         - access_token
+                           7. Exchange code for tokens
 
-                             ◄─────────────────────────────
-                             9. Verify id_token signature
-                             10. Extract email, name, picture
-                             11. Create/update user in DB
-                             12. Create session
-  ◄─────────────────────
-  Logged in!
+                                                    8. Google returns:
+                                                       - id_token (who is this person)
+                                                       - access_token
+
+                           9. Verify id_token signature
+                           10. Extract email, name, picture
+                           11. Create/update user in DB
+                           12. Create session
+
+Logged in!
 ```
 
 In this flow, Google is the OIDC Provider. volta never sees the user's Google password. volta trusts Google's signed id_token as proof of identity.
@@ -118,19 +114,19 @@ volta verifies this token's signature using Google's public keys (from the `jwks
 
 volta is NOT an OIDC Provider itself. volta is an OIDC **consumer** (also called a Relying Party or RP). It trusts Google (the Provider) to verify users, and then volta handles everything else: sessions, multi-tenancy, roles, JWTs for downstream apps.
 
-```
-  The identity chain:
+```text
+The identity chain:
 
-  Google (OIDC Provider)
-    │ "This person is taro@gmail.com"
-    ▼
-  volta-auth-proxy (OIDC Consumer / Relying Party)
-    │ "taro@gmail.com belongs to ACME Corp tenant, has ADMIN role"
-    ▼
-  Your app (reads volta headers)
-    │ "Show the admin dashboard for ACME Corp"
-    ▼
-  User sees their dashboard
+Google (OIDC Provider)
+    "This person is taro@gmail.com"
+
+volta-auth-proxy (OIDC Consumer / Relying Party)
+    "taro@gmail.com belongs to ACME Corp tenant, has ADMIN role"
+
+Your app (reads volta headers)
+    "Show the admin dashboard for ACME Corp"
+
+User sees their dashboard
 ```
 
 Google certifies identity. volta adds business context (tenant, role). Your app just reads headers.

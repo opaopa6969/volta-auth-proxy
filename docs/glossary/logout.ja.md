@@ -41,17 +41,17 @@
 
 volta はサーバー側のセッション破棄を実装しています：
 
-```
-  ブラウザ                   volta-auth-proxy              データベース
-  ──────                    ──────────────────            ──────────
-  1. 「ログアウト」をクリック
-  2. POST /auth/logout ─────>
-                             3. Cookie からセッション ID を読み取り
-                             4. sessions テーブルからセッションを DELETE ──>
-                             5. __volta_session Cookie をクリア
-                               （Max-Age=0 で Set-Cookie）
-  <────── 302 リダイレクト /
-  6. ユーザーにログインページが表示
+```text
+ブラウザ                   volta-auth-proxy              データベース
+
+1. 「ログアウト」をクリック
+2. POST /auth/logout      >
+                           3. Cookie からセッション ID を読み取り
+                           4. sessions テーブルからセッションを DELETE   >
+                           5. __volta_session Cookie をクリア
+                             （Max-Age=0 で Set-Cookie）
+<       302 リダイレクト /
+6. ユーザーにログインページが表示
 ```
 
 ログアウト時に volta がすること：

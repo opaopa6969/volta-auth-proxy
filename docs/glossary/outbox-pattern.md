@@ -18,41 +18,38 @@ The outbox pattern solves the "dual write problem" -- the challenge of keeping a
 
 Without the outbox pattern, you face two risky approaches:
 
-```
-  Approach 1: Send first, then save (data loss risk)
-  ┌────────────────────────────────────────────┐
-  │  1. Send webhook: user.created        ✓    │
-  │  2. Save user to database             ✗    │
-  │     (DB fails! User not saved,             │
-  │      but webhook already sent!)             │
-  │     → Downstream thinks user exists         │
-  │     → But user does NOT exist               │
-  └────────────────────────────────────────────┘
+```text
+Approach 1: Send first, then save (data loss risk)
 
-  Approach 2: Save first, then send (message loss risk)
-  ┌────────────────────────────────────────────┐
-  │  1. Save user to database             ✓    │
-  │  2. Send webhook: user.created        ✗    │
-  │     (Network fails! User saved,            │
-  │      but webhook NOT sent!)                 │
-  │     → User exists in volta                  │
-  │     → Downstream never learns about it      │
-  └────────────────────────────────────────────┘
+   1. Send webhook: user.created        ✓
+   2. Save user to database             ✗
+      (DB fails! User not saved,
+       but webhook already sent!)
+      → Downstream thinks user exists
+      → But user does NOT exist
 
-  Outbox pattern: Save both atomically, deliver later
-  ┌────────────────────────────────────────────┐
-  │  1. BEGIN TRANSACTION                      │
-  │     a. Save user to database          ✓    │
-  │     b. Save webhook event to outbox   ✓    │
-  │  2. COMMIT                            ✓    │
-  │     (Both succeed or both fail)            │
-  │                                            │
-  │  3. Outbox worker (async):                 │
-  │     a. Read pending events from outbox     │
-  │     b. Send webhook                        │
-  │     c. Mark event as delivered             │
-  │     d. If send fails → retry later         │
-  └────────────────────────────────────────────┘
+Approach 2: Save first, then send (message loss risk)
+
+   1. Save user to database             ✓
+   2. Send webhook: user.created        ✗
+      (Network fails! User saved,
+       but webhook NOT sent!)
+      → User exists in volta
+      → Downstream never learns about it
+
+Outbox pattern: Save both atomically, deliver later
+
+   1. BEGIN TRANSACTION
+      a. Save user to database          ✓
+      b. Save webhook event to outbox   ✓
+   2. COMMIT                            ✓
+      (Both succeed or both fail)
+
+   3. Outbox worker (async):
+      a. Read pending events from outbox
+      b. Send webhook
+      c. Mark event as delivered
+      d. If send fails → retry later
 ```
 
 The outbox pattern guarantees that **if the business operation succeeds, the message will eventually be delivered** (at-least-once delivery).
@@ -80,56 +77,52 @@ CREATE TABLE webhook_outbox (
 
 ### The write path
 
-```
-  Application thread:
-  ┌──────────────────────────────────────────────┐
-  │  BEGIN TRANSACTION                            │
-  │                                               │
-  │  INSERT INTO users (id, email, tenant_id)     │
-  │  VALUES ('user-uuid', 'a@b.com', 'acme');    │
-  │                                               │
-  │  INSERT INTO webhook_outbox                   │
-  │    (id, tenant_id, event_type, payload,       │
-  │     target_url, status)                       │
-  │  VALUES                                       │
-  │    ('evt-uuid', 'acme', 'user.created',       │
-  │     '{"user_id":"user-uuid","email":"a@b"}',  │
-  │     'https://app.com/webhook', 'PENDING');    │
-  │                                               │
-  │  COMMIT                                       │
-  └──────────────────────────────────────────────┘
+```text
+Application thread:
+
+   BEGIN TRANSACTION
+
+   INSERT INTO users (id, email, tenant_id)
+   VALUES ('user-uuid', 'a@b.com', 'acme');
+
+   INSERT INTO webhook_outbox
+     (id, tenant_id, event_type, payload,
+      target_url, status)
+   VALUES
+     ('evt-uuid', 'acme', 'user.created',
+      '{"user_id":"user-uuid","email":"a@b"}',
+      'https://app.com/webhook', 'PENDING');
+
+   COMMIT
 ```
 
 ### The outbox worker
 
-```
-  Background worker (runs every N seconds):
-  ┌──────────────────────────────────────────────┐
-  │                                               │
-  │  1. SELECT * FROM webhook_outbox              │
-  │     WHERE status = 'PENDING'                  │
-  │     AND next_retry <= NOW()                   │
-  │     ORDER BY created_at ASC                   │
-  │     LIMIT 50                                  │
-  │     FOR UPDATE SKIP LOCKED;                   │
-  │                                               │
-  │  2. For each event:                           │
-  │     a. POST payload to target_url             │
-  │        (with HMAC signature)                  │
-  │                                               │
-  │     b. If HTTP 2xx:                           │
-  │        UPDATE status='DELIVERED',             │
-  │               delivered_at=NOW()              │
-  │                                               │
-  │     c. If HTTP 4xx/5xx or timeout:            │
-  │        UPDATE attempts=attempts+1,            │
-  │               next_retry=NOW()+backoff(n)     │
-  │                                               │
-  │     d. If attempts > max_retries:             │
-  │        UPDATE status='FAILED'                 │
-  │        (alert ops team)                       │
-  │                                               │
-  └──────────────────────────────────────────────┘
+```text
+Background worker (runs every N seconds):
+
+   1. SELECT * FROM webhook_outbox
+      WHERE status = 'PENDING'
+      AND next_retry <= NOW()
+      ORDER BY created_at ASC
+      LIMIT 50
+      FOR UPDATE SKIP LOCKED;
+
+   2. For each event:
+      a. POST payload to target_url
+         (with HMAC signature)
+
+      b. If HTTP 2xx:
+         UPDATE status='DELIVERED',
+                delivered_at=NOW()
+
+      c. If HTTP 4xx/5xx or timeout:
+         UPDATE attempts=attempts+1,
+                next_retry=NOW()+backoff(n)
+
+      d. If attempts > max_retries:
+         UPDATE status='FAILED'
+         (alert ops team)
 ```
 
 ### Exponential backoff
@@ -162,30 +155,23 @@ The `FOR UPDATE SKIP LOCKED` clause is critical for concurrent workers. If multi
 
 volta implements the outbox pattern for all outbound [webhooks](webhook.md). The worker is a scheduled thread inside the volta process (no external message broker needed):
 
-```
-  volta-auth-proxy process:
-  ┌────────────────────────────────────────────┐
-  │                                            │
-  │  ┌──────────────────┐                      │
-  │  │  HTTP Handlers   │                      │
-  │  │  (Javalin)       │  ← user requests     │
-  │  │                  │                      │
-  │  │  user.create()   │                      │
-  │  │    → INSERT user │                      │
-  │  │    → INSERT outbox│                     │
-  │  └──────────────────┘                      │
-  │                                            │
-  │  ┌──────────────────┐                      │
-  │  │  Outbox Worker   │  ← background thread │
-  │  │  (ScheduledExec) │                      │
-  │  │                  │                      │
-  │  │  poll()          │                      │
-  │  │    → SELECT outbox│                     │
-  │  │    → POST webhook │                     │
-  │  │    → UPDATE status│                     │
-  │  └──────────────────┘                      │
-  │                                            │
-  └────────────────────────────────────────────┘
+```text
+volta-auth-proxy process:
+
+      HTTP Handlers
+      (Javalin)          ← user requests
+
+      user.create()
+        → INSERT user
+        → INSERT outbox
+
+      Outbox Worker      ← background thread
+      (ScheduledExec)
+
+      poll()
+        → SELECT outbox
+        → POST webhook
+        → UPDATE status
 ```
 
 ### Events that trigger outbox writes

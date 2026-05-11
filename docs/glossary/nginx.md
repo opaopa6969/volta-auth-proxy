@@ -30,16 +30,14 @@ nginx matters because it is the most battle-tested reverse proxy available. When
 
 nginx uses an **event-driven, asynchronous** architecture. Instead of spawning a new thread or process for each connection (like Apache), nginx uses a small number of worker processes that each handle thousands of connections using non-blocking I/O.
 
-```
-  ┌─────────────────────────────────────────┐
-  │               nginx                      │
-  │                                          │
-  │  Master Process (reads config, manages)  │
-  │       │                                  │
-  │       ├── Worker Process 1 (handles ~10K connections)
-  │       ├── Worker Process 2 (handles ~10K connections)
-  │       └── Worker Process N              │
-  └─────────────────────────────────────────┘
+```text
+             nginx
+
+Master Process (reads config, manages)
+
+         Worker Process 1 (handles ~10K connections)
+         Worker Process 2 (handles ~10K connections)
+         Worker Process N
 ```
 
 ### The auth_request module
@@ -76,12 +74,12 @@ server {
 
 ### How auth_request works
 
-```
-  Browser ──► nginx ──► /volta-verify (subrequest to volta)
-                           │
-                           ├── 200 OK → nginx proceeds to proxy_pass → Backend
-                           ├── 401     → nginx returns 401 to browser
-                           └── 302     → nginx returns 302 to browser (login redirect)
+```text
+Browser   > nginx   > /volta-verify (subrequest to volta)
+
+                             200 OK → nginx proceeds to proxy_pass → Backend
+                             401     → nginx returns 401 to browser
+                             302     → nginx returns 302 to browser (login redirect)
 ```
 
 ### Comparison with Traefik and Caddy

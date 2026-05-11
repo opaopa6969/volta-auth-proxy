@@ -34,19 +34,18 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0yMDI2LTAzLTMxVDA5LTAwIn0.eyJp
 
 分解してみましょう：
 
-```
+```text
 ヘッダー.ペイロード.署名
 
   パート1: ヘッダー      パート2: ペイロード      パート3: 署名
   (メタデータ)           (実際のデータ)           (完全性の証明)
-  ┌──────────────┐       ┌──────────────────┐     ┌──────────────────┐
-  │ {            │       │ {                │     │                  │
-  │  "alg":"RS256│       │  "sub":"user-id" │     │  (パート1+2が     │
-  │  "typ":"JWT" │       │  "exp":171190..  │     │   改ざんされて    │
-  │  "kid":"key-"│       │  "volta_tid":... │     │   いないことを    │
-  │ }            │       │  ...             │     │   証明するバイナリ │
-  └──────────────┘       │ }                │     │   データ)         │
-                         └──────────────────┘     └──────────────────┘
+
+    {                      {
+     "alg":"RS256           "sub":"user-id"          (パート1+2が
+     "typ":"JWT"            "exp":171190..            改ざんされて
+     "kid":"key-"           "volta_tid":...           いないことを
+    }                       ...                       証明するバイナリ
+                           }                          データ)
 ```
 
 各パートは**Base64URLエンコード**されています（バイナリデータをURLセーフなテキストに変換する方法）。暗号化はされていません。誰でもデコードできます。
@@ -154,34 +153,27 @@ echo 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0yMDI2LTAzLTMxVDA5LTAwIn
 
 ### voltaでのJWTライフサイクル
 
-```
-  1. ユーザーがGoogle OIDCでログイン
-                │
-                ▼
-  2. voltaがセッションを作成（Cookieベース、8時間）
-                │
-                ▼
-  3. voltaがJWTを発行（RS256、5分で期限切れ）
-     ┌────────────────────────────────────────┐
-     │  JWTに含まれるもの：ユーザーID、テナントID、│
-     │  ロール、表示名、テナントスラッグ          │
-     └────────────────────────────────────────┘
-                │
-                ▼
-  4. JWTはアプリに以下の方法で送られる：
-     - X-Volta-JWTヘッダー（ForwardAuth経由）
-     - Authorization: Bearer <jwt>（Internal API）
-                │
-                ▼
-  5. アプリがJWKS公開鍵を使ってJWTをローカルで検証
-     （voltaへのコールバック不要）
-                │
-                ▼
-  6. JWTは5分後に期限切れ
-                │
-                ▼
-  7. volta-sdk-jsが401を検知 -> /auth/refreshを呼ぶ
-     -> 有効なセッションから新しいJWTを取得 -> リトライ
+```text
+1. ユーザーがGoogle OIDCでログイン
+
+2. voltaがセッションを作成（Cookieベース、8時間）
+
+3. voltaがJWTを発行（RS256、5分で期限切れ）
+
+      JWTに含まれるもの：ユーザーID、テナントID、
+      ロール、表示名、テナントスラッグ
+
+4. JWTはアプリに以下の方法で送られる：
+   - X-Volta-JWTヘッダー（ForwardAuth経由）
+   - Authorization: Bearer <jwt>（Internal API）
+
+5. アプリがJWKS公開鍵を使ってJWTをローカルで検証
+   （voltaへのコールバック不要）
+
+6. JWTは5分後に期限切れ
+
+7. volta-sdk-jsが401を検知 -> /auth/refreshを呼ぶ
+   -> 有効なセッションから新しいJWTを取得 -> リトライ
 ```
 
 ### なぜ5分の有効期限なのか？

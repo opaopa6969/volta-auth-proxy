@@ -18,27 +18,25 @@ volta's role in billing is reactive: it [ingests](ingestion.md) Stripe events an
 
 Without billing integration in your auth layer, you face dangerous gaps:
 
-```
-  Without billing-aware auth:
-  ┌──────────────────────────────────────────────┐
-  │  Stripe: "Acme's subscription cancelled"      │
-  │                                               │
-  │  Your app: knows nothing.                     │
-  │  All 50 Acme employees still have full access.│
-  │  You're providing free service.               │
-  │                                               │
-  │  Months later: "Why is revenue down?"         │
-  └──────────────────────────────────────────────┘
+```text
+Without billing-aware auth:
 
-  With billing-aware auth (volta):
-  ┌──────────────────────────────────────────────┐
-  │  Stripe: "Acme's subscription cancelled"      │
-  │                                               │
-  │  volta: Suspends Acme tenant.                 │
-  │  All 50 employees see: "Please renew."        │
-  │  volta fires webhook to your app.             │
-  │  Your app can offer a grace period.           │
-  └──────────────────────────────────────────────┘
+   Stripe: "Acme's subscription cancelled"
+
+   Your app: knows nothing.
+   All 50 Acme employees still have full access.
+   You're providing free service.
+
+   Months later: "Why is revenue down?"
+
+With billing-aware auth (volta):
+
+   Stripe: "Acme's subscription cancelled"
+
+   volta: Suspends Acme tenant.
+   All 50 employees see: "Please renew."
+   volta fires webhook to your app.
+   Your app can offer a grace period.
 ```
 
 Billing-aware authentication ensures that access matches payment status.
@@ -51,82 +49,77 @@ Billing-aware authentication ensures that access matches payment status.
 
 Stripe sends events to volta when billing state changes:
 
-```
-  Stripe                    volta-auth-proxy            Your App
-  ======                    ================            ========
+```text
+Stripe                    volta-auth-proxy            Your App
+======                    ================            ========
 
-  Customer signs up
-  and picks "Pro" plan
-  ─────────────────────────►
-  subscription.created       1. Map Stripe customer
-                               to volta tenant
-                            2. Set tenant plan = "pro"
-                            3. Write outbox:
-                               billing.plan_changed
-                            ──────────────────────────►
-                                                       webhook:
-                                                       billing.plan_changed
-                                                       "Acme is now Pro"
+Customer signs up
+and picks "Pro" plan
 
-  3 months later...
-  Payment fails
-  ─────────────────────────►
-  invoice.payment_failed     1. Flag tenant:
-                               payment_failed = true
-                            2. Set grace period (3 days)
-                            3. Notify tenant admins
-                            ──────────────────────────►
-                                                       webhook:
-                                                       billing.payment_failed
-                                                       "Acme payment failed"
+subscription.created       1. Map Stripe customer
+                             to volta tenant
+                          2. Set tenant plan = "pro"
+                          3. Write outbox:
+                             billing.plan_changed
 
-  Grace period expires,
-  no payment received
-  ─────────────────────────►
-  subscription.deleted       1. Suspend tenant
-                            2. Revoke all sessions
-                            3. Write outbox:
-                               tenant.suspended
-                            ──────────────────────────►
-                                                       webhook:
-                                                       tenant.suspended
-                                                       "Acme suspended"
+                                                     webhook:
+                                                     billing.plan_changed
+                                                     "Acme is now Pro"
+
+3 months later...
+Payment fails
+
+invoice.payment_failed     1. Flag tenant:
+                             payment_failed = true
+                          2. Set grace period (3 days)
+                          3. Notify tenant admins
+
+                                                     webhook:
+                                                     billing.payment_failed
+                                                     "Acme payment failed"
+
+Grace period expires,
+no payment received
+
+subscription.deleted       1. Suspend tenant
+                          2. Revoke all sessions
+                          3. Write outbox:
+                             tenant.suspended
+
+                                                     webhook:
+                                                     tenant.suspended
+                                                     "Acme suspended"
 ```
 
 ### Billing states in volta
 
-```
-  ┌──────────┐     ┌──────────────┐     ┌──────────────┐
-  │  ACTIVE  │────►│ GRACE_PERIOD │────►│  SUSPENDED   │
-  │          │     │              │     │              │
-  │ Plan     │     │ Payment      │     │ No payment   │
-  │ active,  │     │ failed,      │     │ received,    │
-  │ all good │     │ 3-day grace  │     │ access       │
-  │          │     │              │     │ blocked      │
-  └──────────┘     └──────────────┘     └──────────────┘
-       ▲                  │                    │
-       │                  │                    │
-       └──────────────────┴────────────────────┘
-                payment received
-               (subscription.updated)
+```text
+ ACTIVE       >  GRACE_PERIOD      >   SUSPENDED
+
+Plan             Payment              No payment
+active,          failed,              received,
+all good         3-day grace          access
+                                      blocked
+
+            payment received
+           (subscription.updated)
 ```
 
 ### Plan-based features
 
 volta can enforce plan-based access controls:
 
-```
-  Tenant: Acme Corp
-  Plan: "pro"
+```text
+Tenant: Acme Corp
+Plan: "pro"
 
-  Plan limits:
-  ┌────────────────────────────────────────────┐
-  │  Plan    │ Members │ M2M Clients │ Webhooks│
-  │──────────┼─────────┼─────────────┼─────────│
-  │  free    │    5    │      1      │    2    │
-  │  pro     │   50    │     10      │   20    │
-  │  enterprise│ unlimited│ unlimited │ unlimited│
-  └────────────────────────────────────────────┘
+Plan limits:
+
+   Plan      Members   M2M Clients   Webhooks
+
+   free         5           1           2
+   pro         50          10          20
+   enterprise  unlimited  unlimited   unlimited
 ```
 
 volta can check these limits during [provisioning](provisioning.md), [M2M](m2m.md) client creation, and [webhook](webhook.md) registration, returning 402 Payment Required when a limit is reached.

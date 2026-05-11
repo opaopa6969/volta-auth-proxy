@@ -31,92 +31,78 @@ If you are building a [downstream app](downstream-app.md) that uses volta for au
 
 ### Traditional website vs. SPA
 
-```
-  Traditional (Multi-Page Application):
+```text
+Traditional (Multi-Page Application):
 
-  Browser                          Server
-  ──────                           ──────
-  GET /dashboard    ─────────────>  renders full HTML
-                    <─────────────  <html>...</html>
-  (whole page loads)
+Browser                          Server
 
-  Click "Settings"  ─────────────>  renders full HTML
-                    <─────────────  <html>...</html>
-  (whole page loads again)
+GET /dashboard                 >  renders full HTML
+                  <               <html>...</html>
+(whole page loads)
 
-  Click "Profile"   ─────────────>  renders full HTML
-                    <─────────────  <html>...</html>
-  (whole page loads again)
+Click "Settings"               >  renders full HTML
+                  <               <html>...</html>
+(whole page loads again)
 
+Click "Profile"                >  renders full HTML
+                  <               <html>...</html>
+(whole page loads again)
 
-  SPA (Single Page Application):
+SPA (Single Page Application):
 
-  Browser                          Server
-  ──────                           ──────
-  GET /             ─────────────>  returns index.html + app.js
-                    <─────────────  <html><script src="app.js">
-  (page loads once)
+Browser                          Server
 
-  Click "Settings"  ─────────────>  GET /api/v1/settings (JSON)
-  (JS intercepts)   <─────────────  {"theme":"dark","lang":"ja"}
-  JS updates DOM    (no page reload)
+GET /                          >  returns index.html + app.js
+                  <               <html><script src="app.js">
+(page loads once)
 
-  Click "Profile"   ─────────────>  GET /api/v1/users/me (JSON)
-  (JS intercepts)   <─────────────  {"name":"Taro","role":"ADMIN"}
-  JS updates DOM    (no page reload)
+Click "Settings"               >  GET /api/v1/settings (JSON)
+(JS intercepts)   <               {"theme":"dark","lang":"ja"}
+JS updates DOM    (no page reload)
+
+Click "Profile"                >  GET /api/v1/users/me (JSON)
+(JS intercepts)   <               {"name":"Taro","role":"ADMIN"}
+JS updates DOM    (no page reload)
 ```
 
 ### The SPA architecture
 
-```
-  ┌──────────────────────────────────────────────────────┐
-  │                    Browser                            │
-  │                                                       │
-  │  ┌─────────────────────────────────────────────────┐  │
-  │  │              SPA (JavaScript)                    │  │
-  │  │                                                  │  │
-  │  │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │  │
-  │  │  │  Router   │  │  State   │  │  Components  │  │  │
-  │  │  │ /dash     │  │ Manager  │  │  Dashboard   │  │  │
-  │  │  │ /settings │  │ (Redux/  │  │  Settings    │  │  │
-  │  │  │ /profile  │  │  Pinia)  │  │  Profile     │  │  │
-  │  │  └──────────┘  └──────────┘  └──────────────┘  │  │
-  │  │                      │                           │  │
-  │  │               fetch("/api/...")                   │  │
-  │  └──────────────────────┼──────────────────────────┘  │
-  │                         │                              │
-  └─────────────────────────┼──────────────────────────────┘
-                            │ HTTP (JSON)
-                            ▼
-  ┌──────────────────────────────────────────────────────┐
-  │              volta-auth-proxy (API)                   │
-  │  /api/v1/users/me                                    │
-  │  /api/v1/tenants                                     │
-  │  /api/v1/admin/members                               │
-  └──────────────────────────────────────────────────────┘
+```text
+                  Browser
+
+               SPA (JavaScript)
+
+      Router         State         Components
+     /dash          Manager        Dashboard
+     /settings      (Redux/        Settings
+     /profile        Pinia)        Profile
+
+                fetch("/api/...")
+
+                         HTTP (JSON)
+
+            volta-auth-proxy (API)
+/api/v1/users/me
+/api/v1/tenants
+/api/v1/admin/members
 ```
 
 ### Client-side routing
 
 In a traditional website, the browser sends a new request to the server when you navigate to `/settings`. In a SPA, the URL changes but the browser does not send a request for a new page:
 
-```
-  URL: /dashboard           URL: /settings           URL: /profile
-  ┌──────────────────┐      ┌──────────────────┐     ┌──────────────────┐
-  │  ┌────────────┐  │      │  ┌────────────┐  │     │  ┌────────────┐  │
-  │  │  Navbar    │  │      │  │  Navbar    │  │     │  │  Navbar    │  │
-  │  ├────────────┤  │      │  ├────────────┤  │     │  ├────────────┤  │
-  │  │            │  │      │  │            │  │     │  │            │  │
-  │  │ Dashboard  │  │ ───> │  │ Settings   │  │ ──> │  │ Profile    │  │
-  │  │ content    │  │      │  │ content    │  │     │  │ content    │  │
-  │  │            │  │      │  │            │  │     │  │            │  │
-  │  ├────────────┤  │      │  ├────────────┤  │     │  ├────────────┤  │
-  │  │  Footer    │  │      │  │  Footer    │  │     │  │  Footer    │  │
-  │  └────────────┘  │      │  └────────────┘  │     │  └────────────┘  │
-  └──────────────────┘      └──────────────────┘     └──────────────────┘
+```text
+URL: /dashboard           URL: /settings           URL: /profile
 
-  Same shell (navbar, footer). Only the middle content changes.
-  The page never reloads. JavaScript swaps the content.
+      Navbar                    Navbar                   Navbar
+
+     Dashboard          >      Settings          >      Profile
+     content                   content                  content
+
+      Footer                    Footer                   Footer
+
+Same shell (navbar, footer). Only the middle content changes.
+The page never reloads. JavaScript swaps the content.
 ```
 
 ### SPA vs. MPA vs. SSR
@@ -143,80 +129,65 @@ volta-auth-proxy's own pages (login, tenant selector, invitation acceptance) are
 
 The applications that sit behind volta (the [downstream apps](downstream-app.md)) are typically SPAs. A typical architecture:
 
-```
-  ┌──────────────────────────────────────────────────────────┐
-  │                        Browser                            │
-  │                                                           │
-  │  ┌───────────────────────────────────────────────────┐   │
-  │  │          Your SPA (React / Vue / etc.)             │   │
-  │  │                                                    │   │
-  │  │  import { VoltaClient } from 'volta-sdk-js';      │   │
-  │  │  const volta = new VoltaClient();                  │   │
-  │  │                                                    │   │
-  │  │  // SDK handles JWT refresh automatically          │   │
-  │  │  const user = await volta.getUser();               │   │
-  │  │  const members = await volta.fetch('/api/members');│   │
-  │  └───────────────────────────────────────────────────┘   │
-  │         │                           │                     │
-  │         │ /auth/refresh             │ /api/v1/users/me   │
-  └─────────┼───────────────────────────┼─────────────────────┘
-            │                           │
-            ▼                           ▼
-  ┌──────────────────────────────────────────────────────────┐
-  │                    volta-auth-proxy                       │
-  │  Session cookie validates user                           │
-  │  Issues short-lived JWT (5 min)                          │
-  │  Returns user info via API                               │
-  └──────────────────────────────────────────────────────────┘
+```text
+                      Browser
+
+           Your SPA (React / Vue / etc.)
+
+   import { VoltaClient } from 'volta-sdk-js';
+   const volta = new VoltaClient();
+
+   // SDK handles JWT refresh automatically
+   const user = await volta.getUser();
+   const members = await volta.fetch('/api/members');
+
+         /auth/refresh               /api/v1/users/me
+
+                  volta-auth-proxy
+Session cookie validates user
+Issues short-lived JWT (5 min)
+Returns user info via API
 ```
 
 ### The SPA authentication flow with volta
 
-```
-  1. User opens your-app.example.com
-     ├── SPA loads (index.html + app.js)
-     └── SPA calls volta /api/v1/users/me
-              │
-              ▼
-  2. No session cookie → volta returns 401
-              │
-              ▼
-  3. volta-sdk-js detects 401 → redirects to volta login
-              │
-              ▼
-  4. User authenticates via Google OIDC
-              │
-              ▼
-  5. volta creates session cookie → redirects back to SPA
-              │
-              ▼
-  6. SPA loads again, calls /api/v1/users/me
-     ├── Session cookie is valid → volta returns user data
-     └── SPA renders the authenticated UI
-              │
-              ▼
-  7. 5 minutes later, JWT expires
-     ├── volta-sdk-js detects 401
-     ├── Calls /auth/refresh (session cookie still valid)
-     ├── Gets new JWT
-     └── Retries original request transparently
+```text
+1. User opens your-app.example.com
+       SPA loads (index.html + app.js)
+       SPA calls volta /api/v1/users/me
+
+2. No session cookie → volta returns 401
+
+3. volta-sdk-js detects 401 → redirects to volta login
+
+4. User authenticates via Google OIDC
+
+5. volta creates session cookie → redirects back to SPA
+
+6. SPA loads again, calls /api/v1/users/me
+       Session cookie is valid → volta returns user data
+       SPA renders the authenticated UI
+
+7. 5 minutes later, JWT expires
+       volta-sdk-js detects 401
+       Calls /auth/refresh (session cookie still valid)
+       Gets new JWT
+       Retries original request transparently
 ```
 
 ### ForwardAuth pattern with SPAs
 
 When a SPA is served through Traefik with [ForwardAuth](forwardauth.md), every request to the SPA's backend goes through volta:
 
-```
-  SPA → fetch("/api/data") → Traefik → ForwardAuth → volta checks session
-                                                      │
-                                              ┌───────┴───────┐
-                                              │ Valid session  │
-                                              │ Add X-Volta-* │
-                                              │ headers        │
-                                              └───────┬───────┘
-                                                      │
-                                              Your backend API
-                                              reads X-Volta-* headers
+```text
+SPA → fetch("/api/data") → Traefik → ForwardAuth → volta checks session
+
+                                              Valid session
+                                              Add X-Volta-*
+                                              headers
+
+                                            Your backend API
+                                            reads X-Volta-* headers
 ```
 
 ---

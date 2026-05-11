@@ -14,22 +14,22 @@ The words "external" and "internal" appear everywhere in software, and they mean
 
 An external server is a separate process -- something you deploy, run, and manage alongside your application. An internal implementation is code that lives inside your application process.
 
-```
-  External auth server:
-  ┌──────────┐     ┌──────────────┐     ┌──────────────┐
-  │ Your App  │────►│ Keycloak     │────►│ PostgreSQL   │
-  │           │     │ (separate    │     │              │
-  │           │     │  server)     │     │              │
-  └──────────┘     └──────────────┘     └──────────────┘
-  Three processes. Three things to deploy. Three things that can fail.
+```text
+External auth server:
 
-  Internal auth code:
-  ┌──────────────────────────────┐     ┌──────────────┐
-  │ volta-auth-proxy              │────►│ PostgreSQL   │
-  │ (auth logic lives INSIDE     │     │              │
-  │  this single process)        │     │              │
-  └──────────────────────────────┘     └──────────────┘
-  Two processes. Simpler. Less that can fail.
+  Your App       >  Keycloak          >  PostgreSQL
+                    (separate
+                     server)
+
+Three processes. Three things to deploy. Three things that can fail.
+
+Internal auth code:
+
+  volta-auth-proxy                   >  PostgreSQL
+  (auth logic lives INSIDE
+   this single process)
+
+Two processes. Simpler. Less that can fail.
 ```
 
 Keycloak is an external auth server. Your application connects to it via network calls. volta is different: the auth logic is the application. There is no "connecting to" the auth system -- you ARE the auth system.
@@ -40,19 +40,18 @@ Why does this matter? Network calls fail. External servers go down. Configuratio
 
 An external API is reachable from the public internet. Anyone with the URL can attempt to call it. An internal API is only reachable within your private network.
 
-```
-  External API:
-  ┌────────────┐
-  │  Internet   │──►  https://api.stripe.com/v1/charges
-  │  (anyone)   │     (public, anyone can try to call it)
-  └────────────┘
+```text
+External API:
 
-  Internal API:
-  ┌────────────┐     ┌──────────────┐
-  │  Your App   │──►  volta:7070/api/v1/tenants/...
-  │  (backend)  │     (private, only your services can reach it)
-  └────────────┘     └──────────────┘
-  The internet CANNOT reach this.
+   Internet      >  https://api.stripe.com/v1/charges
+   (anyone)         (public, anyone can try to call it)
+
+Internal API:
+
+   Your App      >  volta:7070/api/v1/tenants/...
+   (backend)        (private, only your services can reach it)
+
+The internet CANNOT reach this.
 ```
 
 volta's `/auth/*` endpoints are external (browsers must reach them for login). volta's `/api/v1/*` endpoints are internal (only your backend services should reach them). The distinction is critical for security: internal APIs can trust the caller because the caller is already inside your network.
@@ -117,21 +116,21 @@ The key is intentionality. volta does not avoid external dependencies out of dog
 
 volta's architecture sits on a spectrum from fully internal to optionally external:
 
-```
-  Fully internal (always):
-  ├── Auth logic (OIDC flow, session validation, JWT issuance)
-  ├── ForwardAuth handler
-  ├── Login/consent UI (jte templates)
-  ├── Role-based access control
-  └── Invitation system
+```text
+Fully internal (always):
+    Auth logic (OIDC flow, session validation, JWT issuance)
+    ForwardAuth handler
+    Login/consent UI (jte templates)
+    Role-based access control
+    Invitation system
 
-  Internal by default, externally upgradeable:
-  ├── Session storage: PostgreSQL → Redis
-  ├── Audit logging: PostgreSQL → Kafka / Elasticsearch
-  └── Notifications: none → SMTP / SendGrid
+Internal by default, externally upgradeable:
+    Session storage: PostgreSQL → Redis
+    Audit logging: PostgreSQL → Kafka / Elasticsearch
+    Notifications: none → SMTP / SendGrid
 
-  Always external:
-  └── PostgreSQL (the one dependency volta embraces)
+Always external:
+    PostgreSQL (the one dependency volta embraces)
 ```
 
 This is the design principle: start internal, go external only when the need is proven.

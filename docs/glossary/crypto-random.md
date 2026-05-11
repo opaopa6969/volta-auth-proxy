@@ -31,66 +31,61 @@ The security of every random value in volta -- session IDs, invite codes, PKCE v
 
 ### Entropy sources
 
-```
-  Hardware / OS entropy:
-  ┌──────────────────────────────────────────────────┐
-  │  Sources of unpredictability:                    │
-  │  ├── CPU timing jitter                          │
-  │  ├── Disk I/O timing                            │
-  │  ├── Network packet arrival times               │
-  │  ├── Mouse/keyboard events                      │
-  │  ├── Hardware RNG (Intel RDRAND)                │
-  │  └── Thermal noise                              │
-  │                                                  │
-  │  OS collects entropy → /dev/urandom (Linux)     │
-  │  JVM reads from OS → java.security.SecureRandom │
-  └──────────────────────────────────────────────────┘
+```text
+Hardware / OS entropy:
+
+   Sources of unpredictability:
+       CPU timing jitter
+       Disk I/O timing
+       Network packet arrival times
+       Mouse/keyboard events
+       Hardware RNG (Intel RDRAND)
+       Thermal noise
+
+   OS collects entropy → /dev/urandom (Linux)
+   JVM reads from OS → java.security.SecureRandom
 ```
 
 ### Random vs. SecureRandom
 
-```
-  java.util.Random (NOT secure):
-  ┌──────────────────────────────────────────────┐
-  │  seed = System.nanoTime()  (or user-provided)│
-  │  next = (seed * 0x5DEECE66DL + 0xBL)        │
-  │         & 0xFFFFFFFFFFFFL                    │
-  │                                              │
-  │  Problem: Given a few outputs, the entire    │
-  │  sequence can be reconstructed.              │
-  │  NEVER use for security!                     │
-  └──────────────────────────────────────────────┘
+```text
+java.util.Random (NOT secure):
 
-  java.security.SecureRandom (SECURE):
-  ┌──────────────────────────────────────────────┐
-  │  Entropy from OS hardware sources            │
-  │  CSPRNG algorithm (e.g., SHA1PRNG, DRBG)    │
-  │  Periodically re-seeded from OS entropy      │
-  │                                              │
-  │  Even with billions of outputs observed,     │
-  │  the next output is unpredictable.           │
-  │  REQUIRED for all security operations.       │
-  └──────────────────────────────────────────────┘
+   seed = System.nanoTime()  (or user-provided)
+   next = (seed * 0x5DEECE66DL + 0xBL)
+          & 0xFFFFFFFFFFFFL
+
+   Problem: Given a few outputs, the entire
+   sequence can be reconstructed.
+   NEVER use for security!
+
+java.security.SecureRandom (SECURE):
+
+   Entropy from OS hardware sources
+   CSPRNG algorithm (e.g., SHA1PRNG, DRBG)
+   Periodically re-seeded from OS entropy
+
+   Even with billions of outputs observed,
+   the next output is unpredictable.
+   REQUIRED for all security operations.
 ```
 
 ### Output quality comparison
 
-```
-  Predictable (java.util.Random):
-  ┌─────────────────────────────────┐
-  │  Output 1: 42                   │
-  │  Output 2: 17                   │  An attacker who sees
-  │  Output 3: 89                   │  these 3 outputs can
-  │  Output 4: ???                  │  predict output 4.
-  └─────────────────────────────────┘
+```text
+Predictable (java.util.Random):
 
-  Unpredictable (SecureRandom):
-  ┌─────────────────────────────────┐
-  │  Output 1: a7f2c8e1            │
-  │  Output 2: 3b9d4f2a            │  Even seeing millions
-  │  Output 3: 8c1e5d7b            │  of outputs, output 4
-  │  Output 4: ???                  │  is unpredictable.
-  └─────────────────────────────────┘
+   Output 1: 42
+   Output 2: 17                      An attacker who sees
+   Output 3: 89                      these 3 outputs can
+   Output 4: ???                     predict output 4.
+
+Unpredictable (SecureRandom):
+
+   Output 1: a7f2c8e1
+   Output 2: 3b9d4f2a               Even seeing millions
+   Output 3: 8c1e5d7b               of outputs, output 4
+   Output 4: ???                     is unpredictable.
 ```
 
 ---
@@ -165,20 +160,18 @@ Java's `KeyPairGenerator` uses `SecureRandom` by default for all key material.
 
 ### Summary of crypto-random usage
 
-```
-  ┌───────────────────────────────────────────────────┐
-  │  Component            Random source   Bits        │
-  │  ─────────────────────────────────────────────── │
-  │  Session ID (UUID)    SecureRandom    122 bits    │
-  │  Invite code          SecureRandom    192 bits    │
-  │  PKCE verifier        SecureRandom    256 bits    │
-  │  State parameter      SecureRandom    256 bits    │
-  │  CSRF token           SecureRandom    256 bits    │
-  │  AES-GCM IV           SecureRandom    96 bits     │
-  │  RSA key pair         SecureRandom    2048 bits   │
-  │  Key ID (kid)         Timestamp       N/A (not    │
-  │                       (not random)    a secret)   │
-  └───────────────────────────────────────────────────┘
+```text
+Component            Random source   Bits
+
+Session ID (UUID)    SecureRandom    122 bits
+Invite code          SecureRandom    192 bits
+PKCE verifier        SecureRandom    256 bits
+State parameter      SecureRandom    256 bits
+CSRF token           SecureRandom    256 bits
+AES-GCM IV           SecureRandom    96 bits
+RSA key pair         SecureRandom    2048 bits
+Key ID (kid)         Timestamp       N/A (not
+                     (not random)    a secret)
 ```
 
 ---

@@ -18,23 +18,15 @@ In the OAuth 2.0 world, M2M communication uses the [Client Credentials](client-c
 
 Modern SaaS applications are not monoliths -- they are composed of many services:
 
-```
-  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-  │  Billing     │    │  Notification│    │  Analytics   │
-  │  Service     │    │  Service     │    │  Service     │
-  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
-         │                   │                   │
-         ▼                   ▼                   ▼
-  ┌─────────────────────────────────────────────────────┐
-  │              volta-auth-proxy                        │
-  │         (authenticates all M2M calls)                │
-  └─────────────────────────────────────────────────────┘
-         │                   │                   │
-         ▼                   ▼                   ▼
-  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-  │  User        │    │  Tenant      │    │  Role        │
-  │  API         │    │  API         │    │  API         │
-  └──────────────┘    └──────────────┘    └──────────────┘
+```text
+Billing             Notification        Analytics
+Service             Service             Service
+
+            volta-auth-proxy
+       (authenticates all M2M calls)
+
+User                Tenant              Role
+API                 API                 API
 ```
 
 Without M2M authentication:
@@ -52,54 +44,46 @@ With proper M2M auth, each service has its own identity, scoped permissions, and
 
 ### The M2M authentication flow
 
-```
-  Billing Service                       volta-auth-proxy
-  ================                      ================
+```text
+Billing Service                       volta-auth-proxy
+================                      ================
 
-  1. I need to read tenant data.
-     I have no user context -- I am a machine.
+1. I need to read tenant data.
+   I have no user context -- I am a machine.
 
-  2. POST /oauth/token
-     grant_type=client_credentials
-     &client_id=billing-service
-     &client_secret=my-secret-key
-     &scope=read:tenants read:billing
+2. POST /oauth/token
+   grant_type=client_credentials
+   &client_id=billing-service
+   &client_secret=my-secret-key
+   &scope=read:tenants read:billing
 
-  ─────────────────────────────────────────────────►
+                                      3. Validate credentials:
+                                         - client_id registered? ✓
+                                         - client_secret matches? ✓
+                                         - scopes allowed? ✓
 
-                                        3. Validate credentials:
-                                           - client_id registered? ✓
-                                           - client_secret matches? ✓
-                                           - scopes allowed? ✓
+                                      4. Issue M2M JWT:
+                                         {
+                                           "sub": "billing-svc-uuid",
+                                           "volta_client": true,
+                                           "volta_client_id":
+                                             "billing-service",
+                                           "volta_tid": "acme-uuid",
+                                           "volta_roles": [
+                                             "read:tenants",
+                                             "read:billing"
+                                           ],
+                                           "exp": +5 min
+                                         }
 
-                                        4. Issue M2M JWT:
-                                           {
-                                             "sub": "billing-svc-uuid",
-                                             "volta_client": true,
-                                             "volta_client_id":
-                                               "billing-service",
-                                             "volta_tid": "acme-uuid",
-                                             "volta_roles": [
-                                               "read:tenants",
-                                               "read:billing"
-                                             ],
-                                             "exp": +5 min
-                                           }
+5. Use token to call APIs:
+   GET /api/v1/tenants/acme-uuid
+   Authorization: Bearer eyJhbGci...
 
-  ◄─────────────────────────────────────────────────
-
-  5. Use token to call APIs:
-     GET /api/v1/tenants/acme-uuid
-     Authorization: Bearer eyJhbGci...
-
-  ─────────────────────────────────────────────────►
-
-                                        6. Verify JWT:
-                                           - volta_client=true → M2M
-                                           - scopes include read:tenants
-                                           - Return tenant data
-
-  ◄─────────────────────────────────────────────────
+                                      6. Verify JWT:
+                                         - volta_client=true → M2M
+                                         - scopes include read:tenants
+                                         - Return tenant data
 ```
 
 ### M2M vs human authentication
@@ -117,18 +101,16 @@ With proper M2M auth, each service has its own identity, scoped permissions, and
 
 M2M tokens are short-lived but requesting a new one for every API call is wasteful. Services should cache the token and re-authenticate only when it expires:
 
-```
-  ┌─────────────────────────────────────────────┐
-  │  Token Cache Strategy                        │
-  │                                              │
-  │  1. Check cache for valid token              │
-  │  2. If token exists and not expired → use it │
-  │  3. If expired or missing:                   │
-  │     a. POST /oauth/token                     │
-  │     b. Cache new token                       │
-  │     c. Set cache TTL = expires_in - 30sec    │
-  │  4. Use cached token                         │
-  └─────────────────────────────────────────────┘
+```text
+Token Cache Strategy
+
+1. Check cache for valid token
+2. If token exists and not expired → use it
+3. If expired or missing:
+   a. POST /oauth/token
+   b. Cache new token
+   c. Set cache TTL = expires_in - 30sec
+4. Use cached token
 ```
 
 The `-30sec` buffer ensures the token is refreshed before it actually expires, avoiding race conditions.

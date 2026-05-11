@@ -29,39 +29,29 @@ Understanding what a client is matters because:
 
 ### The client-server model
 
-```
-  Client                                Server
-  ──────                                ──────
-  Sends request ──────────────────────> Processes request
-                                        Reads database
-                                        Applies business logic
-  Receives response <────────────────── Sends response
+```text
+Client                                Server
+
+Sends request                       > Processes request
+                                      Reads database
+                                      Applies business logic
+Receives response <                   Sends response
 ```
 
 ### Types of clients in web development
 
-```
-  ┌─────────────────────────────────────────────────────────┐
-  │                     CLIENTS                              │
-  │                                                          │
-  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐ │
-  │  │ Browser  │  │ Mobile   │  │ Another  │  │ CLI    │  │
-  │  │ (Chrome, │  │ App      │  │ Server   │  │ tool   │  │
-  │  │  Firefox)│  │ (iOS,    │  │ (micro-  │  │ (curl, │  │
-  │  │          │  │  Android)│  │  service) │  │  httpie)│ │
-  │  └─────┬────┘  └─────┬────┘  └─────┬────┘  └────┬───┘ │
-  │        │              │              │            │      │
-  └────────┼──────────────┼──────────────┼────────────┼──────┘
-           │              │              │            │
-           └──────────────┴──────┬───────┴────────────┘
-                                 │
-                          HTTP Requests
-                                 │
-                                 ▼
-                    ┌─────────────────────┐
-                    │  volta-auth-proxy   │
-                    │  (SERVER)           │
-                    └─────────────────────┘
+```text
+                 CLIENTS
+
+Browser       Mobile        Another       CLI
+(Chrome,      App           Server        tool
+ Firefox)     (iOS,         (micro-       (curl,
+               Android)      service)       httpie)
+
+                   HTTP Requests
+
+                volta-auth-proxy
+                (SERVER)
 ```
 
 ### Client identification
@@ -94,62 +84,61 @@ The server sees clients through the information they provide:
 
 When a user opens the volta login page, their browser is the client:
 
-```
-  Browser (client)                    volta (server)
-  ────────────────                    ──────────────
-  GET /auth/login  ──────────────────> Returns login HTML page
-                   <──────────────────
+```text
+Browser (client)                    volta (server)
 
-  User clicks "Sign in with Google"
-  GET /auth/callback?code=... ───────> Validates code with Google
-                                       Creates session
-                   <────────────────── Set-Cookie: JSESSIONID=abc
-                                       Redirect to /dashboard
+GET /auth/login                    > Returns login HTML page
+
+User clicks "Sign in with Google"
+GET /auth/callback?code=...        > Validates code with Google
+                                     Creates session
+                 <                   Set-Cookie: JSESSIONID=abc
+                                     Redirect to /dashboard
 ```
 
 ### volta as a server to SPA clients
 
 When a [SPA](spa.md) calls volta's API:
 
-```
-  SPA (client)                        volta (server)
-  ────────────                        ──────────────
-  GET /api/v1/users/me
-  Cookie: JSESSIONID=abc  ──────────> Validates session
-                                      Looks up user in database
-                          <────────── 200 OK {"userId":"...","name":"Taro"}
+```text
+SPA (client)                        volta (server)
+
+GET /api/v1/users/me
+Cookie: JSESSIONID=abc            > Validates session
+                                    Looks up user in database
+                        <           200 OK {"userId":"...","name":"Taro"}
 ```
 
 ### volta as a server to Traefik (another server as client)
 
 In the [ForwardAuth](forwardauth.md) pattern, Traefik is the client:
 
-```
-  Traefik (client)                    volta (server)
-  ────────────────                    ──────────────
-  GET /forwardauth
-  X-Forwarded-Uri: /app/dashboard
-  Cookie: JSESSIONID=abc  ──────────> Validates session
-                          <────────── 200 OK
-                                      X-Volta-User-Id: 550e...
-                                      X-Volta-Tenant-Id: abcd...
-                                      X-Volta-Roles: ADMIN
+```text
+Traefik (client)                    volta (server)
+
+GET /forwardauth
+X-Forwarded-Uri: /app/dashboard
+Cookie: JSESSIONID=abc            > Validates session
+                        <           200 OK
+                                    X-Volta-User-Id: 550e...
+                                    X-Volta-Tenant-Id: abcd...
+                                    X-Volta-Roles: ADMIN
 ```
 
 ### volta as a CLIENT to Google
 
 volta is not always the server. When performing [OIDC](oidc.md) authentication, volta acts as a client to Google's servers:
 
-```
-  volta (client)                      Google (server)
-  ──────────────                      ────────────────
-  POST /token
-  code=xyz&redirect_uri=...  ────────> Validates authorization code
-                             <──────── Returns id_token + access_token
+```text
+volta (client)                      Google (server)
 
-  GET /userinfo
-  Authorization: Bearer ... ─────────> Returns user profile
-                            <────────── {"email":"taro@example.com",...}
+POST /token
+code=xyz&redirect_uri=...          > Validates authorization code
+                           <         Returns id_token + access_token
+
+GET /userinfo
+Authorization: Bearer ...          > Returns user profile
+                          <           {"email":"taro@example.com",...}
 ```
 
 This shows that client and server are **roles**, not fixed properties. The same program can be a client in one interaction and a server in another.
@@ -162,17 +151,17 @@ This shows that client and server are **roles**, not fixed properties. The same 
 
 The client controls what it sends. It can send fake headers, modified request bodies, or forged cookies. The server must validate everything:
 
-```
-  NEVER trust:
-  ├── X-Forwarded-For header (client can fake IP)
-  ├── User-Agent header (client can pretend to be anything)
-  ├── Request body values (client can send any JSON)
-  └── Query parameters (client can modify URLs)
+```text
+NEVER trust:
+    X-Forwarded-For header (client can fake IP)
+    User-Agent header (client can pretend to be anything)
+    Request body values (client can send any JSON)
+    Query parameters (client can modify URLs)
 
-  ALWAYS validate on the server:
-  ├── Session cookie (cryptographically verified)
-  ├── JWT signature (RS256 verification)
-  └── Role from database (not from request)
+ALWAYS validate on the server:
+    Session cookie (cryptographically verified)
+    JWT signature (RS256 verification)
+    Role from database (not from request)
 ```
 
 ### Attack 1: Client impersonation

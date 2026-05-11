@@ -14,22 +14,19 @@ A downstream app is any application that sits "behind" volta-auth-proxy and reli
 
 Imagine a water treatment plant connected to houses in a neighborhood:
 
-```
-  Water source (rain, river)
-       │
-       ▼
-  ┌──────────────────────┐
-  │  Water treatment      │  ← Cleans and tests the water
-  │  plant                │     (volta-auth-proxy)
-  └──────────────────────┘
-       │
-       ├──── House A (wiki app)        ← gets clean water
-       ├──── House B (admin panel)     ← gets clean water
-       └──── House C (dashboard app)   ← gets clean water
+```text
+Water source (rain, river)
 
-  The houses are "downstream" -- they are after the treatment plant.
-  They receive water that has already been cleaned and tested.
-  They do NOT need their own water treatment equipment.
+   Water treatment         ← Cleans and tests the water
+   plant                      (volta-auth-proxy)
+
+           House A (wiki app)        ← gets clean water
+           House B (admin panel)     ← gets clean water
+           House C (dashboard app)   ← gets clean water
+
+The houses are "downstream" -- they are after the treatment plant.
+They receive water that has already been cleaned and tested.
+They do NOT need their own water treatment equipment.
 ```
 
 In this analogy:
@@ -106,28 +103,27 @@ The app reads these headers and knows exactly who is making the request and what
 
 ## A simple example
 
-```
-  You are building two apps: a wiki and an admin panel.
-  Both are downstream of volta.
+```text
+You are building two apps: a wiki and an admin panel.
+Both are downstream of volta.
 
-  Request from Taro (MEMBER of ACME Corp):
+Request from Taro (MEMBER of ACME Corp):
 
-  Taro's browser
-       │
-       ▼
-  volta-auth-proxy
-       │ "Taro is a MEMBER of ACME Corp"
-       │
-       ├──→ wiki.example.com
-       │    volta adds: X-Volta-User-Id: taro-uuid
-       │                X-Volta-Tenant-Id: acme-uuid
-       │                X-Volta-Roles: MEMBER
-       │    Wiki app: "Welcome, Taro! Here are ACME's wiki pages."
-       │    Result: 200 OK
-       │
-       └──→ admin.example.com
-            volta checks: MEMBER is NOT in [ADMIN, OWNER]
-            Result: 403 Forbidden (request never reaches the admin app)
+Taro's browser
+
+volta-auth-proxy
+       "Taro is a MEMBER of ACME Corp"
+
+        → wiki.example.com
+          volta adds: X-Volta-User-Id: taro-uuid
+                      X-Volta-Tenant-Id: acme-uuid
+                      X-Volta-Roles: MEMBER
+          Wiki app: "Welcome, Taro! Here are ACME's wiki pages."
+          Result: 200 OK
+
+        → admin.example.com
+          volta checks: MEMBER is NOT in [ADMIN, OWNER]
+          Result: 403 Forbidden (request never reaches the admin app)
 ```
 
 Notice that for the admin panel, volta blocks the request before it even reaches the app. The downstream app does not have to reject Taro -- volta does it for free.

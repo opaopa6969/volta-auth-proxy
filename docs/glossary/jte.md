@@ -33,26 +33,24 @@ Web applications need to generate HTML that includes dynamic content: the logged
 
 FreeMarker is what Keycloak uses. It works, but it is from 2002 and shows its age:
 
-```
-  FreeMarker (Keycloak themes):
-  ┌──────────────────────────────────────┐
-  │ <#if user??>                         │  ← Weird null-check syntax
-  │   <h1>Hello ${user.name}</h1>        │
-  │ </#if>                               │
-  │ <#list items as item>                │
-  │   <li>${item.label}</li>             │
-  │ </#list>                             │  ← No compile-time checks
-  └──────────────────────────────────────┘
+```text
+FreeMarker (Keycloak themes):
 
-  jte (volta):
-  ┌──────────────────────────────────────┐
-  │ @if(user != null)                    │  ← Familiar Java syntax
-  │   <h1>Hello ${user.name()}</h1>      │
-  │ @endif                               │
-  │ @for(var item : items)               │
-  │   <li>${item.label()}</li>           │
-  │ @endfor                              │  ← Compile-time type checking
-  └──────────────────────────────────────┘
+  <#if user??>                            ← Weird null-check syntax
+    <h1>Hello ${user.name}</h1>
+  </#if>
+  <#list items as item>
+    <li>${item.label}</li>
+  </#list>                                ← No compile-time checks
+
+jte (volta):
+
+  @if(user != null)                       ← Familiar Java syntax
+    <h1>Hello ${user.name()}</h1>
+  @endif
+  @for(var item : items)
+    <li>${item.label()}</li>
+  @endfor                                 ← Compile-time type checking
 ```
 
 **jte vs Thymeleaf (Spring Boot's default):**
@@ -123,26 +121,26 @@ This protects against [XSS](xss.md) attacks by default. You have to explicitly o
 
 volta-auth-proxy uses jte for all its HTML pages:
 
-```
+```text
 src/main/jte/
-├── layout/
-│   └── base.jte              ← Shared layout (header, footer, CSS)
-├── auth/
-│   ├── login.jte             ← Login page ("Sign in with Google")
-│   ├── callback.jte          ← OAuth callback processing
-│   ├── tenant-select.jte     ← Tenant selector (when user has multiple)
-│   ├── invite-consent.jte    ← "Accept this invitation?" page
-│   └── sessions.jte          ← Active sessions management
-├── admin/
-│   ├── members.jte           ← Tenant member management
-│   ├── invitations.jte       ← Invitation management
-│   ├── webhooks.jte          ← Webhook configuration
-│   ├── tenants.jte           ← Tenant administration
-│   ├── users.jte             ← User administration
-│   ├── audit.jte             ← Audit log viewer
-│   └── idp.jte               ← Identity provider configuration
-└── error/
-    └── error.jte             ← Error pages
+    layout/
+        base.jte              ← Shared layout (header, footer, CSS)
+    auth/
+        login.jte             ← Login page ("Sign in with Google")
+        callback.jte          ← OAuth callback processing
+        tenant-select.jte     ← Tenant selector (when user has multiple)
+        invite-consent.jte    ← "Accept this invitation?" page
+        sessions.jte          ← Active sessions management
+    admin/
+        members.jte           ← Tenant member management
+        invitations.jte       ← Invitation management
+        webhooks.jte          ← Webhook configuration
+        tenants.jte           ← Tenant administration
+        users.jte             ← User administration
+        audit.jte             ← Audit log viewer
+        idp.jte               ← Identity provider configuration
+    error/
+        error.jte             ← Error pages
 ```
 
 ### Why this matters for volta's philosophy

@@ -29,38 +29,35 @@ Without interstitials:
 
 ### Types of interstitials
 
-```
-  ┌────────────────────────────────────────────────────────┐
-  │ Type        │ Purpose               │ User sees         │
-  │─────────────│───────────────────────│───────────────────│
-  │ Technical   │ Exchange OIDC code    │ Brief loading page│
-  │             │ for tokens            │ (or nothing)      │
-  │─────────────│───────────────────────│───────────────────│
-  │ Consent     │ Ask user to confirm   │ "Join workspace   │
-  │             │ an action             │ Acme Corp?"       │
-  │─────────────│───────────────────────│───────────────────│
-  │ Selection   │ User chooses from     │ List of           │
-  │             │ options               │ workspaces        │
-  │─────────────│───────────────────────│───────────────────│
-  │ Informational│ Tell user something  │ "No workspaces.   │
-  │             │ important             │ Ask for invite."  │
-  └────────────────────────────────────────────────────────┘
+```text
+Type          Purpose                 User sees
+
+Technical     Exchange OIDC code      Brief loading page
+              for tokens              (or nothing)
+
+Consent       Ask user to confirm     "Join workspace
+              an action               Acme Corp?"
+
+Selection     User chooses from       List of
+              options                 workspaces
+
+Informational  Tell user something    "No workspaces.
+              important               Ask for invite."
 ```
 
 ### Interstitial flow pattern
 
-```
-  Action A                Interstitial               Action B
-  ┌──────────┐           ┌──────────────┐           ┌──────────┐
-  │ OIDC     │  redirect │ Callback     │  redirect │ App      │
-  │ Provider │ ─────────►│ Processing   │ ─────────►│ Dashboard│
-  │ (Google) │           │ (interstitial)│           │          │
-  └──────────┘           └──────────────┘           └──────────┘
-                          │
-                          ├── Exchange code for tokens
-                          ├── Upsert user in database
-                          ├── Create session
-                          └── Determine next destination
+```text
+Action A                Interstitial               Action B
+
+  OIDC        redirect   Callback        redirect   App
+  Provider            >  Processing              >  Dashboard
+  (Google)               (interstitial)
+
+                            Exchange code for tokens
+                            Upsert user in database
+                            Create session
+                            Determine next destination
 ```
 
 ---
@@ -102,20 +99,14 @@ callback_success:
 
 When a user has a pending invitation, they see a consent page before joining:
 
-```
-  ┌─────────────────────────────────────────┐
-  │                                         │
-  │   You have been invited to join         │
-  │                                         │
-  │   ┌─────────────────────────────────┐   │
-  │   │  Acme Corporation               │   │
-  │   │  Role: MEMBER                   │   │
-  │   │  Invited by: admin@acme.com     │   │
-  │   └─────────────────────────────────┘   │
-  │                                         │
-  │   [ Accept ]     [ Decline ]            │
-  │                                         │
-  └─────────────────────────────────────────┘
+```text
+You have been invited to join
+
+   Acme Corporation
+   Role: MEMBER
+   Invited by: admin@acme.com
+
+[ Accept ]     [ Decline ]
 ```
 
 This maps to the INVITE_CONSENT state:
@@ -144,38 +135,28 @@ INVITE_CONSENT:
 
 Users with multiple tenants see a selection page:
 
-```
-  ┌─────────────────────────────────────────┐
-  │                                         │
-  │   Select a workspace                    │
-  │                                         │
-  │   ┌─────────────────────────────────┐   │
-  │   │  ● Acme Corporation            │   │
-  │   │  ○ Side Project LLC            │   │
-  │   │  ○ Open Source Org             │   │
-  │   └─────────────────────────────────┘   │
-  │                                         │
-  │   [ Continue ]                          │
-  │                                         │
-  └─────────────────────────────────────────┘
+```text
+Select a workspace
+
+   ● Acme Corporation
+   ○ Side Project LLC
+   ○ Open Source Org
+
+[ Continue ]
 ```
 
 ### No-tenant interstitial
 
 Users with no tenant membership see an informational page:
 
-```
-  ┌─────────────────────────────────────────┐
-  │                                         │
-  │   No workspaces yet                     │
-  │                                         │
-  │   You are not a member of any           │
-  │   workspace. Ask your administrator     │
-  │   to send you an invitation.            │
-  │                                         │
-  │   Contact: support@example.com          │
-  │                                         │
-  └─────────────────────────────────────────┘
+```text
+No workspaces yet
+
+You are not a member of any
+workspace. Ask your administrator
+to send you an invitation.
+
+Contact: support@example.com
 ```
 
 ---

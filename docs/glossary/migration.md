@@ -30,50 +30,47 @@ This is different from just running `ALTER TABLE` by hand, because migrations ar
 
 [Flyway](flyway.md) (the migration tool volta uses) expects files named with a version prefix:
 
-```
-  src/main/resources/db/migration/
-  ├── V1__create_users_table.sql
-  ├── V2__create_tenants_table.sql
-  ├── V3__create_memberships_table.sql
-  ├── V4__create_sessions_table.sql
-  ├── V5__create_invitations_table.sql
-  ├── V6__add_audit_log.sql
-  └── V7__add_session_index.sql
+```text
+src/main/resources/db/migration/
+    V1__create_users_table.sql
+    V2__create_tenants_table.sql
+    V3__create_memberships_table.sql
+    V4__create_sessions_table.sql
+    V5__create_invitations_table.sql
+    V6__add_audit_log.sql
+    V7__add_session_index.sql
 
-  Format: V{number}__{description}.sql
-          │          │
-          │          └─ Human-readable description
-          └─ Version number (determines order)
+Format: V{number}__{description}.sql
+
+                      Human-readable description
+           Version number (determines order)
 ```
 
 ### How Flyway applies migrations
 
-```
-  ┌──────────────────────────────────────────────┐
-  │  Flyway migration process                    │
-  │                                               │
-  │  1. Read flyway_schema_history table          │
-  │     (tracks which migrations have been run)   │
-  │                                               │
-  │  2. Compare against migration files on disk   │
-  │                                               │
-  │  3. Apply any new migrations in order         │
-  └──────────────────────────────────────────────┘
+```text
+   Flyway migration process
 
-  flyway_schema_history table:
-  ┌─────────┬───────────────────────┬─────────┐
-  │ version │ description           │ success │
-  ├─────────┼───────────────────────┼─────────┤
-  │ 1       │ create_users_table    │ true    │
-  │ 2       │ create_tenants_table  │ true    │
-  │ 3       │ create_memberships    │ true    │
-  │ 4       │ create_sessions       │ true    │
-  └─────────┴───────────────────────┴─────────┘
+   1. Read flyway_schema_history table
+      (tracks which migrations have been run)
 
-  New file on disk: V5__create_invitations.sql
-  → Flyway sees V5 is not in the history
-  → Runs V5
-  → Records V5 in the history table
+   2. Compare against migration files on disk
+
+   3. Apply any new migrations in order
+
+flyway_schema_history table:
+
+  version   description             success
+
+  1         create_users_table      true
+  2         create_tenants_table    true
+  3         create_memberships      true
+  4         create_sessions         true
+
+New file on disk: V5__create_invitations.sql
+→ Flyway sees V5 is not in the history
+→ Runs V5
+→ Records V5 in the history table
 ```
 
 ### Example migration files
@@ -107,26 +104,20 @@ CREATE TABLE invitations (
 
 ### Migration lifecycle
 
-```
-  Developer writes V7__add_phone_to_users.sql
-       │
-       ▼
-  Tests locally (Flyway runs on app startup)
-       │
-       ▼
-  Commits to git + pushes
-       │
-       ▼
-  CI/CD pipeline runs tests (Flyway runs in test DB)
-       │
-       ▼
-  Deploy to staging (Flyway runs on staging DB)
-       │
-       ▼
-  Deploy to production (Flyway runs on production DB)
-       │
-       ▼
-  V7 is now applied everywhere, identically
+```text
+Developer writes V7__add_phone_to_users.sql
+
+Tests locally (Flyway runs on app startup)
+
+Commits to git + pushes
+
+CI/CD pipeline runs tests (Flyway runs in test DB)
+
+Deploy to staging (Flyway runs on staging DB)
+
+Deploy to production (Flyway runs on production DB)
+
+V7 is now applied everywhere, identically
 ```
 
 ---

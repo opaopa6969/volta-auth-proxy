@@ -32,80 +32,76 @@ Repositories are fundamental to software development:
 
 A git repository tracks changes to files over time:
 
-```
-  ┌────────────────────────────────────────────────────────────┐
-  │                  Git Repository                             │
-  │                                                             │
-  │  Commit history:                                            │
-  │                                                             │
-  │  abc1234  ← HEAD (latest)                                  │
-  │  │  "Add rate limiting to login endpoint"                  │
-  │  │  changed: src/main/java/AuthMiddleware.java             │
-  │  │                                                          │
-  │  def5678                                                    │
-  │  │  "Fix JWT expiry check"                                 │
-  │  │  changed: src/main/java/JwtService.java                 │
-  │  │                                                          │
-  │  ghi9012                                                    │
-  │  │  "Initial commit"                                       │
-  │  │  added: all files                                       │
-  │  ▼                                                          │
-  └────────────────────────────────────────────────────────────┘
+```text
+                Git Repository
+
+Commit history:
+
+abc1234  ← HEAD (latest)
+   "Add rate limiting to login endpoint"
+   changed: src/main/java/AuthMiddleware.java
+
+def5678
+   "Fix JWT expiry check"
+   changed: src/main/java/JwtService.java
+
+ghi9012
+   "Initial commit"
+   added: all files
 ```
 
 ### Local vs. remote repository
 
-```
-  Your machine                          GitHub/GitLab
-  ┌──────────────────┐                  ┌──────────────────┐
-  │  Local repo       │                  │  Remote repo      │
-  │  (full copy)      │   git push ───> │  (full copy)      │
-  │                   │   <─── git pull  │                   │
-  │  .git/ directory  │                  │  Shared with team │
-  │  working files    │                  │  CI/CD reads from │
-  └──────────────────┘                  └──────────────────┘
+```text
+Your machine                          GitHub/GitLab
 
-  Both contain the FULL history.
-  Either can work offline.
+   Local repo                             Remote repo
+   (full copy)          git push    >    (full copy)
+                        <    git pull
+   .git/ directory                        Shared with team
+   working files                          CI/CD reads from
+
+Both contain the FULL history.
+Either can work offline.
 ```
 
 ### Package repository (Maven Central)
 
-```
-  pom.xml says:                     Maven Central
-  need HikariCP 5.1.0              ┌────────────────────┐
-           │                        │ com/zaxxer/         │
-           │   mvn compile          │   HikariCP/         │
-           └───────────────────────>│     5.1.0/          │
-                                    │       HikariCP.jar  │
-           <───────────────────────│       HikariCP.pom  │
-           downloaded to            │       checksums     │
-           ~/.m2/repository/        └────────────────────┘
+```text
+pom.xml says:                     Maven Central
+need HikariCP 5.1.0
+                                    com/zaxxer/
+             mvn compile              HikariCP/
+                                 >      5.1.0/
+                                          HikariCP.jar
+         <                               HikariCP.pom
+         downloaded to                    checksums
+         ~/.m2/repository/
 ```
 
 ### Repository structure of volta-auth-proxy
 
-```
-  volta-auth-proxy/              (git repository root)
-  ├── .git/                      (git metadata -- DO NOT touch)
-  ├── pom.xml                    (Maven build config + dependencies)
-  ├── volta-config.yaml          (runtime configuration)
-  ├── Dockerfile                 (container build instructions)
-  ├── docker-compose.yml         (local dev environment)
-  ├── src/
-  │   ├── main/
-  │   │   ├── java/              (Java source code)
-  │   │   │   └── dev/volta/     (package structure)
-  │   │   │       ├── Main.java
-  │   │   │       ├── JwtService.java
-  │   │   │       └── ...
-  │   │   ├── jte/               (jte templates)
-  │   │   └── resources/         (static files, SQL migrations)
-  │   └── test/
-  │       └── java/              (test source code)
-  ├── docs/                      (documentation)
-  │   └── glossary/              (you are reading this)
-  └── target/                    (build output -- NOT in git)
+```text
+volta-auth-proxy/              (git repository root)
+    .git/                      (git metadata -- DO NOT touch)
+    pom.xml                    (Maven build config + dependencies)
+    volta-config.yaml          (runtime configuration)
+    Dockerfile                 (container build instructions)
+    docker-compose.yml         (local dev environment)
+    src/
+        main/
+            java/              (Java source code)
+                dev/volta/     (package structure)
+                    Main.java
+                    JwtService.java
+                    ...
+            jte/               (jte templates)
+            resources/         (static files, SQL migrations)
+        test/
+            java/              (test source code)
+    docs/                      (documentation)
+        glossary/              (you are reading this)
+    target/                    (build output -- NOT in git)
 ```
 
 ### What is NOT in the repository
@@ -145,15 +141,15 @@ volta's pom.xml declares dependencies. Maven resolves them from repositories:
 
 ### Local Maven repository cache
 
-```
-  ~/.m2/repository/
-  ├── com/zaxxer/HikariCP/5.1.0/
-  │   ├── HikariCP-5.1.0.jar
-  │   └── HikariCP-5.1.0.pom
-  ├── com/github/ben-manes/caffeine/caffeine/3.1.8/
-  │   ├── caffeine-3.1.8.jar
-  │   └── caffeine-3.1.8.pom
-  └── ...
+```text
+~/.m2/repository/
+    com/zaxxer/HikariCP/5.1.0/
+        HikariCP-5.1.0.jar
+        HikariCP-5.1.0.pom
+    com/github/ben-manes/caffeine/caffeine/3.1.8/
+        caffeine-3.1.8.jar
+        caffeine-3.1.8.pom
+    ...
 ```
 
 This cache means subsequent builds do not need network access. The first build downloads everything; future builds use the cache.

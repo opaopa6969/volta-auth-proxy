@@ -16,18 +16,15 @@ It's OK not to know this! Port numbers work behind the scenes, and most people n
 
 Imagine a big apartment building:
 
-```
-  ┌─────────────────────────────────┐
-  │  123 Internet Street            │  <-- This is the computer
-  │  (the computer's address)       │      (like an IP address)
-  │                                 │
-  │   Apt 80   - Web Server         │  <-- HTTP (web pages)
-  │   Apt 443  - Secure Web Server  │  <-- HTTPS (secure web pages)
-  │   Apt 5432 - Postgres Database  │  <-- Database
-  │   Apt 7070 - volta-auth-proxy   │  <-- volta!
-  │   Apt 3000 - Your App           │  <-- Your application
-  │                                 │
-  └─────────────────────────────────┘
+```text
+123 Internet Street               <-- This is the computer
+(the computer's address)              (like an IP address)
+
+ Apt 80   - Web Server            <-- HTTP (web pages)
+ Apt 443  - Secure Web Server     <-- HTTPS (secure web pages)
+ Apt 5432 - Postgres Database     <-- Database
+ Apt 7070 - volta-auth-proxy      <-- volta!
+ Apt 3000 - Your App              <-- Your application
 ```
 
 The building address (123 Internet Street) gets you to the right building, but the apartment number gets you to the right door. A port number works the same way -- it gets the message to the right program on the computer.

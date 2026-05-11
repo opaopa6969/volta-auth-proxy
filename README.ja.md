@@ -51,28 +51,20 @@
 
 ### 構成 A: Traefik + volta-auth-proxy
 
-```
-Browser ──→ Traefik ──────────────────────────────────→ App
-                  │                                      ↑
-                  └──→ volta (ForwardAuth チェック) ─────┘
-                                  │
-                         認証・テナント解決
-                                  │
-                      X-Volta-User-Id: abc123
-                      X-Volta-Tenant-Id: t456
-                      X-Volta-Role: MEMBER
+```mermaid
+flowchart LR
+    Browser --> Traefik
+    Traefik -->|ForwardAuth チェック| Volta[volta-auth-proxy]
+    Volta -->|認証・テナント解決<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| Traefik
+    Traefik --> App
 ```
 
 ### 構成 B: volta-gateway（認証組み込み）
 
-```
-Browser ──→ volta-gateway（認証組み込み）──────────────→ App
-                         │
-                  認証・テナント解決
-                         │
-              X-Volta-User-Id: abc123
-              X-Volta-Tenant-Id: t456
-              X-Volta-Role: MEMBER
+```mermaid
+flowchart LR
+    Browser --> Gateway[volta-gateway<br/>認証組み込み]
+    Gateway -->|認証・テナント解決<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| App
 ```
 
 [volta-gateway](https://github.com/opaopa6969/volta-gateway) は Rust 製の[リバースプロキシ](docs/glossary/reverse-proxy.ja.md)で、volta-auth-proxy 互換の認証サーバーを内蔵しています。別途 auth-proxy を立てる必要はありません。
@@ -657,11 +649,11 @@ volta-auth-proxy は[マルチテナント](docs/glossary/multi-tenant.ja.md)を
 
 ### ユーザー - メンバーシップ - テナント
 
-```
-User ──── Membership ──── Tenant
-            │
-            ├── role: OWNER | ADMIN | MEMBER | VIEWER
-            └── joined_at
+```mermaid
+flowchart LR
+    User --- Membership --- Tenant
+    Membership --- Role["role: OWNER | ADMIN | MEMBER | VIEWER"]
+    Membership --- JoinedAt["joined_at"]
 ```
 
 - 1人の[ユーザー](docs/glossary/user.ja.md)が**複数の[テナント](docs/glossary/tenant.ja.md)**に異なる[ロール](docs/glossary/role.ja.md)で所属可能

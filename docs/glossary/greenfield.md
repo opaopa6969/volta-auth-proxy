@@ -40,37 +40,30 @@ The key question for any greenfield project is: "How do we make sure this codeba
 
 ### The greenfield lifecycle
 
-```
-  Phase 1: Euphoria (Week 1-4)
-  ┌──────────────────────────────┐
-  │  "We can do anything!"       │
-  │  "No legacy constraints!"    │
-  │  "Let's use the latest..."   │
-  └──────────────────────────────┘
-              │
-              ▼
-  Phase 2: Decisions (Week 2-8)
-  ┌──────────────────────────────┐
-  │  Language? Framework? DB?    │
-  │  Architecture? Deployment?   │
-  │  Testing strategy? CI/CD?   │
-  └──────────────────────────────┘
-              │
-              ▼
-  Phase 3: Reality (Month 2-6)
-  ┌──────────────────────────────┐
-  │  Early decisions are now     │
-  │  constraints. The greenfield │
-  │  is becoming a brownfield.   │
-  └──────────────────────────────┘
-              │
-              ▼
-  Phase 4: The new legacy (Month 6+)
-  ┌──────────────────────────────┐
-  │  "Why did we do it this way?"│
-  │  This is now a brownfield    │
-  │  project for the next person.│
-  └──────────────────────────────┘
+```text
+Phase 1: Euphoria (Week 1-4)
+
+   "We can do anything!"
+   "No legacy constraints!"
+   "Let's use the latest..."
+
+Phase 2: Decisions (Week 2-8)
+
+   Language? Framework? DB?
+   Architecture? Deployment?
+   Testing strategy? CI/CD?
+
+Phase 3: Reality (Month 2-6)
+
+   Early decisions are now
+   constraints. The greenfield
+   is becoming a brownfield.
+
+Phase 4: The new legacy (Month 6+)
+
+   "Why did we do it this way?"
+   This is now a brownfield
+   project for the next person.
 ```
 
 ### Common greenfield traps

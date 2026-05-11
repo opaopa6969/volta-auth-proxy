@@ -41,44 +41,23 @@
 
 ## レイヤード・アーキテクチャ
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│ Browser                                                             │
-└───────────────┬────────────────────────────────────────────────────┘
-                │ HTTPS
-┌───────────────▼────────────────────────────────────────────────────┐
-│ Traefik / volta-gateway                                             │
-│   - Routes                                                          │
-│   - ForwardAuth ミドルウェア ─┐                                       │
-└───────────────────────────────┼────────────────────────────────────┘
-                                │ GET /auth/verify
-┌───────────────────────────────▼────────────────────────────────────┐
-│ volta-auth-proxy (Javalin + tramli)                                 │
-│                                                                     │
-│   ┌──────────────────────────────────────────────────────────────┐ │
-│   │ AuthRouter / AuthFlowHandler (HTTP 境界)                      │ │
-│   └───────────────┬──────────────────────────────────────────────┘ │
-│                   │                                                 │
-│   ┌───────────────▼──────────────────────────────────────────────┐ │
-│   │ Session SM (上層) — sessions.auth_state                       │ │
-│   │   AUTHENTICATING / …MFA_PENDING / FULLY_AUTHENTICATED / …    │ │
-│   └───────────────┬──────────────────────────────────────────────┘ │
-│                   │ 起動 / 再開                                      │
-│   ┌───────────────▼──────────────────────────────────────────────┐ │
-│   │ Flow SMs (下層 — 一時, TTL 5-10分)                             │ │
-│   │   OIDC · SAML · MFA · Passkey · Invite                       │ │
-│   │   tramli FlowDefinition として宣言的に定義                     │ │
-│   └───────────────┬──────────────────────────────────────────────┘ │
-│                   │                                                 │
-│   ┌───────────────▼──────────────────────────────────────────────┐ │
-│   │ Services (OidcService / SamlService / MfaService /           │ │
-│   │           PasskeyService / SessionService / PolicyEngine)    │ │
-│   └───────────────┬──────────────────────────────────────────────┘ │
-│                   │                                                 │
-│   ┌───────────────▼──────────────────────────────────────────────┐ │
-│   │ SqlStore / SqlFlowStore (Postgres + Flyway)                  │ │
-│   └──────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    Browser
+    Browser -->|HTTPS| Edge["Traefik / volta-gateway<br/>- Routes<br/>- ForwardAuth ミドルウェア"]
+    Edge -->|GET /auth/verify| Proxy
+    subgraph Proxy["volta-auth-proxy (Javalin + tramli)"]
+        direction TB
+        Router["AuthRouter / AuthFlowHandler (HTTP 境界)"]
+        SessionSM["Session SM (上層) — sessions.auth_state<br/>AUTHENTICATING / MFA_PENDING / FULLY_AUTHENTICATED / ..."]
+        FlowSM["Flow SMs (下層 — 一時, TTL 5-10分)<br/>OIDC / SAML / MFA / Passkey / Invite<br/>tramli FlowDefinition として宣言的に定義"]
+        Services["Services (OidcService / SamlService / MfaService /<br/>PasskeyService / SessionService / PolicyEngine)"]
+        Store["SqlStore / SqlFlowStore (Postgres + Flyway)"]
+        Router --> SessionSM
+        SessionSM -->|起動 / 再開| FlowSM
+        FlowSM --> Services
+        Services --> Store
+    end
 ```
 
 ---

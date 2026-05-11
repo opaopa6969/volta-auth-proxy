@@ -35,34 +35,33 @@ For volta-auth-proxy specifically, Google Workspace provides:
 
 ### Google Workspace as an Identity Provider
 
-```
-  User (alice@acme.com, Google Workspace account)
-       │
-       │  "Sign in with Google"
-       ▼
-  volta-auth-proxy
-       │
-       │  OIDC redirect
-       ▼
-  Google's OAuth/OIDC endpoints
-       │
-       │  Authenticate user (password + MFA)
-       │  Issue id_token with claims:
-       │    email: alice@acme.com
-       │    email_verified: true
-       │    hd: acme.com  ← Hosted Domain (Workspace indicator)
-       │    name: Alice Smith
-       │    sub: 1234567890
-       │
-       ▼
-  volta-auth-proxy
-       │
-       │  Validate id_token
-       │  Check hd claim → resolve tenant "acme"
-       │  Create/update user
-       │  Issue volta session
-       ▼
-  User is logged in
+```text
+User (alice@acme.com, Google Workspace account)
+
+        "Sign in with Google"
+
+volta-auth-proxy
+
+        OIDC redirect
+
+Google's OAuth/OIDC endpoints
+
+        Authenticate user (password + MFA)
+        Issue id_token with claims:
+          email: alice@acme.com
+          email_verified: true
+          hd: acme.com  ← Hosted Domain (Workspace indicator)
+          name: Alice Smith
+          sub: 1234567890
+
+volta-auth-proxy
+
+        Validate id_token
+        Check hd claim → resolve tenant "acme"
+        Create/update user
+        Issue volta session
+
+User is logged in
 ```
 
 ### Key claims in the Google id_token
@@ -131,14 +130,13 @@ Google Workspace is volta-auth-proxy's **primary identity provider in Phase 1**.
 
 ### Tenant resolution via Google Workspace
 
-```
-  id_token.hd = "acme.com"
-       │
-       ▼
-  SELECT * FROM tenants WHERE domain = 'acme.com'
-       │
-       ├── Found → User belongs to tenant "Acme Corp"
-       └── Not found → Tenant auto-provisioning or rejection
+```text
+id_token.hd = "acme.com"
+
+SELECT * FROM tenants WHERE domain = 'acme.com'
+
+         Found → User belongs to tenant "Acme Corp"
+         Not found → Tenant auto-provisioning or rejection
 ```
 
 ### Free email domain handling

@@ -48,22 +48,22 @@ volta はパスワードを自分で扱いません。[認証](authentication-vs
 
 volta のログインフロー：
 
-```
-  ブラウザ                   volta-auth-proxy              Google
-  ──────                    ──────────────────            ──────
-  1. /auth/login にアクセス ──>
-                             2. state + nonce 生成
-                             3. Google にリダイレクト ──>
-                                                          4. ユーザーがサインイン
-                                                          5. Google がリダイレクトバック
-                             <────── 認可コード付き
-                             6. コードをトークンと交換
-                             7. id_token を検証（OIDC）
-                             8. ユーザーレコードを作成/更新
-                             9. セッション作成
-                             10. __volta_session Cookie 設定
-  <────── アプリにリダイレクト
-  11. ログイン完了！
+```text
+ブラウザ                   volta-auth-proxy              Google
+
+1. /auth/login にアクセス   >
+                           2. state + nonce 生成
+                           3. Google にリダイレクト   >
+                                                        4. ユーザーがサインイン
+                                                        5. Google がリダイレクトバック
+                           <       認可コード付き
+                           6. コードをトークンと交換
+                           7. id_token を検証（OIDC）
+                           8. ユーザーレコードを作成/更新
+                           9. セッション作成
+                           10. __volta_session Cookie 設定
+<       アプリにリダイレクト
+11. ログイン完了！
 ```
 
 ログイン時の主なセキュリティ対策：

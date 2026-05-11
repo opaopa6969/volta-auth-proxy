@@ -29,30 +29,28 @@ If you use a self-signed certificate where a CA-signed one is expected, browsers
 
 ### CA-signed vs. self-signed
 
-```
-  CA-signed certificate:
-  ┌──────────────────────────────────────────────┐
-  │  "I am api.example.com"                      │
-  │                                              │
-  │  Signed by: Let's Encrypt (CA)               │
-  │  CA signed by: ISRG Root X1                  │
-  │  Root trusted by: Every browser on Earth     │
-  │                                              │
-  │  Chain of trust:                             │
-  │  Browser → Root CA → Intermediate CA → Cert  │
-  └──────────────────────────────────────────────┘
+```text
+CA-signed certificate:
 
-  Self-signed certificate/key:
-  ┌──────────────────────────────────────────────┐
-  │  "I am volta-auth-proxy"                     │
-  │                                              │
-  │  Signed by: volta-auth-proxy (itself)        │
-  │  Trusted by: volta-auth-proxy (itself)       │
-  │                                              │
-  │  No chain of trust needed:                   │
-  │  volta signs JWTs → volta verifies JWTs      │
-  │  (same system, same key pair)                │
-  └──────────────────────────────────────────────┘
+   "I am api.example.com"
+
+   Signed by: Let's Encrypt (CA)
+   CA signed by: ISRG Root X1
+   Root trusted by: Every browser on Earth
+
+   Chain of trust:
+   Browser → Root CA → Intermediate CA → Cert
+
+Self-signed certificate/key:
+
+   "I am volta-auth-proxy"
+
+   Signed by: volta-auth-proxy (itself)
+   Trusted by: volta-auth-proxy (itself)
+
+   No chain of trust needed:
+   volta signs JWTs → volta verifies JWTs
+   (same system, same key pair)
 ```
 
 ### When self-signed is appropriate
@@ -67,24 +65,23 @@ If you use a self-signed certificate where a CA-signed one is expected, browsers
 
 ### Trust models
 
-```
-  External trust (CA-signed):
-  ┌────────┐     ┌──────┐     ┌────────┐     ┌────────┐
-  │ Root CA│────→│Int CA│────→│  Cert  │────→│ Client │
-  └────────┘     └──────┘     └────────┘     └────────┘
-  Pre-installed   Signed by    Signed by      Trusts Root
-  in browser      Root CA      Int CA         → trusts Cert
+```text
+External trust (CA-signed):
 
-  Self trust (self-signed):
-  ┌────────────────────────────────────────┐
-  │  volta-auth-proxy                      │
-  │                                        │
-  │  Private key ──sign──→ JWT             │
-  │  Public key  ──verify─→ JWT            │
-  │                                        │
-  │  No external trust chain needed.       │
-  │  Public key shared via JWKS endpoint.  │
-  └────────────────────────────────────────┘
+  Root CA     → Int CA     →   Cert       →  Client
+
+Pre-installed   Signed by    Signed by      Trusts Root
+in browser      Root CA      Int CA         → trusts Cert
+
+Self trust (self-signed):
+
+   volta-auth-proxy
+
+   Private key   sign  → JWT
+   Public key    verify → JWT
+
+   No external trust chain needed.
+   Public key shared via JWKS endpoint.
 ```
 
 ---

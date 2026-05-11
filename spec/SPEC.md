@@ -430,13 +430,14 @@ sequenceDiagram
 
 **フロー (tramli FlowDefinition):**
 
-```
-CONSENT_SHOWN
-  → [EmailMatchBranch] (現在ログイン中のメールと招待先が一致)
-      ├─ ACCEPTED (一致)
-      └─ ACCOUNT_SWITCHING (不一致 — 別アカウントで再ログイン要)
-ACCOUNT_SWITCHING → [ResumeGuard] → ACCEPTED
-ACCEPTED → InviteCompleteProcessor → COMPLETE
+```mermaid
+stateDiagram-v2
+    [*] --> CONSENT_SHOWN
+    CONSENT_SHOWN --> ACCEPTED : EmailMatchBranch (一致)
+    CONSENT_SHOWN --> ACCOUNT_SWITCHING : EmailMatchBranch (不一致 — 別アカウントで再ログイン要)
+    ACCOUNT_SWITCHING --> ACCEPTED : ResumeGuard
+    ACCEPTED --> COMPLETE : InviteCompleteProcessor
+    COMPLETE --> [*]
 ```
 
 `InviteCompleteProcessor` はメンバーシップ作成 + 招待使用済みフラグ設定 + Outbox イベント発行を原子的に行う。

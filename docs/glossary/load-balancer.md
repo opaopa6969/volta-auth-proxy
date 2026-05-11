@@ -28,18 +28,17 @@ A load balancer does three critical things: distributes traffic, detects failed 
 
 ### Basic load balancing
 
-```
-  Without load balancer:           With load balancer:
-
-  Users → Server                   Users → ┌──────────────┐
-  (all traffic to one)                     │Load Balancer │
-                                           └──┬─────┬──┬─┘
-                                              │     │  │
-                                              ▼     ▼  ▼
-                                           ┌───┐ ┌───┐ ┌───┐
-                                           │ S1│ │ S2│ │ S3│
-                                           └───┘ └───┘ └───┘
-                                           33%   33%   33%
+```mermaid
+flowchart LR
+    subgraph Without["Without load balancer"]
+        U1[Users] --> S0[Server<br/>all traffic to one]
+    end
+    subgraph With["With load balancer"]
+        U2[Users] --> LB[Load Balancer]
+        LB --> S1["S1 (33%)"]
+        LB --> S2["S2 (33%)"]
+        LB --> S3["S3 (33%)"]
+    end
 ```
 
 ### Load balancing algorithms
@@ -56,56 +55,25 @@ A load balancer does three critical things: distributes traffic, detects failed 
 
 The load balancer periodically checks if each server is alive:
 
+```mermaid
+flowchart TD
+    LB[Load Balancer] --> S1["S1: 200 OK ✓"]
+    LB --> S2["S2: 200 OK ✓"]
+    LB -.->|"503 unhealthy<br/>removed from pool"| S3[S3]
 ```
-  Every 10 seconds:
-  ┌──────────────┐
-  │Load Balancer │
-  └──┬─────┬──┬──┘
-     │     │  │
-     ▼     ▼  ▼
-  ┌─────┐ ┌─────┐ ┌─────┐
-  │ S1  │ │ S2  │ │ S3  │
-  │ 200 │ │ 200 │ │ 503 │ ← unhealthy
-  │  ✓  │ │  ✓  │ │  ✗  │
-  └─────┘ └─────┘ └─────┘
 
-  After detection:
-  ┌──────────────┐
-  │Load Balancer │
-  └──┬─────┬─────┘
-     │     │
-     ▼     ▼
-  ┌─────┐ ┌─────┐ ┌─────┐
-  │ S1  │ │ S2  │ │ S3  │ ← removed from pool
-  │ 50% │ │ 50% │ │  -  │
-  └─────┘ └─────┘ └─────┘
-
-  S3 recovers → load balancer re-adds it
-```
+- Every 10 seconds, the load balancer probes each server.
+- When S3 returns 503, it is removed from the pool (S1 and S2 each receive 50% of traffic).
+- When S3 recovers (healthy probes), the load balancer re-adds it.
 
 ### Layer 4 vs Layer 7 load balancing
 
-```
-  OSI Model layers:
+| OSI Layer | Protocols | Can inspect | Example |
+|-----------|-----------|-------------|---------|
+| Layer 7 (Application) | HTTP, HTTPS | URL path, headers, cookies, request body | route `/api/*` to servers A, `/auth/*` to servers B |
+| Layer 4 (Transport) | TCP, UDP | IP address, port (no URL/headers/content) | route port 443 to servers A |
 
-  Layer 7 (Application):  HTTP, HTTPS
-  ┌──────────────────────────────────────┐
-  │ Can inspect: URL path, headers,      │
-  │ cookies, request body                │
-  │ Example: route /api/* to servers A,  │
-  │          route /auth/* to servers B  │
-  └──────────────────────────────────────┘
-
-  Layer 4 (Transport):  TCP, UDP
-  ┌──────────────────────────────────────┐
-  │ Can inspect: IP address, port        │
-  │ Cannot see: URL, headers, content    │
-  │ Example: route port 443 to servers A │
-  └──────────────────────────────────────┘
-
-  Traefik is a Layer 7 load balancer -- it can make
-  routing decisions based on HTTP headers and paths.
-```
+Traefik is a Layer 7 load balancer -- it can make routing decisions based on HTTP headers and paths.
 
 ---
 
@@ -117,13 +85,12 @@ volta uses [Traefik](reverse-proxy.md) which serves double duty as both a revers
 
 ### Phase 1 configuration (single instance)
 
+```mermaid
+flowchart LR
+    Browser --> Traefik --> Volta["volta (1)"]
 ```
-  ┌──────────┐    ┌──────────┐    ┌──────────────┐
-  │ Browser  │───▶│ Traefik  │───▶│ volta (1)    │
-  └──────────┘    └──────────┘    └──────────────┘
-                   No load balancing needed
-                   (only one backend)
-```
+
+No load balancing needed (only one backend).
 
 ### Phase 2 configuration (multiple instances)
 
@@ -143,23 +110,12 @@ http:
           timeout: "3s"
 ```
 
-```
-  ┌──────────┐    ┌──────────────────────┐
-  │ Browser  │───▶│       Traefik         │
-  └──────────┘    │                       │
-                  │  ForwardAuth ──┐      │
-                  │                │      │
-                  └────────────────┼──────┘
-                                   │
-                          ┌────────┴────────┐
-                          │  Load Balance   │
-                          │  (round-robin)  │
-                          └──┬──────┬──────┬┘
-                             │      │      │
-                             ▼      ▼      ▼
-                          ┌─────┐┌─────┐┌─────┐
-                          │v-1  ││v-2  ││v-3  │
-                          └─────┘└─────┘└─────┘
+```mermaid
+flowchart TD
+    Browser --> Traefik
+    Traefik -->|ForwardAuth + Load Balance round-robin| V1[v-1]
+    Traefik -->|ForwardAuth + Load Balance round-robin| V2[v-2]
+    Traefik -->|ForwardAuth + Load Balance round-robin| V3[v-3]
 ```
 
 ### ForwardAuth with load balancing

@@ -52,22 +52,22 @@ You might wonder: "Why not just add login logic to each app?" Great question. He
 
 **Now imagine one identity gateway:**
 
+```mermaid
+flowchart LR
+    Volta["volta-auth-proxy<br/>handles ALL login, sessions, roles, tenants"]
+    Volta --> App1["App 1 (Wiki) — just reads headers, focuses on wiki features"]
+    Volta --> App2["App 2 (Admin) — just reads headers, focuses on admin features"]
+    Volta --> App3["App 3 (Dashboard) — just reads headers, focuses on dashboard features"]
+    Volta --> App4["App 4 (API) — just reads headers, focuses on API features"]
+    Volta --> App5["App 5 (Chat) — just reads headers, focuses on chat features"]
 ```
-  volta-auth-proxy → handles ALL login, sessions, roles, tenants
-       │
-       ├── App 1 (Wiki)      → just reads headers, focuses on wiki features
-       ├── App 2 (Admin)     → just reads headers, focuses on admin features
-       ├── App 3 (Dashboard) → just reads headers, focuses on dashboard features
-       ├── App 4 (API)       → just reads headers, focuses on API features
-       └── App 5 (Chat)      → just reads headers, focuses on chat features
 
-  Benefits:
-  - Auth logic in ONE place
-  - ONE security surface to audit
-  - User logs in ONCE (single sign-on)
-  - Central view of "who has access to what"
-  - Change login flow in one place, all apps benefit
-```
+Benefits:
+- Auth logic in ONE place
+- ONE security surface to audit
+- User logs in ONCE (single sign-on)
+- Central view of "who has access to what"
+- Change login flow in one place, all apps benefit
 
 ---
 

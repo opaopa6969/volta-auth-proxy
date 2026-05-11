@@ -32,14 +32,14 @@ For service providers, SLAs are a double-edged sword. They build trust with cust
 
 Uptime is measured in "nines." Each additional nine is exponentially harder to achieve:
 
-```
-  Uptime     Downtime per year    Downtime per month
-  ────────   ──────────────────   ──────────────────
-  99%        3.65 days            7.3 hours
-  99.9%      8.77 hours           43.8 minutes
-  99.95%     4.38 hours           21.9 minutes
-  99.99%     52.6 minutes         4.38 minutes
-  99.999%    5.26 minutes         26.3 seconds
+```text
+Uptime     Downtime per year    Downtime per month
+
+99%        3.65 days            7.3 hours
+99.9%      8.77 hours           43.8 minutes
+99.95%     4.38 hours           21.9 minutes
+99.99%     52.6 minutes         4.38 minutes
+99.999%    5.26 minutes         26.3 seconds
 ```
 
 Most SaaS products offer 99.9% ("three nines"). Banks and critical infrastructure aim for 99.99% ("four nines"). Five nines is essentially "never go down" and requires massive investment.
@@ -57,26 +57,22 @@ Most SaaS products offer 99.9% ("three nines"). Banks and critical infrastructur
 
 ### How SLAs are enforced
 
-```
-  Month ends
-      │
-      ▼
-  Calculate actual uptime
-  (total minutes - downtime minutes) / total minutes
-      │
-      ▼
-  Compare against SLA target
-      │
-  ┌───┴───┐
-  Met     Missed
-  │       │
-  ▼       ▼
-  Nothing  Calculate service credits
-  happens      │
-               ▼
-           Credit applied to
-           next invoice
-           (or refund issued)
+```text
+Month ends
+
+Calculate actual uptime
+(total minutes - downtime minutes) / total minutes
+
+Compare against SLA target
+
+Met     Missed
+
+Nothing  Calculate service credits
+happens
+
+         Credit applied to
+         next invoice
+         (or refund issued)
 ```
 
 ### What it takes to offer an SLA
@@ -111,15 +107,15 @@ volta-auth-proxy does **not** offer an SLA. This is a deliberate decision aligne
 
 When software is self-hosted, the SLA picture changes dramatically:
 
-```
-  Managed SaaS (Auth0):
-    Auth0 ──► SLA guarantee to customer ──► 99.99% uptime
-    Auth0 is responsible for uptime.
+```text
+Managed SaaS (Auth0):
+  Auth0   > SLA guarantee to customer   > 99.99% uptime
+  Auth0 is responsible for uptime.
 
-  Self-hosted (volta):
-    Customer ──► Runs volta on their infra ──► Customer's SLA
-    The customer's ops team is responsible for uptime.
-    volta provides software quality, not uptime guarantees.
+Self-hosted (volta):
+  Customer   > Runs volta on their infra   > Customer's SLA
+  The customer's ops team is responsible for uptime.
+  volta provides software quality, not uptime guarantees.
 ```
 
 volta's responsibility is shipping reliable software. The customer's responsibility is running it reliably. This is the same model as PostgreSQL, Nginx, or any other self-hosted infrastructure.

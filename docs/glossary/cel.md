@@ -60,21 +60,16 @@ CEL hits the sweet spot: expressive enough for real policies, safe enough that u
 
 ### CEL evaluation model
 
-```
-  ┌──────────────┐     ┌──────────────────────┐
-  │  CEL          │     │  Context (variables)  │
-  │  Expression   │     │                      │
-  │               │     │  user.role = "MEMBER" │
-  │  user.role    │     │  user.email = "a@b.c" │
-  │  == "OWNER"   │────►│  request.method = GET │
-  │               │     │  request.path = /api  │
-  └──────────────┘     └──────────────────────┘
-         │
-         ▼
-  ┌──────────────┐
-  │  Result:      │
-  │  false        │
-  └──────────────┘
+```text
+CEL                   Context (variables)
+Expression
+                      user.role = "MEMBER"
+user.role             user.email = "a@b.c"
+== "OWNER"        >   request.method = GET
+                      request.path = /api
+
+Result:
+false
 ```
 
 ### What makes CEL safe
@@ -129,33 +124,27 @@ The subset covers 95% of real-world guard expressions. Adding full CEL would mea
 
 ### How guards are evaluated
 
-```
-  Incoming HTTP request
-         │
-         ▼
-  Build context object:
-  ┌────────────────────────┐
-  │  request.method = POST │
-  │  request.path = /api.. │
-  │  request.headers = ... │
-  │  user.id = "u-123"     │
-  │  user.role = "MEMBER"  │
-  │  user.email = "a@b.c"  │
-  │  tenant.id = "t-456"   │
-  │  tenant.plan = "free"  │
-  └────────────────────────┘
-         │
-         ▼
-  Evaluate each rule's guard expression
-  against the context
-         │
-    ┌────┴─────┐
-    │          │
-  Match     No match
-    │          │
-    ▼          ▼
-  Apply     Try next
-  action    rule
+```text
+Incoming HTTP request
+
+Build context object:
+
+   request.method = POST
+   request.path = /api..
+   request.headers = ...
+   user.id = "u-123"
+   user.role = "MEMBER"
+   user.email = "a@b.c"
+   tenant.id = "t-456"
+   tenant.plan = "free"
+
+Evaluate each rule's guard expression
+against the context
+
+Match     No match
+
+Apply     Try next
+action    rule
 ```
 
 ### Mermaid state diagram generation

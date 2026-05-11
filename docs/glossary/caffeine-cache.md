@@ -16,13 +16,12 @@ Think of it like a sticky note on your desk. You could look up your coworker's p
 
 Databases are fast, but memory is faster. Much faster:
 
-```
-  Time to retrieve data:
-  ┌──────────────────────────────────────┐
-  │ From RAM (Caffeine):     ~100ns      │  ← 0.0001 milliseconds
-  │ From PostgreSQL:         ~1-5ms      │  ← 10,000-50,000x slower
-  │ From a remote API:       ~50-500ms   │  ← way slower
-  └──────────────────────────────────────┘
+```text
+Time to retrieve data:
+
+  From RAM (Caffeine):     ~100ns         ← 0.0001 milliseconds
+  From PostgreSQL:         ~1-5ms         ← 10,000-50,000x slower
+  From a remote API:       ~50-500ms      ← way slower
 ```
 
 For data that is read frequently but changes rarely, caching is a huge performance win. Instead of asking the database "is this session valid?" 100 times per second, you ask once, remember the answer for 30 seconds, and serve the next 99 requests from memory.
@@ -50,25 +49,25 @@ volta-auth-proxy uses in-memory caching for rate limiting and performance-critic
 
 When a user (or attacker) sends too many requests, volta needs to track request counts per IP address or per user. This needs to be extremely fast -- every single request checks the rate limiter.
 
-```
-  Rate limiting with cache:
+```text
+Rate limiting with cache:
 
-  Request comes in from IP 192.168.1.1
-  ┌─────────────────────────────────────┐
-  │ 1. Check cache: "192.168.1.1" → 47  │  ← 47 requests this minute
-  │ 2. Increment: 47 → 48               │
-  │ 3. Is 48 > limit (60)? No → allow   │
-  └─────────────────────────────────────┘
-  Time: ~0.001ms (microseconds)
+Request comes in from IP 192.168.1.1
 
-  Without cache (database):
-  ┌─────────────────────────────────────┐
-  │ 1. SELECT count FROM rate_limits    │
-  │    WHERE ip = '192.168.1.1'         │
-  │ 2. UPDATE rate_limits SET count=48  │
-  │ 3. Is 48 > 60? No → allow          │
-  └─────────────────────────────────────┘
-  Time: ~2-5ms (thousands of times slower)
+  1. Check cache: "192.168.1.1" → 47     ← 47 requests this minute
+  2. Increment: 47 → 48
+  3. Is 48 > limit (60)? No → allow
+
+Time: ~0.001ms (microseconds)
+
+Without cache (database):
+
+  1. SELECT count FROM rate_limits
+     WHERE ip = '192.168.1.1'
+  2. UPDATE rate_limits SET count=48
+  3. Is 48 > 60? No → allow
+
+Time: ~2-5ms (thousands of times slower)
 ```
 
 Rate limiting data does not need to survive a restart. If volta restarts, the counters reset to zero. That is fine -- the worst case is that a rate-limited user gets a fresh allowance. This makes in-memory caching perfect for this use case.
@@ -101,27 +100,23 @@ The trade-off: if a session is revoked, it can take up to 30 seconds for the cac
 
 ## The "sticky note" analogy in detail
 
-```
-  Caffeine cache is like a smart sticky note system:
+```text
+Caffeine cache is like a smart sticky note system:
 
-  ┌─────────────────────────────────┐
-  │ Your desk (RAM)                 │
-  │                                 │
-  │  ┌──────────┐ ┌──────────┐     │
-  │  │ Session A │ │ Rate:    │     │
-  │  │ valid     │ │ IP .1.1  │     │
-  │  │ until 3pm │ │ = 23 req │     │
-  │  └──────────┘ └──────────┘     │
-  │                                 │
-  │  Rules:                         │
-  │  - Max 1000 sticky notes        │
-  │  - Throw away after 30 seconds  │
-  │  - Most-used notes stay longer  │
-  └─────────────────────────────────┘
+  Your desk (RAM)
 
-  If the sticky note exists → read it (fast!)
-  If not → look it up in the filing cabinet
-           (database), then make a new sticky note
+     Session A     Rate:
+     valid         IP .1.1
+     until 3pm     = 23 req
+
+   Rules:
+   - Max 1000 sticky notes
+   - Throw away after 30 seconds
+   - Most-used notes stay longer
+
+If the sticky note exists → read it (fast!)
+If not → look it up in the filing cabinet
+         (database), then make a new sticky note
 ```
 
 ---

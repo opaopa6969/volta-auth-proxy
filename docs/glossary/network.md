@@ -47,21 +47,19 @@ Networks are the foundation everything else runs on. [HTTP](http.md), [cookies](
 
 volta operates across multiple network boundaries:
 
-```
-  Internet (public network)
-  ┌──────────────────────────────────────────────┐
-  │  User's browser                              │
-  │  ↕ HTTPS (encrypted via SSL/TLS)             │
-  │  Reverse Proxy (Traefik/Nginx)               │
-  └──────────────────────────────────────────────┘
-           │
-  Docker network (private/isolated)
-  ┌──────────────────────────────────────────────┐
-  │  Reverse Proxy ←→ volta-auth-proxy           │
-  │  Reverse Proxy ←→ Your App                   │
-  │  volta-auth-proxy ←→ PostgreSQL              │
-  │  volta-auth-proxy ←→ Google (for OIDC)       │
-  └──────────────────────────────────────────────┘
+```text
+Internet (public network)
+
+   User's browser
+   ↕ HTTPS (encrypted via SSL/TLS)
+   Reverse Proxy (Traefik/Nginx)
+
+Docker network (private/isolated)
+
+   Reverse Proxy ←→ volta-auth-proxy
+   Reverse Proxy ←→ Your App
+   volta-auth-proxy ←→ PostgreSQL
+   volta-auth-proxy ←→ Google (for OIDC)
 ```
 
 Key network concepts in volta:

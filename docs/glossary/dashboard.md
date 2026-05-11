@@ -33,22 +33,20 @@ Auth0 provides a web dashboard at `manage.auth0.com` where you can:
 - Set up Organizations
 - Manage API permissions
 
-```
-  Auth0 Dashboard:
-  ┌─────────────────────────────────────────────────┐
-  │ [Auth0 Logo]                         Team ▼     │
-  ├─────────┬───────────────────────────────────────┤
-  │         │                                       │
-  │ Apps    │  Application: My SaaS                 │
-  │ APIs    │  ┌─────────────────────────────────┐  │
-  │ Users   │  │ Client ID:  abc123...            │  │
-  │ Rules   │  │ Allowed URLs: https://...        │  │
-  │ Orgs    │  │ Social: [✓] Google [✗] GitHub    │  │
-  │ Logs    │  │ MFA: Enabled                     │  │
-  │ ...     │  └─────────────────────────────────┘  │
-  │         │                                       │
-  │         │  [Save Changes]                       │
-  └─────────┴───────────────────────────────────────┘
+```text
+Auth0 Dashboard:
+
+  [Auth0 Logo]                         Team v
+
+  Apps       Application: My SaaS
+  APIs
+  Users        Client ID:  abc123...
+  Rules        Allowed URLs: https://...
+  Orgs         Social: [✓] Google [✗] GitHub
+  Logs         MFA: Enabled
+  ...
+
+             [Save Changes]
 ```
 
 This is visual, intuitive, and easy to start with.

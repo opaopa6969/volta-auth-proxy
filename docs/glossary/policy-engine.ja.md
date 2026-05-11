@@ -37,16 +37,15 @@ volta-auth-proxyは現在、`dsl/policy.yaml`で定義された独自の[RBAC](r
 
 ### 3つのコンポーネント
 
-```
-  ┌─────────────┐    ┌──────────────────┐    ┌───────────────┐
-  │ 強制ポイント │    │ ポリシーエンジン  │    │ ポリシーストア │
-  │ (PEP)       │───►│ (決定ポイント)    │◄───│ (ルール)      │
-  │              │    │                  │    │               │
-  │ "リクエストを│    │ "ルールを評価、   │    │ "誰が何を     │
-  │  ブロックか  │    │  許可/拒否を     │    │  どれに対して │
-  │  許可か"     │    │  返す"           │    │  できるか"    │
-  └─────────────┘    └──────────────────┘    └───────────────┘
-      (コード)            (エンジン)              (データ)
+```text
+強制ポイント        ポリシーエンジン         ポリシーストア
+(PEP)           >  (決定ポイント)     <     (ルール)
+
+"リクエストを       "ルールを評価、          "誰が何を
+ ブロックか          許可/拒否を             どれに対して
+ 許可か"             返す"                   できるか"
+
+  (コード)            (エンジン)              (データ)
 ```
 
 ### 一般的なポリシーモデル
@@ -62,34 +61,32 @@ volta-auth-proxyは現在、`dsl/policy.yaml`で定義された独自の[RBAC](r
 
 jCasbinはPERM（Policy, Effect, Request, Matchers）モデルを使用します：
 
-```
-  モデル定義 (model.conf):
-  ┌─────────────────────────────────────────────┐
-  │ [request_definition]                        │
-  │ r = sub, obj, act                           │
-  │                                             │
-  │ [policy_definition]                         │
-  │ p = sub, obj, act                           │
-  │                                             │
-  │ [role_definition]                           │
-  │ g = _, _                                    │
-  │                                             │
-  │ [policy_effect]                             │
-  │ e = some(where (p.eft == allow))            │
-  │                                             │
-  │ [matchers]                                  │
-  │ m = g(r.sub, p.sub) && r.obj == p.obj       │
-  │     && r.act == p.act                       │
-  └─────────────────────────────────────────────┘
+```text
+モデル定義 (model.conf):
 
-  ポリシーファイル (policy.csv):
-  ┌─────────────────────────────────────────────┐
-  │ p, ADMIN, /admin/members, read              │
-  │ p, ADMIN, /admin/invitations, read          │
-  │ p, OWNER, /admin/keys, manage               │
-  │ g, alice, ADMIN                             │
-  │ g, ADMIN, MEMBER   (ロール継承)              │
-  └─────────────────────────────────────────────┘
+  [request_definition]
+  r = sub, obj, act
+
+  [policy_definition]
+  p = sub, obj, act
+
+  [role_definition]
+  g = _, _
+
+  [policy_effect]
+  e = some(where (p.eft == allow))
+
+  [matchers]
+  m = g(r.sub, p.sub) && r.obj == p.obj
+      && r.act == p.act
+
+ポリシーファイル (policy.csv):
+
+  p, ADMIN, /admin/members, read
+  p, ADMIN, /admin/invitations, read
+  p, OWNER, /admin/keys, manage
+  g, alice, ADMIN
+  g, ADMIN, MEMBER   (ロール継承)
 ```
 
 ---
@@ -100,42 +97,42 @@ jCasbinはPERM（Policy, Effect, Request, Matchers）モデルを使用します
 
 voltaは現在、`dsl/policy.yaml`のルールを使ってJavaコードで直接ポリシー評価を実装しています：
 
-```
-  リクエスト到着
-  │
-  ├── ForwardAuth (/auth/verify)
-  │   │
-  │   ├── セッション/JWTからユーザーのロールを読む
-  │   ├── volta-config.yamlからアプリのallowed_rolesを読む
-  │   └── チェック：user.role が app.allowed_roles に含まれる？
-  │       ├── はい → 200 + X-Volta-*ヘッダー
-  │       └── いいえ → 403 ROLE_INSUFFICIENT
-  │
-  └── 内部API (/api/v1/*)
-      │
-      ├── JWTからユーザーのロールを読む
-      └── チェック：role >= required_role？
-          （階層を使用：OWNER > ADMIN > MEMBER > VIEWER）
+```text
+リクエスト到着
+
+    ForwardAuth (/auth/verify)
+
+        セッション/JWTからユーザーのロールを読む
+        volta-config.yamlからアプリのallowed_rolesを読む
+        チェック：user.role が app.allowed_roles に含まれる？
+            はい → 200 + X-Volta-*ヘッダー
+            いいえ → 403 ROLE_INSUFFICIENT
+
+    内部API (/api/v1/*)
+
+        JWTからユーザーのロールを読む
+        チェック：role >= required_role？
+        （階層を使用：OWNER > ADMIN > MEMBER > VIEWER）
 ```
 
 強制ロジックは`AppRegistry.java`（ForwardAuthのアプリマッチング用）と`AuthService.java`（API認可用）にあります。
 
 ### Phase 4：jCasbin統合
 
-```
-  現在（Phase 1-3）：              将来（Phase 4）：
-  ┌──────────────────────┐         ┌──────────────────────┐
-  │ AuthService.java     │         │ AuthService.java     │
-  │                      │         │                      │
-  │ if (role >= ADMIN) { │  ───►   │ if (casbin.enforce(  │
-  │   allow();           │         │   user, resource,    │
-  │ }                    │         │   action)) {         │
-  │                      │         │   allow();           │
-  └──────────────────────┘         │ }                    │
-                                   └──────────────────────┘
-  ルールがJavaコード内              ルールがポリシーファイル内
-  変更が困難                        再起動なしで変更可能
-  RBACのみ                          RBAC + ABAC + カスタム
+```text
+現在（Phase 1-3）：              将来（Phase 4）：
+
+  AuthService.java                 AuthService.java
+
+  if (role >= ADMIN) {       >     if (casbin.enforce(
+    allow();                         user, resource,
+  }                                  action)) {
+                                     allow();
+                                   }
+
+ルールがJavaコード内              ルールがポリシーファイル内
+変更が困難                        再起動なしで変更可能
+RBACのみ                          RBAC + ABAC + カスタム
 ```
 
 ### voltaがまだポリシーエンジンを使わない理由

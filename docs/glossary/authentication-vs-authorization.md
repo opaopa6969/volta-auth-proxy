@@ -95,26 +95,22 @@ When authorization fails, volta returns **403 Forbidden** -- "I know who you are
 
 ## A simple example
 
-```
-  Taro (MEMBER of ACME Corp) tries to access two apps:
+```text
+Taro (MEMBER of ACME Corp) tries to access two apps:
 
-  ┌─────────────────────────────────────────────────┐
-  │ wiki.example.com                                 │
-  │ allowed_roles: [MEMBER, ADMIN, OWNER]            │
-  │                                                  │
-  │ Authentication: ✓ (Taro is logged in)            │
-  │ Authorization:  ✓ (MEMBER is in the allowed list)│
-  │ Result: 200 OK -- Taro can use the wiki          │
-  └─────────────────────────────────────────────────┘
+  wiki.example.com
+  allowed_roles: [MEMBER, ADMIN, OWNER]
 
-  ┌─────────────────────────────────────────────────┐
-  │ admin.example.com                                │
-  │ allowed_roles: [ADMIN, OWNER]                    │
-  │                                                  │
-  │ Authentication: ✓ (Taro is logged in)            │
-  │ Authorization:  ✗ (MEMBER is NOT in the list)    │
-  │ Result: 403 Forbidden -- Taro cannot access admin│
-  └─────────────────────────────────────────────────┘
+  Authentication: ✓ (Taro is logged in)
+  Authorization:  ✓ (MEMBER is in the allowed list)
+  Result: 200 OK -- Taro can use the wiki
+
+  admin.example.com
+  allowed_roles: [ADMIN, OWNER]
+
+  Authentication: ✓ (Taro is logged in)
+  Authorization:  ✗ (MEMBER is NOT in the list)
+  Result: 403 Forbidden -- Taro cannot access admin
 ```
 
 ---

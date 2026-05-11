@@ -46,28 +46,26 @@ This is a legitimate value proposition. The question is whether the trade-offs (
 
 ## IDaaS versus self-hosted
 
-```
-  IDaaS (Auth0, Clerk, Okta):
-  ┌───────────────────────────────────────┐
-  │  + Fast to start (minutes to hours)   │
-  │  + Zero ops burden                    │
-  │  + Security team maintains it         │
-  │  - Cost grows with users (MAU)        │
-  │  - Vendor lock-in                     │
-  │  - Limited customization              │
-  │  - Data lives on their servers        │
-  └───────────────────────────────────────┘
+```text
+IDaaS (Auth0, Clerk, Okta):
 
-  Self-hosted (volta, Keycloak):
-  ┌───────────────────────────────────────┐
-  │  + $0 regardless of user count        │
-  │  + Full control over everything       │
-  │  + Data stays on your servers         │
-  │  + No vendor lock-in                  │
-  │  - More setup work upfront            │
-  │  - You handle ops and security        │
-  │  - Need someone who understands auth  │
-  └───────────────────────────────────────┘
+   + Fast to start (minutes to hours)
+   + Zero ops burden
+   + Security team maintains it
+   - Cost grows with users (MAU)
+   - Vendor lock-in
+   - Limited customization
+   - Data lives on their servers
+
+Self-hosted (volta, Keycloak):
+
+   + $0 regardless of user count
+   + Full control over everything
+   + Data stays on your servers
+   + No vendor lock-in
+   - More setup work upfront
+   - You handle ops and security
+   - Need someone who understands auth
 ```
 
 ### Why some teams prefer IDaaS

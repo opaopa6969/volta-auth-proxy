@@ -71,27 +71,26 @@
 
 各パーツがどのように組み合わさるか：
 
-```
-  ユーザーのブラウザがwiki.example.comにアクセス
-       │
-       ▼
-  Traefik（リバースプロキシ）
-       │
-       │  「wiki.example.com？ルーティングルールを確認...」
-       │  「ルール：wiki.example.com → ポート8080のwikiアプリに転送」
-       │
-       │  でもまず！「このルートにForwardAuthが有効」
-       │  「まずvolta-auth-proxyに確認しよう...」
-       │
-       ├──→ volta-auth-proxy（ForwardAuth確認）
-       │    volta：「このユーザーはログインしている？テナントは？ロールは？」
-       │    volta：「はい、太郎、ACMEのMEMBER。ヘッダーはこちら」
-       │    voltaが返す：200 OK + 本人情報ヘッダー
-       │
-       │  Traefik：「voltaが承認！リクエストに本人情報ヘッダーを追加」
-       │
-       └──→ wikiアプリ（ポート8080）
-            X-Volta-User-Id、X-Volta-Tenant-Idなどが付いたリクエストを受信
+```text
+ユーザーのブラウザがwiki.example.comにアクセス
+
+Traefik（リバースプロキシ）
+
+        「wiki.example.com？ルーティングルールを確認...」
+        「ルール：wiki.example.com → ポート8080のwikiアプリに転送」
+
+        でもまず！「このルートにForwardAuthが有効」
+        「まずvolta-auth-proxyに確認しよう...」
+
+        → volta-auth-proxy（ForwardAuth確認）
+          volta：「このユーザーはログインしている？テナントは？ロールは？」
+          volta：「はい、太郎、ACMEのMEMBER。ヘッダーはこちら」
+          voltaが返す：200 OK + 本人情報ヘッダー
+
+        Traefik：「voltaが承認！リクエストに本人情報ヘッダーを追加」
+
+        → wikiアプリ（ポート8080）
+          X-Volta-User-Id、X-Volta-Tenant-Idなどが付いたリクエストを受信
 ```
 
 Traefikがネットワーク（どのリクエストがどこへ行くか）を処理し、voltaが本人確認（誰がリクエストしていて、許可されているか）を処理します。

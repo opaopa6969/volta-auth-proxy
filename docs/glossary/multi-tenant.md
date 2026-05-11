@@ -60,22 +60,20 @@ Each tenant gets their own entire filing cabinet. The strongest separation, but 
 
 volta uses Level 1 (shared tables with tenant_id). Here is what that looks like in practice:
 
-```
-  Imagine a database table for "projects":
+```text
+Imagine a database table for "projects":
 
-  ┌────────────┬───────────┬─────────────────┐
-  │ tenant_id  │ id        │ project_name    │
-  ├────────────┼───────────┼─────────────────┤
-  │ acme-uuid  │ proj-1    │ Website Redesign│
-  │ acme-uuid  │ proj-2    │ Mobile App      │
-  │ globex-uuid│ proj-3    │ Rocket Engine   │
-  │ globex-uuid│ proj-4    │ Moon Base       │
-  └────────────┴───────────┴─────────────────┘
+  tenant_id    id          project_name
 
-  When a user from ACME logs in, volta makes sure
-  all queries include: WHERE tenant_id = 'acme-uuid'
-  So the ACME user only ever sees "Website Redesign"
-  and "Mobile App". They have no idea that Globex exists.
+  acme-uuid    proj-1      Website Redesign
+  acme-uuid    proj-2      Mobile App
+  globex-uuid  proj-3      Rocket Engine
+  globex-uuid  proj-4      Moon Base
+
+When a user from ACME logs in, volta makes sure
+all queries include: WHERE tenant_id = 'acme-uuid'
+So the ACME user only ever sees "Website Redesign"
+and "Mobile App". They have no idea that Globex exists.
 ```
 
 volta enforces this separation at the gateway level. When a request comes in, volta identifies which tenant the user belongs to, puts that information into a special header (`X-Volta-Tenant-Id`), and sends it to the downstream app. The app then uses that tenant ID to filter all its database queries.

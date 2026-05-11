@@ -42,18 +42,16 @@ Docker is that magic box. It packages a program with everything it needs -- the 
 
 ## The shipping container analogy
 
-```
-  Before shipping containers:        With shipping containers:
+```text
+Before shipping containers:        With shipping containers:
 
-  ┌─────────────────────┐            ┌─────────────────────┐
-  │ Load cargo by hand  │            │ ┌─────┐ ┌─────┐    │
-  │ Different for every │            │ │ Box │ │ Box │    │
-  │ type of goods       │            │ │  1  │ │  2  │    │
-  │ Breaks during       │            │ └─────┘ └─────┘    │
-  │ transport           │            │ Standard size       │
-  │ Takes forever       │            │ Works on any ship   │
-  └─────────────────────┘            │ Works on any truck  │
-                                     └─────────────────────┘
+  Load cargo by hand
+  Different for every                  Box     Box
+  type of goods                         1       2
+  Breaks during
+  transport                          Standard size
+  Takes forever                      Works on any ship
+                                     Works on any truck
 ```
 
 Before real shipping containers were invented, loading a ship was chaos -- every package was different. Shipping containers standardized everything: same size, same way to load, works on any ship, truck, or train.

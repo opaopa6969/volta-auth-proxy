@@ -24,25 +24,22 @@ Auth0 and Clerk recognized this pattern and built "Organizations" as a first-cla
 
 Auth0 introduced Organizations in 2021 as part of their B2B platform:
 
-```
-  Auth0 Organizations model:
-  ┌──────────────────────────────────────────────────┐
-  │ Auth0 Tenant (your Auth0 account)                │
-  │                                                    │
-  │  ┌─────────────┐  ┌─────────────┐                │
-  │  │ Org: Acme    │  │ Org: Beta    │               │
-  │  │              │  │              │                │
-  │  │ Members:     │  │ Members:     │                │
-  │  │  alice (admin)│  │  alice (viewer)│              │
-  │  │  bob (member) │  │  charlie (admin)│             │
-  │  │              │  │              │                │
-  │  │ Connections: │  │ Connections: │                │
-  │  │  Google SSO  │  │  Okta SAML  │                │
-  │  │              │  │              │                │
-  │  │ Branding:    │  │ Branding:    │                │
-  │  │  Acme logo   │  │  Beta logo   │                │
-  │  └─────────────┘  └─────────────┘                │
-  └──────────────────────────────────────────────────┘
+```text
+Auth0 Organizations model:
+
+  Auth0 Tenant (your Auth0 account)
+
+     Org: Acme         Org: Beta
+
+     Members:          Members:
+      alice (admin)      alice (viewer)
+      bob (member)       charlie (admin)
+
+     Connections:      Connections:
+      Google SSO        Okta SAML
+
+     Branding:         Branding:
+      Acme logo         Beta logo
 ```
 
 Key features:

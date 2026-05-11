@@ -35,32 +35,32 @@ This is one of the most important lessons for new engineers:
 
 Here is why:
 
-```
-  BAD (secret in code):
-  ────────────────────
-  // database.js
-  const password = "super-secret-password-123";
-  db.connect("localhost", "volta", password);
+```text
+BAD (secret in code):
 
-  Problems:
-  1. Anyone who reads your code sees the password
-  2. If you push this to GitHub, the whole world sees it
-  3. You need different passwords for development vs production
-  4. Changing the password means changing and redeploying your code
+// database.js
+const password = "super-secret-password-123";
+db.connect("localhost", "volta", password);
+
+Problems:
+1. Anyone who reads your code sees the password
+2. If you push this to GitHub, the whole world sees it
+3. You need different passwords for development vs production
+4. Changing the password means changing and redeploying your code
 ```
 
-```
-  GOOD (secret in environment variable):
-  ──────────────────────────────────────
-  // database.js
-  const password = process.env.DB_PASSWORD;
-  db.connect("localhost", "volta", password);
+```text
+GOOD (secret in environment variable):
 
-  Benefits:
-  1. The code does not contain the secret
-  2. Safe to push to GitHub
-  3. Different environments use different values
-  4. Change the password by changing the variable, no code change needed
+// database.js
+const password = process.env.DB_PASSWORD;
+db.connect("localhost", "volta", password);
+
+Benefits:
+1. The code does not contain the secret
+2. Safe to push to GitHub
+3. Different environments use different values
+4. Change the password by changing the variable, no code change needed
 ```
 
 ---

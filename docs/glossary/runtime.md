@@ -30,89 +30,65 @@ Think of it like a music box. Compile-time is when the metal cylinder is manufac
 
 ### Compile-time vs runtime
 
-```
-  Source code (.java files)
-       │
-       │  COMPILE-TIME
-       │  (javac compiler)
-       │
-       ▼
-  Bytecode (.class files / JAR)
-       │
-       │  RUNTIME
-       │  (JVM executes bytecode)
-       │
-       ▼
-  Running application
-  (handling HTTP requests)
+```text
+Source code (.java files)
 
-  ┌───────────────────────────────────────┐
-  │            Compile-time               │
-  │                                       │
-  │  Errors caught:                      │
-  │  - Syntax errors                     │
-  │  - Type mismatches                   │
-  │  - Missing imports                   │
-  │                                       │
-  │  Tools: javac, Maven, IDE            │
-  └───────────────────────────────────────┘
-                    │
-                    ▼
-  ┌───────────────────────────────────────┐
-  │              Runtime                  │
-  │                                       │
-  │  Errors caught:                      │
-  │  - NullPointerException              │
-  │  - Database connection refused       │
-  │  - OutOfMemoryError                  │
-  │  - HTTP 500 responses                │
-  │                                       │
-  │  Tools: JVM, monitoring, logging     │
-  └───────────────────────────────────────┘
+        COMPILE-TIME
+        (javac compiler)
+
+Bytecode (.class files / JAR)
+
+        RUNTIME
+        (JVM executes bytecode)
+
+Running application
+(handling HTTP requests)
+
+             Compile-time
+
+   Errors caught:
+   - Syntax errors
+   - Type mismatches
+   - Missing imports
+
+   Tools: javac, Maven, IDE
+
+               Runtime
+
+   Errors caught:
+   - NullPointerException
+   - Database connection refused
+   - OutOfMemoryError
+   - HTTP 500 responses
+
+   Tools: JVM, monitoring, logging
 ```
 
 ### The JVM as a runtime
 
 The JVM is one of the most sophisticated runtimes in existence:
 
-```
-  ┌──────────────────────────────────────┐
-  │            JVM Runtime               │
-  │                                      │
-  │  ┌────────────────┐                 │
-  │  │ Class Loader   │  loads .class   │
-  │  └───────┬────────┘  files          │
-  │          │                           │
-  │          ▼                           │
-  │  ┌────────────────┐                 │
-  │  │ Bytecode       │  interprets     │
-  │  │ Interpreter    │  initially      │
-  │  └───────┬────────┘                 │
-  │          │                           │
-  │          ▼                           │
-  │  ┌────────────────┐                 │
-  │  │ JIT Compiler   │  compiles hot   │
-  │  │                │  paths to       │
-  │  │                │  native code    │
-  │  └───────┬────────┘                 │
-  │          │                           │
-  │          ▼                           │
-  │  ┌────────────────┐                 │
-  │  │ Garbage        │  reclaims       │
-  │  │ Collector      │  unused memory  │
-  │  └────────────────┘                 │
-  │                                      │
-  │  ┌────────────────┐                 │
-  │  │ Thread Manager │  handles        │
-  │  │                │  concurrency    │
-  │  └────────────────┘                 │
-  └──────────────────────────────────────┘
-          │
-          ▼
-  ┌──────────────────────────────────────┐
-  │        Operating System              │
-  │  (Linux, macOS, Windows)             │
-  └──────────────────────────────────────┘
+```text
+          JVM Runtime
+
+  Class Loader      loads .class
+                    files
+
+  Bytecode          interprets
+  Interpreter       initially
+
+  JIT Compiler      compiles hot
+                    paths to
+                    native code
+
+  Garbage           reclaims
+  Collector         unused memory
+
+  Thread Manager    handles
+                    concurrency
+
+      Operating System
+(Linux, macOS, Windows)
 ```
 
 ### Key JVM runtime features
@@ -153,31 +129,31 @@ volta requires Java 21, which is a Long Term Support release. Key Java 21 featur
 
 ### Runtime behavior in production
 
-```
-  volta-auth-proxy JVM lifecycle:
+```text
+volta-auth-proxy JVM lifecycle:
 
-  1. JVM starts
-     └─ Loads classes, initializes Javalin
-     └─ Flyway runs migrations
-     └─ HikariCP opens connection pool
-     └─ Caffeine cache initialized (empty)
+1. JVM starts
+      Loads classes, initializes Javalin
+      Flyway runs migrations
+      HikariCP opens connection pool
+      Caffeine cache initialized (empty)
 
-  2. Warmup phase (~30 seconds)
-     └─ JIT compiler not yet active
-     └─ First requests slightly slower
-     └─ Caffeine cache populating
+2. Warmup phase (~30 seconds)
+      JIT compiler not yet active
+      First requests slightly slower
+      Caffeine cache populating
 
-  3. Steady state
-     └─ JIT has compiled hot paths
-     └─ Connection pool at optimal size
-     └─ Cache hit rates stabilizing
-     └─ GC pauses minimal
+3. Steady state
+      JIT has compiled hot paths
+      Connection pool at optimal size
+      Cache hit rates stabilizing
+      GC pauses minimal
 
-  4. Shutdown
-     └─ Javalin stops accepting requests
-     └─ In-flight requests complete
-     └─ HikariCP closes connections
-     └─ JVM exits
+4. Shutdown
+      Javalin stops accepting requests
+      In-flight requests complete
+      HikariCP closes connections
+      JVM exits
 ```
 
 ### Runtime errors volta handles

@@ -30,25 +30,20 @@ If tokens are missing or broken, the entire authentication flow collapses. Users
 
 ### Token lifecycle
 
-```
-  User                    Auth Server                App Server
-   │                          │                          │
-   │  1. Login (email+pass)   │                          │
-   │ ─────────────────────────>                          │
-   │                          │                          │
-   │  2. Here's your token    │                          │
-   │ <─────────────────────────                          │
-   │                          │                          │
-   │  3. Request + token      │                          │
-   │ ──────────────────────────────────────────────────> │
-   │                          │                          │
-   │                          │  4. Verify token         │
-   │                          │ <─────────────────────── │
-   │                          │  5. Valid!               │
-   │                          │ ───────────────────────> │
-   │                          │                          │
-   │  6. Here's your data     │                          │
-   │ <────────────────────────────────────────────────── │
+```text
+User                    Auth Server                App Server
+
+    1. Login (email+pass)
+
+    2. Here's your token
+
+    3. Request + token
+
+                               4. Verify token
+
+                               5. Valid!
+
+    6. Here's your data
 ```
 
 ### Types of tokens
@@ -62,35 +57,32 @@ If tokens are missing or broken, the entire authentication flow collapses. Users
 
 ### Opaque vs. self-contained
 
-```
-  Opaque token (session ID):
-  ┌────────────────────────┐
-  │  550e8400-e29b-41d4... │    ← Just an ID. Means nothing alone.
-  └────────────────────────┘
-           │
-           ▼  Server must look up in DB
-  ┌────────────────────────────┐
-  │  user_id: alice            │
-  │  tenant: acme              │
-  │  roles: [admin]            │
-  │  expires: 2026-04-01T17:00 │
-  └────────────────────────────┘
+```text
+Opaque token (session ID):
 
-  Self-contained token (JWT):
-  ┌──────────────────────────────────────────┐
-  │  header.payload.signature                │
-  │                                          │
-  │  payload = {                             │
-  │    "sub": "alice",                       │
-  │    "volta_tid": "acme-uuid",             │
-  │    "volta_roles": ["admin"],             │
-  │    "exp": 1743530400                     │
-  │  }                                       │
-  │                                          │
-  │  ← Data is INSIDE the token.             │
-  │  ← No DB lookup needed to read claims.   │
-  │  ← Signature proves it wasn't tampered.  │
-  └──────────────────────────────────────────┘
+   550e8400-e29b-41d4...      ← Just an ID. Means nothing alone.
+
+         v  Server must look up in DB
+
+   user_id: alice
+   tenant: acme
+   roles: [admin]
+   expires: 2026-04-01T17:00
+
+Self-contained token (JWT):
+
+   header.payload.signature
+
+   payload = {
+     "sub": "alice",
+     "volta_tid": "acme-uuid",
+     "volta_roles": ["admin"],
+     "exp": 1743530400
+   }
+
+   ← Data is INSIDE the token.
+   ← No DB lookup needed to read claims.
+   ← Signature proves it wasn't tampered.
 ```
 
 ### Token expiry

@@ -49,20 +49,19 @@
 
 volta のマルチテナントアーキテクチャはワイルドカード証明書に大きく依存します：
 
-```
-  証明書: *.app.example.com
-  ┌────────────────────────────────────────┐
-  │  カバー範囲:                             │
-  │  ✓ acme.app.example.com               │
-  │  ✓ globex.app.example.com             │
-  │  ✓ initech.app.example.com            │
-  │  ✓ any-new-tenant.app.example.com     │
-  │                                        │
-  │  カバーしない:                           │
-  │  ✗ app.example.com（ワイルドカード部なし）│
-  │  ✗ auth.example.com（別の枝）           │
-  │  ✗ deep.sub.app.example.com           │
-  └────────────────────────────────────────┘
+```text
+証明書: *.app.example.com
+
+   カバー範囲:
+   ✓ acme.app.example.com
+   ✓ globex.app.example.com
+   ✓ initech.app.example.com
+   ✓ any-new-tenant.app.example.com
+
+   カバーしない:
+   ✗ app.example.com（ワイルドカード部なし）
+   ✗ auth.example.com（別の枝）
+   ✗ deep.sub.app.example.com
 ```
 
 実際の volta デプロイでは通常以下が必要：

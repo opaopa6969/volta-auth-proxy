@@ -28,45 +28,41 @@ MVPs also force prioritization. When you can only build five features, you must 
 
 ### The MVP process
 
-```
-  Step 1: Identify the core problem
-          "Users need to authenticate via Google
-           and manage team members"
+```text
+Step 1: Identify the core problem
+        "Users need to authenticate via Google
+         and manage team members"
 
-  Step 2: List ALL features you could build
-          - Google login
-          - GitHub login
-          - Email/password login
-          - Team management
-          - Role-based access
-          - Audit logging
-          - SSO/SAML
-          - API key management
-          - Billing integration
-          - Admin dashboard
-          ...
+Step 2: List ALL features you could build
+        - Google login
+        - GitHub login
+        - Email/password login
+        - Team management
+        - Role-based access
+        - Audit logging
+        - SSO/SAML
+        - API key management
+        - Billing integration
+        - Admin dashboard
+        ...
 
-  Step 3: Draw the MVP line
-          ─────────────────────────────────
-          ABOVE: Build now (MVP)
-          - Google login
-          - Team management (invite, remove)
-          - Role-based access (OWNER, MEMBER)
-          ─────────────────────────────────
-          BELOW: Build later (if validated)
-          - Everything else
-          ─────────────────────────────────
+Step 3: Draw the MVP line
 
-  Step 4: Build, ship, learn
-          │
-          ▼
-       Ship MVP ──► Real users try it
-          │                │
-          ▼                ▼
-       Measure ◄──── Feedback
-          │
-          ▼
-       Decide: expand, pivot, or stop
+        ABOVE: Build now (MVP)
+        - Google login
+        - Team management (invite, remove)
+        - Role-based access (OWNER, MEMBER)
+
+        BELOW: Build later (if validated)
+        - Everything else
+
+Step 4: Build, ship, learn
+
+     Ship MVP   > Real users try it
+
+     Measure <     Feedback
+
+     Decide: expand, pivot, or stop
 ```
 
 ### What makes a good MVP
@@ -122,20 +118,17 @@ volta-auth-proxy is itself an MVP. It is Phase 1 of a larger vision, deliberatel
 
 volta uses feedback from early adopters to decide what to build next:
 
-```
-  volta Phase 1 (MVP)
-        │
-        ▼
-  Ship to indie hackers / internal tool builders
-        │
-        ▼
-  Collect signals:
-    - What do they ask for first?
-    - Where do they get stuck?
-    - What do they work around?
-        │
-        ▼
-  Phase 2 scope = top requests + unblocking fixes
+```text
+volta Phase 1 (MVP)
+
+Ship to indie hackers / internal tool builders
+
+Collect signals:
+  - What do they ask for first?
+  - Where do they get stuck?
+  - What do they work around?
+
+Phase 2 scope = top requests + unblocking fixes
 ```
 
 ---

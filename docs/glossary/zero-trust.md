@@ -33,38 +33,35 @@ Zero Trust assumes the network is always hostile. Every request must prove it is
 
 Cloudflare Zero Trust (formerly Cloudflare Access) is a commercial implementation of Zero Trust principles. It puts an authentication layer in front of your applications:
 
-```
-  Without Zero Trust:
-  ┌──────────┐     ┌──────────────┐
-  │ Internet │────►│ Your App     │  ← Anyone on the network can reach it
-  └──────────┘     └──────────────┘
+```text
+Without Zero Trust:
 
-  With Cloudflare Zero Trust:
-  ┌──────────┐     ┌────────────────┐     ┌──────────────┐
-  │ Internet │────►│ Cloudflare     │────►│ Your App     │
-  └──────────┘     │ (verify first) │     └──────────────┘
-                   └────────────────┘
-                   "Who are you? Prove it."
+  Internet      >  Your App        ← Anyone on the network can reach it
+
+With Cloudflare Zero Trust:
+
+  Internet      >  Cloudflare          >  Your App
+                   (verify first)
+
+                 "Who are you? Prove it."
 ```
 
 ### How volta implements Zero Trust principles
 
 volta-auth-proxy's [ForwardAuth](forwardauth.md) pattern is a Zero Trust implementation at the application layer:
 
-```
-  volta ForwardAuth = Zero Trust for your apps:
+```text
+volta ForwardAuth = Zero Trust for your apps:
 
-  ┌──────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────┐
-  │ Browser  │────►│ Traefik      │────►│ volta        │     │ Your App │
-  └──────────┘     │ (reverse     │     │ (verify      │     └──────────┘
-                   │  proxy)      │     │  identity,   │          ▲
-                   └──────────────┘     │  check role, │          │
-                          │             │  check tenant│          │
-                          │             └──────────────┘          │
-                          │                    │                  │
-                          │              200 OK + headers         │
-                          └──────────────────────────────────────►│
-                                 (only if volta says OK)
+  Browser       >  Traefik           >  volta                Your App
+                   (reverse             (verify
+                    proxy)               identity,              ^
+                                         check role,
+                                         check tenant
+
+                                       200 OK + headers
+
+                               (only if volta says OK)
 ```
 
 Every request to every app goes through this flow. No exceptions. No "trusted" networks. Even internal services behind the reverse proxy are protected. This is Zero Trust:

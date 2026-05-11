@@ -32,66 +32,61 @@ The difficulty is that not everything is equally revocable. Opaque tokens (sessi
 
 ### Revocability spectrum
 
-```
-  Easy to revoke                          Hard to revoke
-  ◄─────────────────────────────────────────────────────►
-  │                      │                              │
-  Session ID             Refresh token                  JWT
-  (delete from DB)       (delete from DB)        (self-contained,
-                                                  no DB to delete
-                                                  from -- must wait
-                                                  for expiry)
+```text
+Easy to revoke                          Hard to revoke
+
+Session ID             Refresh token                  JWT
+(delete from DB)       (delete from DB)        (self-contained,
+                                                no DB to delete
+                                                from -- must wait
+                                                for expiry)
 ```
 
 ### Revoking sessions (server-side state)
 
-```
-  Before revocation:
-  ┌─────────────────────────────────────────┐
-  │  sessions table                         │
-  │  ┌───────────────────────────────────┐  │
-  │  │ id: abc-123        status: ACTIVE │  │
-  │  │ user_id: alice     expires: 17:00 │  │
-  │  └───────────────────────────────────┘  │
-  └─────────────────────────────────────────┘
-       ↑ Cookie "abc-123" → found → access granted
+```text
+Before revocation:
 
-  After revocation (DELETE from sessions):
-  ┌─────────────────────────────────────────┐
-  │  sessions table                         │
-  │  (empty -- row deleted)                 │
-  └─────────────────────────────────────────┘
-       ↑ Cookie "abc-123" → NOT found → 401
+   sessions table
+
+     id: abc-123        status: ACTIVE
+     user_id: alice     expires: 17:00
+
+     ↑ Cookie "abc-123" → found → access granted
+
+After revocation (DELETE from sessions):
+
+   sessions table
+   (empty -- row deleted)
+
+     ↑ Cookie "abc-123" → NOT found → 401
 ```
 
 ### Revoking JWTs (the hard problem)
 
 JWTs are self-contained. There is no database row to delete. Options:
 
-```
-  Option 1: Short expiry (volta's approach)
-  ┌──────────────────────────────────────────┐
-  │  JWT expires in 5 minutes.               │
-  │  Revoke the session → no new JWTs issued │
-  │  Existing JWTs die in max 5 min.         │
-  │  Acceptable propagation delay.           │
-  └──────────────────────────────────────────┘
+```text
+Option 1: Short expiry (volta's approach)
 
-  Option 2: Token blocklist (not used by volta)
-  ┌──────────────────────────────────────────┐
-  │  Maintain a list of revoked JTIs.        │
-  │  Check every JWT against the list.       │
-  │  Adds latency and state to every request.│
-  │  Defeats the purpose of stateless JWTs.  │
-  └──────────────────────────────────────────┘
+   JWT expires in 5 minutes.
+   Revoke the session → no new JWTs issued
+   Existing JWTs die in max 5 min.
+   Acceptable propagation delay.
 
-  Option 3: Key rotation
-  ┌──────────────────────────────────────────┐
-  │  Rotate the signing key.                 │
-  │  ALL tokens signed with old key become   │
-  │  unverifiable once old key is removed.   │
-  │  Nuclear option -- affects all users.    │
-  └──────────────────────────────────────────┘
+Option 2: Token blocklist (not used by volta)
+
+   Maintain a list of revoked JTIs.
+   Check every JWT against the list.
+   Adds latency and state to every request.
+   Defeats the purpose of stateless JWTs.
+
+Option 3: Key rotation
+
+   Rotate the signing key.
+   ALL tokens signed with old key become
+   unverifiable once old key is removed.
+   Nuclear option -- affects all users.
 ```
 
 ### Revoking signing keys
@@ -115,17 +110,14 @@ volta implements revocation at multiple levels:
 
 Deleting a session row from the `sessions` table immediately invalidates the session. The user's `__volta_session` cookie becomes a dangling pointer to nothing:
 
-```
-  User clicks "Logout"
-       │
-       ▼
-  DELETE FROM sessions WHERE id = ?
-       │
-       ▼
-  Cookie still exists in browser, but points to no session
-       │
-       ▼
-  Next request: session lookup fails → 401 → redirect to login
+```text
+User clicks "Logout"
+
+DELETE FROM sessions WHERE id = ?
+
+Cookie still exists in browser, but points to no session
+
+Next request: session lookup fails → 401 → redirect to login
 ```
 
 ### 2. JWT propagation delay
@@ -145,29 +137,25 @@ JWTs cannot be revoked directly, but volta's 5-minute expiry means revocation [p
 
 If a [signing key](signing-key.md) is suspected compromised:
 
-```
-  POST /api/v1/admin/keys/rotate
-       │
-       ▼
-  New key generated, old key retired
-       │
-       ▼
-  JWTs signed with old key expire in max 5 min
-       │
-       ▼
-  System fully recovered with new key
+```text
+POST /api/v1/admin/keys/rotate
+
+New key generated, old key retired
+
+JWTs signed with old key expire in max 5 min
+
+System fully recovered with new key
 ```
 
 ### 4. Tenant-level revocation
 
 Revoking all sessions for a tenant (e.g., tenant compromise):
 
-```
-  DELETE FROM sessions WHERE tenant_id = ?
-       │
-       ▼
-  All users in tenant logged out immediately
-  All existing JWTs expire within 5 minutes
+```text
+DELETE FROM sessions WHERE tenant_id = ?
+
+All users in tenant logged out immediately
+All existing JWTs expire within 5 minutes
 ```
 
 ---

@@ -48,20 +48,18 @@ volta-auth-proxy is [self-hosted](self-hosting.md). You run it on your own serve
 
 Whether you have 100 users or 1,000,000 users, the cost of running volta is just the cost of your own infrastructure (a small PostgreSQL database and a lightweight Java process that uses ~30MB of RAM).
 
-```
-  Auth0 pricing:
-  ┌──────────────────────────────────────┐
-  │  $0.02 per MAU ... times 100,000    │
-  │  = $2,000/month for auth alone      │
-  └──────────────────────────────────────┘
+```text
+Auth0 pricing:
 
-  volta-auth-proxy pricing:
-  ┌──────────────────────────────────────┐
-  │  One small VM + Postgres             │
-  │  = ~$20-50/month total               │
-  │  (same price at 100 or 1,000,000    │
-  │   users)                             │
-  └──────────────────────────────────────┘
+   $0.02 per MAU ... times 100,000
+   = $2,000/month for auth alone
+
+volta-auth-proxy pricing:
+
+   One small VM + Postgres
+   = ~$20-50/month total
+   (same price at 100 or 1,000,000
+    users)
 ```
 
 This is one of the core reasons volta exists. When your SaaS grows, auth should not become your most expensive line item.

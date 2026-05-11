@@ -18,35 +18,30 @@ Retries are fundamental to reliable communication between services, especially f
 
 In distributed systems, failure is the norm, not the exception:
 
-```
-  Without retries:
-  ┌──────────┐     POST /webhook     ┌──────────┐
-  │  volta   │ ─────────────────────►│ Your App │
-  │          │                       │ (down!)  │
-  │          │     Connection refused │          │
-  │          │ ◄─────────────────────│          │
-  │          │                       │          │
-  │  "Oh well,│                      │          │
-  │   event   │                      │          │
-  │   lost."  │                      │          │
-  └──────────┘                       └──────────┘
+```text
+Without retries:
+                 POST /webhook
+   volta                          >  Your App
+                                     (down!)
+                 Connection refused
 
-  With retries:
-  ┌──────────┐     POST /webhook     ┌──────────┐
-  │  volta   │ ─────────────────────►│ Your App │
-  │          │     Connection refused │ (down!)  │
-  │          │ ◄─────────────────────│          │
-  │          │                       │          │
-  │ (wait 10s)│                      │ (restart)│
-  │          │     POST /webhook     │          │
-  │          │ ─────────────────────►│          │
-  │          │     200 OK            │ (up!)    │
-  │          │ ◄─────────────────────│          │
-  │          │                       │          │
-  │ "Delivered│                      │"Got it!" │
-  │  on 2nd   │                      │          │
-  │  try."    │                      │          │
-  └──────────┘                       └──────────┘
+   "Oh well,
+    event
+    lost."
+
+With retries:
+                 POST /webhook
+   volta                          >  Your App
+                 Connection refused   (down!)
+
+  (wait 10s)                         (restart)
+                 POST /webhook
+
+                 200 OK              (up!)
+
+  "Delivered                        "Got it!"
+   on 2nd
+   try."
 ```
 
 Without retries, a momentary network hiccup or service restart causes permanent data loss. With retries, the system is resilient to transient failures.
@@ -114,20 +109,18 @@ Without retries, a momentary network hiccup or service restart causes permanent 
 
 A retry budget limits the total number of retries to prevent cascade failures:
 
-```
-  ┌─────────────────────────────────────────────┐
-  │  Retry Budget: max 10% of total requests    │
-  │                                              │
-  │  If volta sends 1000 webhooks/min:           │
-  │    Max retries allowed: 100/min              │
-  │                                              │
-  │  If 500 webhooks fail (server down):         │
-  │    Only 100 will be retried immediately      │
-  │    Remaining 400 queued for next cycle       │
-  │                                              │
-  │  This prevents volta from overwhelming       │
-  │  an already struggling server                │
-  └─────────────────────────────────────────────┘
+```text
+Retry Budget: max 10% of total requests
+
+If volta sends 1000 webhooks/min:
+  Max retries allowed: 100/min
+
+If 500 webhooks fail (server down):
+  Only 100 will be retried immediately
+  Remaining 400 queued for next cycle
+
+This prevents volta from overwhelming
+an already struggling server
 ```
 
 ---
@@ -138,22 +131,20 @@ A retry budget limits the total number of retries to prevent cascade failures:
 
 The [outbox](outbox-pattern.md) worker uses exponential backoff to retry failed webhook deliveries:
 
-```
-  ┌────────────────────────────────────────────┐
-  │  volta Webhook Retry Schedule               │
-  │                                            │
-  │  Attempt 1: immediate                      │
-  │  Attempt 2: +10 seconds                    │
-  │  Attempt 3: +30 seconds                    │
-  │  Attempt 4: +90 seconds                    │
-  │  Attempt 5: +270 seconds (~4.5 min)        │
-  │  Attempt 6: +810 seconds (~13.5 min)       │
-  │  Attempt 7: +2430 seconds (~40 min)        │
-  │  Attempt 8: +3600 seconds (1 hour, max)    │
-  │                                            │
-  │  Max attempts: 10                          │
-  │  After max: status = FAILED, alert ops     │
-  └────────────────────────────────────────────┘
+```text
+volta Webhook Retry Schedule
+
+Attempt 1: immediate
+Attempt 2: +10 seconds
+Attempt 3: +30 seconds
+Attempt 4: +90 seconds
+Attempt 5: +270 seconds (~4.5 min)
+Attempt 6: +810 seconds (~13.5 min)
+Attempt 7: +2430 seconds (~40 min)
+Attempt 8: +3600 seconds (1 hour, max)
+
+Max attempts: 10
+After max: status = FAILED, alert ops
 ```
 
 ```sql
@@ -169,33 +160,30 @@ WHERE id = :event_id;
 
 The volta JavaScript SDK automatically retries on 401 Unauthorized by refreshing the [session](session.md):
 
-```
-  volta-sdk-js                    volta-auth-proxy
-  =============                   ================
+```text
+volta-sdk-js                    volta-auth-proxy
+=============                   ================
 
-  1. GET /api/data
-     Cookie: volta_session=abc123
-  ──────────────────────────────────────────►
+1. GET /api/data
+   Cookie: volta_session=abc123
 
-                                  Session expired
-  ◄──────────────────────────────────────────
-     401 Unauthorized
+                                Session expired
 
-  2. (automatic) POST /auth/refresh
-     Cookie: volta_refresh=xyz789
-  ──────────────────────────────────────────►
+   401 Unauthorized
 
-                                  New session issued
-  ◄──────────────────────────────────────────
-     Set-Cookie: volta_session=new456
+2. (automatic) POST /auth/refresh
+   Cookie: volta_refresh=xyz789
 
-  3. (automatic retry) GET /api/data
-     Cookie: volta_session=new456
-  ──────────────────────────────────────────►
+                                New session issued
 
-                                  Success
-  ◄──────────────────────────────────────────
-     200 OK + data
+   Set-Cookie: volta_session=new456
+
+3. (automatic retry) GET /api/data
+   Cookie: volta_session=new456
+
+                                Success
+
+   200 OK + data
 ```
 
 This happens transparently. The application code does not need to handle token refresh.

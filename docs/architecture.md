@@ -42,44 +42,23 @@ or an MFA secret — they only read headers.
 
 ## Layered architecture
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│ Browser                                                             │
-└───────────────┬────────────────────────────────────────────────────┘
-                │ HTTPS
-┌───────────────▼────────────────────────────────────────────────────┐
-│ Traefik / volta-gateway                                             │
-│   - Routes                                                          │
-│   - ForwardAuth middleware ─┐                                        │
-└────────────────────────────┼───────────────────────────────────────┘
-                             │ GET /auth/verify
-┌────────────────────────────▼───────────────────────────────────────┐
-│ volta-auth-proxy (Javalin + tramli)                                 │
-│                                                                     │
-│   ┌──────────────────────────────────────────────────────────────┐ │
-│   │ AuthRouter / AuthFlowHandler (HTTP boundary)                 │ │
-│   └───────────────┬──────────────────────────────────────────────┘ │
-│                   │                                                 │
-│   ┌───────────────▼──────────────────────────────────────────────┐ │
-│   │ Session SM (upper) — sessions.auth_state                     │ │
-│   │   AUTHENTICATING / …MFA_PENDING / FULLY_AUTHENTICATED / …    │ │
-│   └───────────────┬──────────────────────────────────────────────┘ │
-│                   │ starts / resumes                                │
-│   ┌───────────────▼──────────────────────────────────────────────┐ │
-│   │ Flow SMs (lower — ephemeral, TTL 5-10 min)                   │ │
-│   │   OIDC · SAML · MFA · Passkey · Invite                       │ │
-│   │   Defined declaratively as tramli FlowDefinitions.           │ │
-│   └───────────────┬──────────────────────────────────────────────┘ │
-│                   │                                                 │
-│   ┌───────────────▼──────────────────────────────────────────────┐ │
-│   │ Services (OidcService / SamlService / MfaService /           │ │
-│   │           PasskeyService / SessionService / PolicyEngine)    │ │
-│   └───────────────┬──────────────────────────────────────────────┘ │
-│                   │                                                 │
-│   ┌───────────────▼──────────────────────────────────────────────┐ │
-│   │ SqlStore / SqlFlowStore (Postgres + Flyway)                  │ │
-│   └──────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    Browser
+    Browser -->|HTTPS| Edge["Traefik / volta-gateway<br/>- Routes<br/>- ForwardAuth middleware"]
+    Edge -->|GET /auth/verify| Proxy
+    subgraph Proxy["volta-auth-proxy (Javalin + tramli)"]
+        direction TB
+        Router["AuthRouter / AuthFlowHandler (HTTP boundary)"]
+        SessionSM["Session SM (upper) — sessions.auth_state<br/>AUTHENTICATING / MFA_PENDING / FULLY_AUTHENTICATED / ..."]
+        FlowSM["Flow SMs (lower — ephemeral, TTL 5-10 min)<br/>OIDC / SAML / MFA / Passkey / Invite<br/>Defined declaratively as tramli FlowDefinitions"]
+        Services["Services (OidcService / SamlService / MfaService /<br/>PasskeyService / SessionService / PolicyEngine)"]
+        Store["SqlStore / SqlFlowStore (Postgres + Flyway)"]
+        Router --> SessionSM
+        SessionSM -->|starts / resumes| FlowSM
+        FlowSM --> Services
+        Services --> Store
+    end
 ```
 
 ---

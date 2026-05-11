@@ -31,30 +31,23 @@ For volta-auth-proxy, compilation also checks [jte](jte.md) [templates](template
 
 ### The Java compilation pipeline
 
-```
-  Source Code (.java)
-       │
-       ▼
-  ┌──────────────────┐
-  │  Java Compiler   │
-  │  (javac)         │
-  │                  │
-  │  1. Parse syntax │
-  │  2. Check types  │
-  │  3. Resolve refs │
-  │  4. Generate     │
-  │     bytecode     │
-  └──────────────────┘
-       │
-       ▼
-  Bytecode (.class)
-       │
-       ▼
-  ┌──────────────────┐
-  │  JVM             │
-  │  Executes        │
-  │  bytecode        │
-  └──────────────────┘
+```text
+Source Code (.java)
+
+   Java Compiler
+   (javac)
+
+   1. Parse syntax
+   2. Check types
+   3. Resolve refs
+   4. Generate
+      bytecode
+
+Bytecode (.class)
+
+   JVM
+   Executes
+   bytecode
 ```
 
 ### What the compiler checks
@@ -92,25 +85,24 @@ This makes the edit-compile-test cycle fast enough for productive development.
 
 ### Compile errors vs. runtime errors
 
-```
-  Compile error (GOOD -- caught before running):
-  ─────────────────────────────────────────────
-  src/main/java/UserService.java:42: error: incompatible types
-      UUID id = "not-a-uuid";
-                ^
-      required: UUID
-      found:    String
+```text
+Compile error (GOOD -- caught before running):
 
-  → Fix: UUID id = UUID.fromString("550e8400-...");
+src/main/java/UserService.java:42: error: incompatible types
+    UUID id = "not-a-uuid";
+              ^
+    required: UUID
+    found:    String
 
+→ Fix: UUID id = UUID.fromString("550e8400-...");
 
-  Runtime error (BAD -- caught while running):
-  ─────────────────────────────────────────────
-  Exception in thread "main" java.lang.ClassCastException:
-      java.lang.String cannot be cast to java.util.UUID
-      at UserService.getUser(UserService.java:42)
+Runtime error (BAD -- caught while running):
 
-  → User already saw an error page. Damage done.
+Exception in thread "main" java.lang.ClassCastException:
+    java.lang.String cannot be cast to java.util.UUID
+    at UserService.getUser(UserService.java:42)
+
+→ User already saw an error page. Damage done.
 ```
 
 ---
@@ -145,21 +137,21 @@ This means a typo like `${user.nmae}` fails the build immediately, not when a us
 
 ### The full build pipeline
 
-```
-  mvn package
-       │
-       ├── 1. Compile source code (mvn compile)
-       │       javac: .java → .class
-       │       jte: .jte → .java → .class
-       │
-       ├── 2. Run tests (mvn test)
-       │       JUnit tests verify behavior
-       │
-       ├── 3. Package (mvn package)
-       │       Assemble .class files + dependencies
-       │       into a single fat JAR
-       │
-       └── Output: target/volta-auth-proxy.jar
+```text
+mvn package
+
+         1. Compile source code (mvn compile)
+             javac: .java → .class
+             jte: .jte → .java → .class
+
+         2. Run tests (mvn test)
+             JUnit tests verify behavior
+
+         3. Package (mvn package)
+             Assemble .class files + dependencies
+             into a single fat JAR
+
+         Output: target/volta-auth-proxy.jar
 ```
 
 ### Compile-time safety for security

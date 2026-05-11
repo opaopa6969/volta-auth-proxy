@@ -159,20 +159,16 @@ volta-auth-proxy's CSS (`volta.css`) is **mobile-first responsive**. Every page 
 
 ### Example: responsive login page
 
-```
-  Mobile (< 480px):          Tablet (768px):           Desktop (1024px+):
-  ┌──────────────┐          ┌──────────────────┐      ┌─────────────────────────┐
-  │ ┌──────────┐ │          │                  │      │         ┌──────────┐    │
-  │ │  Logo    │ │          │  ┌──────────┐    │      │         │  Logo    │    │
-  │ │          │ │          │  │  Logo    │    │      │         │          │    │
-  │ │ [Google] │ │          │  │ [Google] │    │      │         │ [Google] │    │
-  │ │  Login   │ │          │  │  Login   │    │      │         │  Login   │    │
-  │ │          │ │          │  │          │    │      │         │          │    │
-  │ └──────────┘ │          │  └──────────┘    │      │         └──────────┘    │
-  │              │          │                  │      │                         │
-  └──────────────┘          └──────────────────┘      └─────────────────────────┘
-  Full width, minimal       Centered card,             Centered card,
-  padding.                  moderate padding.          ample whitespace.
+```text
+Mobile (< 480px):          Tablet (768px):           Desktop (1024px+):
+
+     Logo                                                        Logo
+                                Logo
+    [Google]                   [Google]                         [Google]
+     Login                      Login                            Login
+
+Full width, minimal       Centered card,             Centered card,
+padding.                  moderate padding.          ample whitespace.
 ```
 
 ---

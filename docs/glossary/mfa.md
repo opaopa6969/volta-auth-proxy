@@ -31,30 +31,26 @@ MFA dramatically reduces the impact of password compromise. Even if an attacker 
 
 Authentication factors are categorized by what they are:
 
-```
-  ┌─────────────────────────────────────────────────────────────┐
-  │                    Authentication Factors                     │
-  │                                                              │
-  │  1. Something you KNOW         2. Something you HAVE         │
-  │  ┌──────────────────────┐     ┌──────────────────────┐      │
-  │  │ - Password            │     │ - Phone (TOTP app)   │      │
-  │  │ - PIN                 │     │ - Security key       │      │
-  │  │ - Security question   │     │ - Smart card         │      │
-  │  │ - Pattern             │     │ - Hardware token     │      │
-  │  └──────────────────────┘     └──────────────────────┘      │
-  │                                                              │
-  │  3. Something you ARE                                        │
-  │  ┌──────────────────────┐                                   │
-  │  │ - Fingerprint         │                                   │
-  │  │ - Face recognition    │                                   │
-  │  │ - Iris scan           │                                   │
-  │  │ - Voice               │                                   │
-  │  └──────────────────────┘                                   │
-  │                                                              │
-  │  True MFA requires factors from DIFFERENT categories.        │
-  │  Password + security question = still one factor (both KNOW) │
-  │  Password + TOTP code = two factors (KNOW + HAVE)            │
-  └─────────────────────────────────────────────────────────────┘
+```text
+                  Authentication Factors
+
+1. Something you KNOW         2. Something you HAVE
+
+  - Password                    - Phone (TOTP app)
+  - PIN                         - Security key
+  - Security question           - Smart card
+  - Pattern                     - Hardware token
+
+3. Something you ARE
+
+  - Fingerprint
+  - Face recognition
+  - Iris scan
+  - Voice
+
+True MFA requires factors from DIFFERENT categories.
+Password + security question = still one factor (both KNOW)
+Password + TOTP code = two factors (KNOW + HAVE)
 ```
 
 ### Common MFA methods
@@ -69,41 +65,38 @@ Authentication factors are categorized by what they are:
 
 ### MFA flow example
 
-```
-  User                          volta-auth-proxy              Google
-  ====                          ================              ======
+```text
+User                          volta-auth-proxy              Google
+====                          ================              ======
 
-  1. Click "Login with Google"
-  ─────────────────────────────►
-                                  redirect to Google OIDC
-                                ──────────────────────────────►
-  2. Authenticate with Google                                   verify
-  ─────────────────────────────────────────────────────────────►
-                                ◄──────────────────────────────
-                                  id_token received
+1. Click "Login with Google"
 
-                                3. Check: Is MFA required for this tenant?
-                                   (admin setting: "MFA required for all members")
+                                redirect to Google OIDC
 
-                                   ├── No: Complete login normally
-                                   └── Yes: Continue to step 4
+2. Authenticate with Google                                   verify
 
-  ◄─────────────────────────────
-  4. Show MFA challenge page
-     "Enter your 6-digit code"
+                                id_token received
 
-  5. Enter TOTP code: 847293
-  ─────────────────────────────►
-                                6. Verify TOTP code
-                                   ├── Invalid: Show error, try again
-                                   └── Valid: Complete login
+                              3. Check: Is MFA required for this tenant?
+                                 (admin setting: "MFA required for all members")
 
-                                7. Set session cookie
-                                8. Record auth method in session:
-                                   amr = ["google_oidc", "totp"]
+                                     No: Complete login normally
+                                     Yes: Continue to step 4
 
-  ◄─────────────────────────────
-  9. Redirect to app
+4. Show MFA challenge page
+   "Enter your 6-digit code"
+
+5. Enter TOTP code: 847293
+
+                              6. Verify TOTP code
+                                     Invalid: Show error, try again
+                                     Valid: Complete login
+
+                              7. Set session cookie
+                              8. Record auth method in session:
+                                 amr = ["google_oidc", "totp"]
+
+9. Redirect to app
 ```
 
 ---
@@ -148,26 +141,23 @@ volta plans to add MFA in phases:
 
 ### Architecture for MFA
 
-```
-  ┌──────────────────────────────────────────────┐
-  │               volta-auth-proxy                │
-  │                                               │
-  │  Google OIDC ──► Primary authentication       │
-  │       │                                       │
-  │       ▼                                       │
-  │  MFA Required? ──► Check tenant policy        │
-  │       │                                       │
-  │       ├── TOTP challenge (Phase 3)            │
-  │       │   └── Verify against shared secret    │
-  │       │                                       │
-  │       ├── WebAuthn challenge (Phase 2)        │
-  │       │   └── Verify against registered key   │
-  │       │                                       │
-  │       └── No MFA ──► Complete login           │
-  │                                               │
-  │  JWT: amr claim records which methods used    │
-  │  Apps can check amr for sensitive operations  │
-  └──────────────────────────────────────────────┘
+```text
+             volta-auth-proxy
+
+Google OIDC   > Primary authentication
+
+MFA Required?   > Check tenant policy
+
+         TOTP challenge (Phase 3)
+             Verify against shared secret
+
+         WebAuthn challenge (Phase 2)
+             Verify against registered key
+
+         No MFA   > Complete login
+
+JWT: amr claim records which methods used
+Apps can check amr for sensitive operations
 ```
 
 ---

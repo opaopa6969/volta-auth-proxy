@@ -30,83 +30,77 @@ A signature makes these attacks detectable. Even if the attacker can read the co
 
 ### Signing process
 
-```
-  Server creates cookie:
-  ┌──────────────────────────────────────────────────┐
-  │                                                  │
-  │  Value: "550e8400-e29b-41d4-a716-446655440000"   │
-  │  Secret: "server-secret-key"                     │
-  │                                                  │
-  │  Signature = HMAC-SHA256(secret, value)          │
-  │            = "a3f2c8e1..."                        │
-  │                                                  │
-  │  Cookie = value + "." + signature                │
-  │  "550e8400-e29b-41d4...a3f2c8e1..."              │
-  └──────────────────────────────────────────────────┘
+```text
+Server creates cookie:
 
-  Set-Cookie: __volta_session=550e8400...a3f2c8e1;
-              HttpOnly; Secure; SameSite=Lax
+   Value: "550e8400-e29b-41d4-a716-446655440000"
+   Secret: "server-secret-key"
+
+   Signature = HMAC-SHA256(secret, value)
+             = "a3f2c8e1..."
+
+   Cookie = value + "." + signature
+   "550e8400-e29b-41d4...a3f2c8e1..."
+
+Set-Cookie: __volta_session=550e8400...a3f2c8e1;
+            HttpOnly; Secure; SameSite=Lax
 ```
 
 ### Verification process
 
-```
-  Browser sends cookie back:
-  ┌──────────────────────────────────────────────────┐
-  │  Cookie: __volta_session=550e8400...a3f2c8e1     │
-  │                                                  │
-  │  Server splits: value = "550e8400..."            │
-  │                 sig   = "a3f2c8e1..."            │
-  │                                                  │
-  │  Recalculate: HMAC-SHA256(secret, value)         │
-  │             = "a3f2c8e1..."                      │
-  │                                                  │
-  │  Compare: received sig == calculated sig?        │
-  │           "a3f2c8e1" == "a3f2c8e1" → MATCH ✓    │
-  │                                                  │
-  │  Cookie is authentic. Proceed.                   │
-  └──────────────────────────────────────────────────┘
+```text
+Browser sends cookie back:
+
+   Cookie: __volta_session=550e8400...a3f2c8e1
+
+   Server splits: value = "550e8400..."
+                  sig   = "a3f2c8e1..."
+
+   Recalculate: HMAC-SHA256(secret, value)
+              = "a3f2c8e1..."
+
+   Compare: received sig == calculated sig?
+            "a3f2c8e1" == "a3f2c8e1" → MATCH ✓
+
+   Cookie is authentic. Proceed.
 ```
 
 ### Tamper detection
 
-```
-  Attacker modifies cookie value:
-  ┌──────────────────────────────────────────────────┐
-  │  Original: "550e8400...a3f2c8e1"                 │
-  │  Modified: "ATTACKER-SESSION-ID...a3f2c8e1"      │
-  │                                                  │
-  │  Server recalculates:                            │
-  │  HMAC-SHA256(secret, "ATTACKER-SESSION-ID")      │
-  │  = "7b9d4f2a..."                                 │
-  │                                                  │
-  │  Compare: "a3f2c8e1" == "7b9d4f2a"? → MISMATCH  │
-  │                                                  │
-  │  Cookie REJECTED. Attacker detected. → 401       │
-  └──────────────────────────────────────────────────┘
+```text
+Attacker modifies cookie value:
+
+   Original: "550e8400...a3f2c8e1"
+   Modified: "ATTACKER-SESSION-ID...a3f2c8e1"
+
+   Server recalculates:
+   HMAC-SHA256(secret, "ATTACKER-SESSION-ID")
+   = "7b9d4f2a..."
+
+   Compare: "a3f2c8e1" == "7b9d4f2a"? → MISMATCH
+
+   Cookie REJECTED. Attacker detected. → 401
 ```
 
 ### Why HMAC and not a plain hash?
 
-```
-  Plain hash (SHA-256):
-  ┌──────────────────────────────────────────────┐
-  │  sig = SHA256(value)                         │
-  │                                              │
-  │  Problem: Attacker knows the algorithm.      │
-  │  They can compute SHA256("evil-value")       │
-  │  and create a valid value+hash pair.         │
-  │  No secret needed!                           │
-  └──────────────────────────────────────────────┘
+```text
+Plain hash (SHA-256):
 
-  HMAC (keyed hash):
-  ┌──────────────────────────────────────────────┐
-  │  sig = HMAC-SHA256(SECRET, value)            │
-  │                                              │
-  │  Attacker needs the SECRET to compute        │
-  │  a valid signature.                          │
-  │  Without the secret, they cannot forge it.   │
-  └──────────────────────────────────────────────┘
+   sig = SHA256(value)
+
+   Problem: Attacker knows the algorithm.
+   They can compute SHA256("evil-value")
+   and create a valid value+hash pair.
+   No secret needed!
+
+HMAC (keyed hash):
+
+   sig = HMAC-SHA256(SECRET, value)
+
+   Attacker needs the SECRET to compute
+   a valid signature.
+   Without the secret, they cannot forge it.
 ```
 
 ---
@@ -132,20 +126,19 @@ public static String hmacSha256Hex(String secret, String payload) {
 
 ### Cookie structure
 
-```
-  __volta_session cookie:
-  ┌──────────────────────────────────────────────────┐
-  │  Value: session UUID                             │
-  │  Signed with: HMAC-SHA256                        │
-  │  Secret: derived from server configuration       │
-  │                                                  │
-  │  Attributes:                                     │
-  │  ├── HttpOnly  (no JavaScript access)            │
-  │  ├── Secure    (HTTPS only)                      │
-  │  ├── SameSite=Lax (CSRF protection)              │
-  │  ├── Path=/    (all routes)                      │
-  │  └── Max-Age=28800 (8h sliding window)           │
-  └──────────────────────────────────────────────────┘
+```text
+__volta_session cookie:
+
+   Value: session UUID
+   Signed with: HMAC-SHA256
+   Secret: derived from server configuration
+
+   Attributes:
+       HttpOnly  (no JavaScript access)
+       Secure    (HTTPS only)
+       SameSite=Lax (CSRF protection)
+       Path=/    (all routes)
+       Max-Age=28800 (8h sliding window)
 ```
 
 ### Constant-time comparison

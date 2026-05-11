@@ -32,76 +32,72 @@
 
 gitリポジトリはファイルの時間経過に伴う変更を追跡します：
 
-```
-  ┌────────────────────────────────────────────────────────────┐
-  │                  Gitリポジトリ                               │
-  │                                                             │
-  │  コミット履歴:                                               │
-  │                                                             │
-  │  abc1234  ← HEAD（最新）                                    │
-  │  │  「ログインエンドポイントにレート制限を追加」              │
-  │  │  変更: src/main/java/AuthMiddleware.java                │
-  │  │                                                          │
-  │  def5678                                                    │
-  │  │  「JWT期限チェックを修正」                                │
-  │  │  変更: src/main/java/JwtService.java                    │
-  │  │                                                          │
-  │  ghi9012                                                    │
-  │  │  「初回コミット」                                        │
-  │  │  追加: 全ファイル                                        │
-  │  ▼                                                          │
-  └────────────────────────────────────────────────────────────┘
+```text
+                Gitリポジトリ
+
+コミット履歴:
+
+abc1234  ← HEAD（最新）
+   「ログインエンドポイントにレート制限を追加」
+   変更: src/main/java/AuthMiddleware.java
+
+def5678
+   「JWT期限チェックを修正」
+   変更: src/main/java/JwtService.java
+
+ghi9012
+   「初回コミット」
+   追加: 全ファイル
 ```
 
 ### ローカル vs リモートリポジトリ
 
-```
-  あなたのマシン                         GitHub/GitLab
-  ┌──────────────────┐                  ┌──────────────────┐
-  │  ローカルリポ     │                  │  リモートリポ     │
-  │  （完全なコピー） │   git push ───> │  （完全なコピー） │
-  │                   │   <─── git pull  │                   │
-  │  .git/ ディレクトリ│                  │  チームと共有     │
-  │  作業ファイル     │                  │  CI/CDが読み取り  │
-  └──────────────────┘                  └──────────────────┘
+```text
+あなたのマシン                         GitHub/GitLab
 
-  両方とも完全な履歴を含む。
-  どちらもオフラインで作業可能。
+   ローカルリポ                           リモートリポ
+   （完全なコピー）     git push    >    （完全なコピー）
+                        <    git pull
+   .git/ ディレクトリ                      チームと共有
+   作業ファイル                           CI/CDが読み取り
+
+両方とも完全な履歴を含む。
+どちらもオフラインで作業可能。
 ```
 
 ### パッケージリポジトリ（Maven Central）
 
-```
-  pom.xmlの記述:                    Maven Central
-  HikariCP 5.1.0が必要             ┌────────────────────┐
-           │                        │ com/zaxxer/         │
-           │   mvn compile          │   HikariCP/         │
-           └───────────────────────>│     5.1.0/          │
-                                    │       HikariCP.jar  │
-           <───────────────────────│       HikariCP.pom  │
-           ダウンロード先:           │       チェックサム   │
-           ~/.m2/repository/        └────────────────────┘
+```text
+pom.xmlの記述:                    Maven Central
+HikariCP 5.1.0が必要
+                                    com/zaxxer/
+             mvn compile              HikariCP/
+                                 >      5.1.0/
+                                          HikariCP.jar
+         <                               HikariCP.pom
+         ダウンロード先:                   チェックサム
+         ~/.m2/repository/
 ```
 
 ### volta-auth-proxyのリポジトリ構造
 
-```
-  volta-auth-proxy/              （gitリポジトリのルート）
-  ├── .git/                      （gitメタデータ -- 触らない）
-  ├── pom.xml                    （Mavenビルド設定 + 依存関係）
-  ├── volta-config.yaml          （ランタイム設定）
-  ├── Dockerfile                 （コンテナビルド手順）
-  ├── docker-compose.yml         （ローカル開発環境）
-  ├── src/
-  │   ├── main/
-  │   │   ├── java/              （Javaソースコード）
-  │   │   ├── jte/               （jteテンプレート）
-  │   │   └── resources/         （静的ファイル、SQLマイグレーション）
-  │   └── test/
-  │       └── java/              （テストソースコード）
-  ├── docs/                      （ドキュメント）
-  │   └── glossary/              （これを読んでいる場所）
-  └── target/                    （ビルド出力 -- gitに入れない）
+```text
+volta-auth-proxy/              （gitリポジトリのルート）
+    .git/                      （gitメタデータ -- 触らない）
+    pom.xml                    （Mavenビルド設定 + 依存関係）
+    volta-config.yaml          （ランタイム設定）
+    Dockerfile                 （コンテナビルド手順）
+    docker-compose.yml         （ローカル開発環境）
+    src/
+        main/
+            java/              （Javaソースコード）
+            jte/               （jteテンプレート）
+            resources/         （静的ファイル、SQLマイグレーション）
+        test/
+            java/              （テストソースコード）
+    docs/                      （ドキュメント）
+        glossary/              （これを読んでいる場所）
+    target/                    （ビルド出力 -- gitに入れない）
 ```
 
 ### リポジトリに入れないもの
@@ -141,15 +137,15 @@ voltaのpom.xmlが依存関係を宣言し、Mavenがリポジトリから解決
 
 ### ローカルMavenリポジトリキャッシュ
 
-```
-  ~/.m2/repository/
-  ├── com/zaxxer/HikariCP/5.1.0/
-  │   ├── HikariCP-5.1.0.jar
-  │   └── HikariCP-5.1.0.pom
-  ├── com/github/ben-manes/caffeine/caffeine/3.1.8/
-  │   ├── caffeine-3.1.8.jar
-  │   └── caffeine-3.1.8.pom
-  └── ...
+```text
+~/.m2/repository/
+    com/zaxxer/HikariCP/5.1.0/
+        HikariCP-5.1.0.jar
+        HikariCP-5.1.0.pom
+    com/github/ben-manes/caffeine/caffeine/3.1.8/
+        caffeine-3.1.8.jar
+        caffeine-3.1.8.pom
+    ...
 ```
 
 このキャッシュにより、以降のビルドはネットワークアクセスが不要です。最初のビルドですべてをダウンロードし、将来のビルドはキャッシュを使います。

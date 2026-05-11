@@ -20,30 +20,26 @@ volta-auth-proxy exposes an internal API at `/api/v1/*` that lets your applicati
 
 ## Internal vs external APIs
 
-```
-  The Internet (public)
-  ┌─────────────────────────────────────────────────────────┐
-  │                                                         │
-  │  External/Public APIs:                                  │
-  │  - https://api.stripe.com/v1/charges                    │
-  │  - https://maps.googleapis.com/maps/api/geocode         │
-  │  - volta's /auth/* endpoints (login, callback, verify)  │
-  │                                                         │
-  │  Anyone on the internet can reach these.                │
-  └─────────────────────────────────────────────────────────┘
-          │
-          │  Firewall / Network boundary
-          │
-  ┌───────▼─────────────────────────────────────────────────┐
-  │  Your private network (internal)                        │
-  │                                                         │
-  │  Internal APIs:                                         │
-  │  - volta's /api/v1/* (user, tenant, member CRUD)        │
-  │  - Your database (PostgreSQL on port 5432)              │
-  │  - Inter-service communication                          │
-  │                                                         │
-  │  Only your services can reach these.                    │
-  └─────────────────────────────────────────────────────────┘
+```text
+The Internet (public)
+
+   External/Public APIs:
+   - https://api.stripe.com/v1/charges
+   - https://maps.googleapis.com/maps/api/geocode
+   - volta's /auth/* endpoints (login, callback, verify)
+
+   Anyone on the internet can reach these.
+
+           Firewall / Network boundary
+
+   Your private network (internal)
+
+   Internal APIs:
+   - volta's /api/v1/* (user, tenant, member CRUD)
+   - Your database (PostgreSQL on port 5432)
+   - Inter-service communication
+
+   Only your services can reach these.
 ```
 
 | Aspect | External/Public API | Internal API |
@@ -100,25 +96,23 @@ Authorization: Bearer <VOLTA_SERVICE_TOKEN>
 
 ### Why apps delegate to volta instead of writing directly to the DB
 
-```
-  Option A: App writes directly to volta's database (BAD)
-  ┌─────────┐     ┌──────────────┐
-  │ Your App │────►│ volta's DB    │  ← Tight coupling. Schema changes break your app.
-  └─────────┘     │ (users,       │     No validation. No audit logging.
-                  │  tenants,     │     Your app must know volta's schema.
-                  │  memberships) │
-                  └──────────────┘
+```text
+Option A: App writes directly to volta's database (BAD)
 
-  Option B: App calls volta's internal API (GOOD)
-  ┌─────────┐     ┌──────────────┐     ┌──────────────┐
-  │ Your App │────►│ volta API     │────►│ volta's DB    │
-  └─────────┘     │ /api/v1/*     │     └──────────────┘
-                  │               │
-                  │ - Validates   │  ← Clean boundary. Validation included.
-                  │ - Audit logs  │     Audit logging automatic.
-                  │ - Enforces    │     Business rules enforced.
-                  │   rules       │     Schema changes don't affect your app.
-                  └──────────────┘
+  Your App      >  volta's DB       ← Tight coupling. Schema changes break your app.
+                  (users,             No validation. No audit logging.
+                   tenants,           Your app must know volta's schema.
+                   memberships)
+
+Option B: App calls volta's internal API (GOOD)
+
+  Your App      >  volta API          >  volta's DB
+                  /api/v1/*
+
+                  - Validates      ← Clean boundary. Validation included.
+                  - Audit logs        Audit logging automatic.
+                  - Enforces          Business rules enforced.
+                    rules             Schema changes don't affect your app.
 ```
 
 The internal API provides a stable contract between volta and your application. volta's database schema can change without breaking your app, because the API contract remains stable.

@@ -18,19 +18,18 @@ In real life: a power plant goes offline, the grid becomes overloaded, other pla
 
 Authentication is unique among system components because it sits on the critical path of EVERY request. If your search feature breaks, users cannot search -- but they can still use everything else. If your auth system breaks, users cannot access ANYTHING.
 
-```
+```text
 Search failure:
-  ┌─────────┐     ┌─────────┐     ┌─────────┐
-  │ Wiki    │ OK  │ Admin   │ OK  │ Chat    │ OK
-  │         │     │         │     │         │
-  └─────────┘     └─────────┘     └─────────┘
+
+    Wiki      OK    Admin     OK    Chat      OK
+
   Search is broken, but everything else works.
 
 Auth failure:
-  ┌─────────┐     ┌─────────┐     ┌─────────┐
-  │ Wiki    │ ✗   │ Admin   │ ✗   │ Chat    │ ✗
-  │ 401     │     │ 401     │     │ 401     │
-  └─────────┘     └─────────┘     └─────────┘
+
+    Wiki      ✗     Admin     ✗     Chat      ✗
+    401             401             401
+
   NOTHING works. Every app depends on auth.
 ```
 
@@ -42,12 +41,11 @@ This is fault propagation by nature. Auth is a single point that all application
 
 Some architects argue: "Split auth into microservices, so if one piece fails, the others keep working." This sounds logical but misses a critical point about auth: the pieces are not independent.
 
-```
+```text
 Microservice auth:
-  ┌──────────┐    ┌──────────┐    ┌──────────┐
-  │ OIDC     │───►│ Session  │───►│ JWT      │
-  │ Service  │    │ Service  │    │ Service  │
-  └──────────┘    └──────────┘    └──────────┘
+
+    OIDC         >  Session      >  JWT
+    Service         Service         Service
 
   If Session Service dies:
   - OIDC Service cannot create sessions → login fails
@@ -86,12 +84,11 @@ volta's strategy against fault propagation is simple: have fewer things that can
 
 4. **Graceful degradation.** If the database is temporarily unreachable, cached sessions can still serve ForwardAuth checks. The blast radius of a database blip is reduced.
 
-```
+```text
 volta's fault propagation surface:
-  ┌──────────────┐     ┌──────────┐
-  │ volta-auth-  │────►│ Postgres │
-  │ proxy        │     │          │
-  └──────────────┘     └──────────┘
+
+    volta-auth-       >  Postgres
+    proxy
 
   What can fail:
   1. volta process crashes → restart (200ms startup)

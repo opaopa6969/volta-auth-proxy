@@ -47,45 +47,45 @@ Clients indicate their preferred format via the `Accept` header:
 
 ### Decision tree
 
-```
-  Incoming request
-  │
-  ├── Accept contains "application/json"?
-  │   └── Yes → Respond with JSON
-  │
-  ├── X-Requested-With: XMLHttpRequest?
-  │   └── Yes → Respond with JSON
-  │
-  ├── Authorization: Bearer ...?
-  │   └── Yes → Respond with JSON
-  │
-  └── Otherwise (text/html or no Accept header)
-      └── Respond with HTML or redirect
+```text
+Incoming request
+
+    Accept contains "application/json"?
+        Yes → Respond with JSON
+
+    X-Requested-With: XMLHttpRequest?
+        Yes → Respond with JSON
+
+    Authorization: Bearer ...?
+        Yes → Respond with JSON
+
+    Otherwise (text/html or no Accept header)
+        Respond with HTML or redirect
 ```
 
 ### Why 302 breaks SPA fetch()
 
-```
-  ❌ WITHOUT content negotiation:
+```text
+❌ WITHOUT content negotiation:
 
-  SPA fetch("/dashboard")
-  │
-  ├── volta: "Not authenticated! 302 → /login"
-  ├── Browser (behind the scenes): "302? I'll follow that."
-  ├── Browser: "GET /login → 302 → Google OAuth"
-  ├── Browser: "GET accounts.google.com/..."
-  └── fetch() receives: Google's HTML login page
-      SPA: "What is this HTML? I expected JSON!"
-      Result: White screen, broken app
+SPA fetch("/dashboard")
 
-  ✅ WITH content negotiation:
+    volta: "Not authenticated! 302 → /login"
+    Browser (behind the scenes): "302? I'll follow that."
+    Browser: "GET /login → 302 → Google OAuth"
+    Browser: "GET accounts.google.com/..."
+    fetch() receives: Google's HTML login page
+    SPA: "What is this HTML? I expected JSON!"
+    Result: White screen, broken app
 
-  SPA fetch("/dashboard", { headers: { "Accept": "application/json" }})
-  │
-  ├── volta: "Not authenticated + wants JSON → 401 JSON"
-  └── fetch() receives: { "error": { "code": "AUTHENTICATION_REQUIRED" } }
-      SPA: "401? I'll show the login modal."
-      Result: Clean user experience
+✅ WITH content negotiation:
+
+SPA fetch("/dashboard", { headers: { "Accept": "application/json" }})
+
+    volta: "Not authenticated + wants JSON → 401 JSON"
+    fetch() receives: { "error": { "code": "AUTHENTICATION_REQUIRED" } }
+    SPA: "401? I'll show the login modal."
+    Result: Clean user experience
 ```
 
 ---

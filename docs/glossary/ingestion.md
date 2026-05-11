@@ -48,24 +48,20 @@ Without proper ingestion:
 
 ### The ingestion pipeline
 
-```
-  ┌─────────────────────────────────────────────────────┐
-  │              Ingestion Pipeline                       │
-  │                                                       │
-  │  1. RECEIVE        2. VERIFY        3. PARSE          │
-  │  ┌────────────┐   ┌────────────┐   ┌────────────┐    │
-  │  │ Accept     │──►│ Check HMAC │──►│ Deserialize│    │
-  │  │ HTTP POST  │   │ signature  │   │ JSON body  │    │
-  │  │ Raw bytes  │   │ Timestamp  │   │ Validate   │    │
-  │  └────────────┘   └────────────┘   └────────────┘    │
-  │                                         │             │
-  │  4. DEDUPLICATE    5. ROUTE        6. ACKNOWLEDGE     │
-  │  ┌────────────┐   ┌────────────┐   ┌────────────┐    │
-  │  │ Check event│──►│ Dispatch   │──►│ Return     │    │
-  │  │ ID against │   │ to correct │   │ HTTP 200   │    │
-  │  │ seen set   │   │ handler    │   │ to sender  │    │
-  │  └────────────┘   └────────────┘   └────────────┘    │
-  └─────────────────────────────────────────────────────┘
+```text
+            Ingestion Pipeline
+
+1. RECEIVE        2. VERIFY        3. PARSE
+
+  Accept        >  Check HMAC    >  Deserialize
+  HTTP POST        signature        JSON body
+  Raw bytes        Timestamp        Validate
+
+4. DEDUPLICATE    5. ROUTE        6. ACKNOWLEDGE
+
+  Check event   >  Dispatch      >  Return
+  ID against       to correct       HTTP 200
+  seen set         handler          to sender
 ```
 
 ### Step 1: Receive
@@ -150,30 +146,30 @@ switch (event.getType()) {
 
 volta ingests Stripe webhooks at a dedicated endpoint to manage [billing](billing.md) state:
 
-```
-  Stripe                    volta-auth-proxy
-  ======                    ================
+```text
+Stripe                    volta-auth-proxy
+======                    ================
 
-  subscription.updated ────► POST /webhooks/stripe
-                              │
-                              ├─ Verify Stripe signature
-                              ├─ Parse event
-                              ├─ Deduplicate by event ID
-                              ├─ Route by event type:
-                              │
-                              │  subscription.updated
-                              │  → Update tenant plan
-                              │  → Fire billing.plan_changed webhook
-                              │
-                              │  subscription.deleted
-                              │  → Suspend tenant
-                              │  → Fire tenant.suspended webhook
-                              │
-                              │  invoice.payment_failed
-                              │  → Flag tenant for grace period
-                              │  → Notify tenant admins
-                              │
-                              └─ Return 200 to Stripe
+subscription.updated     > POST /webhooks/stripe
+
+                               Verify Stripe signature
+                               Parse event
+                               Deduplicate by event ID
+                               Route by event type:
+
+                               subscription.updated
+                               → Update tenant plan
+                               → Fire billing.plan_changed webhook
+
+                               subscription.deleted
+                               → Suspend tenant
+                               → Fire tenant.suspended webhook
+
+                               invoice.payment_failed
+                               → Flag tenant for grace period
+                               → Notify tenant admins
+
+                               Return 200 to Stripe
 ```
 
 ### Stripe events volta handles

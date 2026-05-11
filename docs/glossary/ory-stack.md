@@ -43,10 +43,10 @@ Understanding Ory helps you understand the trade-offs:
 
 Kratos handles user registration, login, password recovery, profile management, and MFA. It does NOT handle OAuth2 or token issuance -- that is Hydra's job.
 
-```
-  Browser ──► Kratos ──► Self-service flows (login, register, recover)
-                    │
-                    └──► Identity store (Postgres)
+```text
+Browser   > Kratos   > Self-service flows (login, register, recover)
+
+                     > Identity store (Postgres)
 ```
 
 Key design decision: Kratos provides **no UI**. It exposes APIs that return JSON describing what fields to show. You build the UI yourself. This gives you total control over the look and feel, but means more work.
@@ -55,37 +55,37 @@ Key design decision: Kratos provides **no UI**. It exposes APIs that return JSON
 
 Hydra is a certified OAuth 2.0 and OpenID Connect server. It handles token issuance, consent flows, and client management. It does NOT manage users -- it delegates login and consent to external services (like Kratos).
 
-```
-  Client ──► Hydra ──► Login Provider (Kratos or your app)
-                  │
-                  └──► Consent Provider (your app)
-                  │
-                  └──► Token issuance (JWT/opaque)
+```text
+Client   > Hydra   > Login Provider (Kratos or your app)
+
+                   > Consent Provider (your app)
+
+                   > Token issuance (JWT/opaque)
 ```
 
 #### Oathkeeper -- Identity-Aware Proxy
 
 Oathkeeper sits in front of your services and enforces access rules. It is similar to volta-auth-proxy's [ForwardAuth](forwardauth.md) pattern but with its own rule configuration system.
 
-```
-  Browser ──► Oathkeeper ──► Check rules ──► Your Service
-                    │
-                    └──► Authenticate (via Kratos session, JWT, etc.)
-                    └──► Authorize (check permissions)
-                    └──► Mutate (add headers, transform tokens)
+```text
+Browser   > Oathkeeper   > Check rules   > Your Service
+
+                     > Authenticate (via Kratos session, JWT, etc.)
+                     > Authorize (check permissions)
+                     > Mutate (add headers, transform tokens)
 ```
 
 #### Keto -- Permission/Authorization Service
 
 Keto implements Google's Zanzibar permission model -- a graph-based authorization system that checks relationships like "Is alice a member of organization acme?"
 
-```
-  Your App ──► Keto: "Can alice view document-42?"
-                │
-                └──► Check relation tuples:
-                     alice is member of engineering
-                     engineering has view access to document-42
-                     → allow
+```text
+Your App   > Keto: "Can alice view document-42?"
+
+                 > Check relation tuples:
+                   alice is member of engineering
+                   engineering has view access to document-42
+                   → allow
 ```
 
 ### Ory Stack vs competitors

@@ -30,83 +30,48 @@ Think of it like an automated car wash. You drive your car (push code) into the 
 
 ### The CI/CD pipeline
 
-```
-  Developer pushes code to main branch
-       │
-       ▼
-  ┌──────────────────────────────────────────────────┐
-  │              CI/CD Pipeline                       │
-  │                                                    │
-  │  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
-  │  │  Build   │─▶│  Test   │─▶│ Package │          │
-  │  │          │  │         │  │         │          │
-  │  │ mvn      │  │ mvn     │  │ mvn     │          │
-  │  │ compile  │  │ test    │  │ package │          │
-  │  └─────────┘  └─────────┘  └────┬────┘          │
-  │                                  │               │
-  │                    ┌─────────────┴──────────┐    │
-  │                    │                        │    │
-  │               ┌────┴────┐            ┌──────┴──┐ │
-  │               │ Deploy  │            │ Deploy  │ │
-  │               │ Staging │            │  Prod   │ │
-  │               └─────────┘            └─────────┘ │
-  │                                (manual approval)  │
-  └──────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    Dev[Developer pushes to main] --> B["Build<br/>mvn compile"]
+    B --> T["Test<br/>mvn test"]
+    T --> P["Package<br/>mvn package"]
+    P --> DS[Deploy Staging]
+    DS --> DP["Deploy Prod<br/>(manual approval)"]
 ```
 
 ### CI: Build and test
 
 Every push triggers compilation and testing:
 
-```
-  git push origin main
-       │
-       ▼
-  GitHub Actions (or similar) starts:
+```text
+git push origin main
 
-  Step 1: Checkout code
-  Step 2: Set up Java 21
-  Step 3: mvn compile        ← Does it compile?
-  Step 4: mvn test           ← Do all tests pass?
-  Step 5: mvn package        ← Build the fat JAR
+GitHub Actions (or similar) starts:
 
-  ┌────────┐
-  │ Result │
-  ├────────┤
-  │ ✓ Pass │ → Ready for deployment
-  │ ✗ Fail │ → Developer notified, deploy blocked
-  └────────┘
+Step 1: Checkout code
+Step 2: Set up Java 21
+Step 3: mvn compile        ← Does it compile?
+Step 4: mvn test           ← Do all tests pass?
+Step 5: mvn package        ← Build the fat JAR
+
+  Result
+
+  ✓ Pass   → Ready for deployment
+  ✗ Fail   → Developer notified, deploy blocked
 ```
 
 ### CD: Package and deploy
 
 After tests pass, the pipeline packages and deploys:
 
-```
-  Tests pass
-       │
-       ▼
-  ┌──────────────────────────┐
-  │  Build artifact           │
-  │  volta-auth-proxy-1.2.0.jar │
-  └────────────┬─────────────┘
-               │
-       ┌───────┴───────┐
-       │               │
-       ▼               ▼
-  ┌─────────┐    ┌─────────┐
-  │ Deploy  │    │  Store  │
-  │ to      │    │ artifact│
-  │ staging │    │ (backup)│
-  └────┬────┘    └─────────┘
-       │
-  Smoke tests pass?
-       │
-       ▼
-  ┌─────────┐
-  │ Deploy  │
-  │ to prod │
-  └─────────┘
+```mermaid
+flowchart TD
+    T[Tests pass] --> A["Build artifact<br/>volta-auth-proxy-1.2.0.jar"]
+    A --> DS[Deploy to staging]
+    A --> Store["Store artifact (backup)"]
+    DS --> ST{Smoke tests pass?}
+    ST -->|yes| DP[Deploy to prod]
+    ST -->|no| Rollback[Rollback]
 ```
 
 ### Example GitHub Actions workflow
@@ -165,19 +130,17 @@ jobs:
 
 A typical CI/CD pipeline for volta includes:
 
-```
-  ┌────────────────────────────────────────────────────┐
-  │  volta-auth-proxy CI/CD Pipeline                   │
-  │                                                     │
-  │  1. ✓ Compile (Java 21 + Maven)                    │
-  │  2. ✓ Run unit tests                               │
-  │  3. ✓ Run integration tests (test DB + Flyway)     │
-  │  4. ✓ Check dependencies for vulnerabilities       │
-  │  5. ✓ Build fat JAR                                │
-  │  6. ✓ Deploy to staging                            │
-  │  7. ✓ Run smoke tests on staging                   │
-  │  8. ◎ Deploy to production (manual gate)           │
-  └────────────────────────────────────────────────────┘
+```text
+volta-auth-proxy CI/CD Pipeline
+
+1. ✓ Compile (Java 21 + Maven)
+2. ✓ Run unit tests
+3. ✓ Run integration tests (test DB + Flyway)
+4. ✓ Check dependencies for vulnerabilities
+5. ✓ Build fat JAR
+6. ✓ Deploy to staging
+7. ✓ Run smoke tests on staging
+8. ◎ Deploy to production (manual gate)
 ```
 
 ### What CI/CD validates for volta
@@ -198,14 +161,13 @@ The pipeline runs [Flyway migrations](migration.md) against a test database to v
 - Existing migrations have not been modified (checksum validation)
 - Application code works with the new schema
 
-```
-  CI Pipeline:
-  ┌────────────────────────────────────────┐
-  │ 1. Start test PostgreSQL (Docker)      │
-  │ 2. Flyway migrate (apply all V*.sql)   │
-  │ 3. Run tests against migrated DB       │
-  │ 4. Destroy test DB                     │
-  └────────────────────────────────────────┘
+```text
+CI Pipeline:
+
+  1. Start test PostgreSQL (Docker)
+  2. Flyway migrate (apply all V*.sql)
+  3. Run tests against migrated DB
+  4. Destroy test DB
 ```
 
 ---

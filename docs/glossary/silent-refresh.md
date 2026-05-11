@@ -32,95 +32,90 @@ Without silent refresh, developers face a bad choice: long-lived tokens (insecur
 
 ### The refresh cycle
 
-```
-  Time ──────────────────────────────────────────────────►
+```text
+Time                                                   >
 
-  0:00   User logs in
-         volta issues JWT (expires at 0:05)
-         volta-sdk-js stores JWT in memory
+0:00   User logs in
+       volta issues JWT (expires at 0:05)
+       volta-sdk-js stores JWT in memory
 
-  0:04   SDK detects JWT expires in < 1 minute
-         SDK calls POST /api/v1/auth/token
-         (with __volta_session cookie)
-         volta issues new JWT (expires at 0:09)
-         SDK replaces old JWT with new one
+0:04   SDK detects JWT expires in < 1 minute
+       SDK calls POST /api/v1/auth/token
+       (with __volta_session cookie)
+       volta issues new JWT (expires at 0:09)
+       SDK replaces old JWT with new one
 
-  0:08   SDK detects JWT expires in < 1 minute
-         SDK calls POST /api/v1/auth/token
-         volta issues new JWT (expires at 0:13)
-         ...
+0:08   SDK detects JWT expires in < 1 minute
+       SDK calls POST /api/v1/auth/token
+       volta issues new JWT (expires at 0:13)
+       ...
 
-  This repeats every ~4 minutes, invisibly,
-  for the entire 8-hour session.
+This repeats every ~4 minutes, invisibly,
+for the entire 8-hour session.
 ```
 
 ### The 401-based refresh
 
-```
-  API call with expired JWT:
-  ┌──────────────────────────────────────────────────┐
-  │  App code:  fetch("/api/data", { jwt })          │
-  │                                                  │
-  │  Server: JWT expired → 401 Unauthorized          │
-  │                                                  │
-  │  volta-sdk-js intercepts the 401:               │
-  │  1. Call POST /api/v1/auth/token                │
-  │     (cookie-based, no JWT needed)               │
-  │  2. Receive new JWT                             │
-  │  3. Retry the original request with new JWT     │
-  │  4. Return the response to app code             │
-  │                                                  │
-  │  App code never sees the 401.                    │
-  │  It just gets the data, slightly delayed.        │
-  └──────────────────────────────────────────────────┘
+```text
+API call with expired JWT:
+
+   App code:  fetch("/api/data", { jwt })
+
+   Server: JWT expired → 401 Unauthorized
+
+   volta-sdk-js intercepts the 401:
+   1. Call POST /api/v1/auth/token
+      (cookie-based, no JWT needed)
+   2. Receive new JWT
+   3. Retry the original request with new JWT
+   4. Return the response to app code
+
+   App code never sees the 401.
+   It just gets the data, slightly delayed.
 ```
 
 ### Proactive vs. reactive refresh
 
-```
-  Proactive (before expiry):
-  ┌──────────────────────────────────────────┐
-  │  JWT expires at T+5:00                   │
-  │  SDK refreshes at T+4:00 (1 min early)  │
-  │  No 401 ever occurs                     │
-  │  No retry needed                        │
-  │  Best user experience                   │
-  └──────────────────────────────────────────┘
+```text
+Proactive (before expiry):
 
-  Reactive (after expiry):
-  ┌──────────────────────────────────────────┐
-  │  JWT expires at T+5:00                   │
-  │  SDK calls API at T+5:30                 │
-  │  Server returns 401                      │
-  │  SDK refreshes, retries                  │
-  │  Slight delay, but user doesn't notice   │
-  └──────────────────────────────────────────┘
+   JWT expires at T+5:00
+   SDK refreshes at T+4:00 (1 min early)
+   No 401 ever occurs
+   No retry needed
+   Best user experience
 
-  volta-sdk-js supports both strategies.
+Reactive (after expiry):
+
+   JWT expires at T+5:00
+   SDK calls API at T+5:30
+   Server returns 401
+   SDK refreshes, retries
+   Slight delay, but user doesn't notice
+
+volta-sdk-js supports both strategies.
 ```
 
 ### What the session cookie enables
 
-```
-  Why silent refresh works without a refresh token:
+```text
+Why silent refresh works without a refresh token:
 
-  ┌─────────────────────────────────────────────────┐
-  │  Traditional approach:                          │
-  │  Access token (5 min) + Refresh token (7 days)  │
-  │  Refresh token stored in... where?              │
-  │  localStorage? (XSS risk)                       │
-  │  httpOnly cookie? (then why not just use it?)   │
-  │                                                 │
-  │  volta's approach:                              │
-  │  JWT (5 min) + Session cookie (8h)              │
-  │  Session cookie is httpOnly, Secure, SameSite   │
-  │  It IS the refresh mechanism.                   │
-  │  No separate refresh token needed.              │
-  └─────────────────────────────────────────────────┘
+   Traditional approach:
+   Access token (5 min) + Refresh token (7 days)
+   Refresh token stored in... where?
+   localStorage? (XSS risk)
+   httpOnly cookie? (then why not just use it?)
 
-  POST /api/v1/auth/token
-  Cookie: __volta_session=abc123  ← This proves identity
-  Response: { "token": "eyJhbG..." }  ← New JWT
+   volta's approach:
+   JWT (5 min) + Session cookie (8h)
+   Session cookie is httpOnly, Secure, SameSite
+   It IS the refresh mechanism.
+   No separate refresh token needed.
+
+POST /api/v1/auth/token
+Cookie: __volta_session=abc123  ← This proves identity
+Response: { "token": "eyJhbG..." }  ← New JWT
 ```
 
 ---
@@ -142,22 +137,21 @@ The session's [sliding window](sliding-window-expiry.md) is also extended on thi
 
 The SDK handles silent refresh transparently:
 
-```
-  volta-sdk-js lifecycle:
-  ┌────────────────────────────────────────────┐
-  │  1. Initialize SDK                        │
-  │  2. Fetch initial JWT from token endpoint │
-  │  3. Start refresh timer (JWT exp - 60s)   │
-  │  4. On timer fire:                        │
-  │     └── Call token endpoint               │
-  │     └── Update in-memory JWT              │
-  │     └── Reset timer                       │
-  │  5. On 401 response:                      │
-  │     └── Call token endpoint               │
-  │     └── Retry failed request              │
-  │  6. On token endpoint failure:            │
-  │     └── Session expired → redirect login  │
-  └────────────────────────────────────────────┘
+```text
+volta-sdk-js lifecycle:
+
+   1. Initialize SDK
+   2. Fetch initial JWT from token endpoint
+   3. Start refresh timer (JWT exp - 60s)
+   4. On timer fire:
+          Call token endpoint
+          Update in-memory JWT
+          Reset timer
+   5. On 401 response:
+          Call token endpoint
+          Retry failed request
+   6. On token endpoint failure:
+          Session expired → redirect login
 ```
 
 ### What happens when the session expires

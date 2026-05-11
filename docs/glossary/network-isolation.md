@@ -49,23 +49,19 @@ Network isolation follows the **principle of least privilege**: each component c
 
 volta uses [Docker](docker.md) networks to create isolation:
 
-```
-  Internet
-  ═══════════════════════════════════════
-       │ (only port 443 exposed)
-       ▼
-  ┌─────────────────────────────────────┐
-  │  Reverse Proxy (Traefik/Nginx)      │  ← connected to BOTH networks
-  └─────────────────────────────────────┘
-       │
-  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
-       │  Docker internal network
-       ▼
-  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-  │ volta-auth   │  │  Your App    │  │  PostgreSQL   │
-  │ :8080        │  │  :3000       │  │  :5432        │
-  └──────────────┘  └──────────────┘  └──────────────┘
-       NOT accessible from internet
+```text
+Internet
+
+       (only port 443 exposed)
+
+   Reverse Proxy (Traefik/Nginx)         ← connected to BOTH networks
+
+        Docker internal network
+
+  volta-auth         Your App          PostgreSQL
+  :8080              :3000             :5432
+
+     NOT accessible from internet
 ```
 
 What can talk to what:

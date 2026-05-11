@@ -31,25 +31,21 @@ Studies consistently show that a large percentage of planned features are never 
 
 ### The YAGNI decision process
 
-```
-  New feature idea arrives
-        │
-        ▼
-  Is there a concrete, current requirement?
-        │
-   ┌────┴────┐
-   No        Yes
-   │          │
-   ▼          ▼
-  STOP.     Is it the simplest solution
-  Write     that meets the requirement?
-  it down       │
-  for later  ┌──┴──┐
-             No    Yes
-             │      │
-             ▼      ▼
-         Simplify  BUILD IT
-         first
+```text
+New feature idea arrives
+
+Is there a concrete, current requirement?
+
+ No        Yes
+
+STOP.     Is it the simplest solution
+Write     that meets the requirement?
+it down
+for later
+           No    Yes
+
+       Simplify  BUILD IT
+       first
 ```
 
 ### What YAGNI is NOT

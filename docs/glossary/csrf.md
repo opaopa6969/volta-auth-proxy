@@ -32,38 +32,37 @@ The scary part: the user does nothing wrong. They do not click a suspicious link
 
 Imagine you are logged into your bank at `https://bank.example.com`. The bank uses a cookie to track your session (as all banks do).
 
-```
-  Step 1: You log into your bank. Your browser stores a session cookie.
+```text
+Step 1: You log into your bank. Your browser stores a session cookie.
 
-    Browser cookie jar:
-    ┌────────────────────────────────────────┐
-    │  bank.example.com: session=abc123xyz   │
-    └────────────────────────────────────────┘
+  Browser cookie jar:
 
-  Step 2: While still logged in, you visit a different website
-          (maybe a fun cat picture site: evil-cats.example.com)
+     bank.example.com: session=abc123xyz
 
-  Step 3: That website has this hidden HTML:
+Step 2: While still logged in, you visit a different website
+        (maybe a fun cat picture site: evil-cats.example.com)
 
-    <form action="https://bank.example.com/transfer" method="POST"
-          style="display:none">
-      <input name="to" value="attacker-account-999">
-      <input name="amount" value="10000">
-    </form>
-    <script>document.forms[0].submit();</script>
+Step 3: That website has this hidden HTML:
 
-  Step 4: Your browser automatically:
-    a) Creates a POST request to bank.example.com/transfer
-    b) Attaches the bank's session cookie (because the request
-       goes TO bank.example.com, the browser sends its cookies)
-    c) Sends the form data (to=attacker, amount=10000)
+  <form action="https://bank.example.com/transfer" method="POST"
+        style="display:none">
+    <input name="to" value="attacker-account-999">
+    <input name="amount" value="10000">
+  </form>
+  <script>document.forms[0].submit();</script>
 
-  Step 5: The bank receives the request. It looks legitimate:
-    - Valid session cookie ✓
-    - Valid form data ✓
-    - The bank cannot tell this came from evil-cats.example.com
+Step 4: Your browser automatically:
+  a) Creates a POST request to bank.example.com/transfer
+  b) Attaches the bank's session cookie (because the request
+     goes TO bank.example.com, the browser sends its cookies)
+  c) Sends the form data (to=attacker, amount=10000)
 
-  Step 6: $10,000 transferred to the attacker.
+Step 5: The bank receives the request. It looks legitimate:
+  - Valid session cookie ✓
+  - Valid form data ✓
+  - The bank cannot tell this came from evil-cats.example.com
+
+Step 6: $10,000 transferred to the attacker.
 ```
 
 The key insight: **browsers automatically attach cookies to any request going to a domain, regardless of which website initiated the request.** This is how cookies are designed to work -- it is a feature, not a bug. CSRF exploits this feature.
@@ -72,39 +71,38 @@ The key insight: **browsers automatically attach cookies to any request going to
 
 The defense is simple: include a secret token in every form that only your website knows.
 
-```
-  Step 1: When volta renders an HTML form, it includes a hidden token:
+```text
+Step 1: When volta renders an HTML form, it includes a hidden token:
 
-    <form action="/admin/members/change-role" method="POST">
-      <input type="hidden" name="_csrf" value="Kj8mX2pQ...random...">
-      <select name="role">...</select>
-      <button>Change Role</button>
-    </form>
+  <form action="/admin/members/change-role" method="POST">
+    <input type="hidden" name="_csrf" value="Kj8mX2pQ...random...">
+    <select name="role">...</select>
+    <button>Change Role</button>
+  </form>
 
-    This token is unique to the user's session and is stored
-    server-side in the sessions table.
+  This token is unique to the user's session and is stored
+  server-side in the sessions table.
 
-  Step 2: When the form is submitted, the server checks:
+Step 2: When the form is submitted, the server checks:
 
-    a) Is the _csrf token present? ─── No ──► 403 Forbidden
-    b) Does it match the session's CSRF token? ─── No ──► 403 Forbidden
-    c) Both yes? ──► Process the request
+  a) Is the _csrf token present?     No   > 403 Forbidden
+  b) Does it match the session's CSRF token?     No   > 403 Forbidden
+  c) Both yes?   > Process the request
 
-  Why the attacker cannot win:
+Why the attacker cannot win:
 
-    The attacker's evil page:
-    ┌────────────────────────────────────────────┐
-    │  <form action="https://volta.example.com/  │
-    │        admin/members/change-role">          │
-    │    <input name="role" value="OWNER">        │
-    │    <input name="_csrf" value="???">          │
-    │  </form>                                    │
-    │                                             │
-    │  The attacker does NOT know the CSRF token. │
-    │  They cannot read volta's pages (same-origin│
-    │  policy prevents cross-origin reads).        │
-    │  The form submission will be rejected.       │
-    └────────────────────────────────────────────┘
+  The attacker's evil page:
+
+     <form action="https://volta.example.com/
+           admin/members/change-role">
+       <input name="role" value="OWNER">
+       <input name="_csrf" value="???">
+     </form>
+
+     The attacker does NOT know the CSRF token.
+     They cannot read volta's pages (same-origin
+     policy prevents cross-origin reads).
+     The form submission will be rejected.
 ```
 
 ### How SameSite cookies help
@@ -117,25 +115,23 @@ Modern browsers support a cookie attribute called `SameSite`, which controls whe
 | `Lax` (default in modern browsers) | Cookie is sent on top-level navigation (clicking a link) but NOT on POST requests, iframes, or AJAX from other sites. This blocks most CSRF attacks. |
 | `None` | Cookie is always sent. Must be combined with `Secure` flag. This is the old behavior. |
 
-```
-  SameSite=Lax protects against:
+```text
+SameSite=Lax protects against:
 
-  evil-cats.example.com                 volta.example.com
-  ┌──────────────────────┐              ┌──────────────────┐
-  │  <form method="POST" │              │                  │
-  │   action="volta..."> │              │  Cookie NOT sent │
-  │  </form>             │──── POST ───►│  (blocked!)      │
-  │  <script>submit()    │              │                  │
-  └──────────────────────┘              └──────────────────┘
+evil-cats.example.com                 volta.example.com
 
-  BUT allows:
+   <form method="POST"
+    action="volta...">                   Cookie NOT sent
+   </form>                   POST    >   (blocked!)
+   <script>submit()
 
-  email with link                       volta.example.com
-  ┌──────────────────────┐              ┌──────────────────┐
-  │  Click here to       │              │                  │
-  │  view your dashboard │── GET link ─►│  Cookie IS sent  │
-  │                      │              │  (top-level nav)  │
-  └──────────────────────┘              └──────────────────┘
+BUT allows:
+
+email with link                       volta.example.com
+
+   Click here to
+   view your dashboard     GET link  >   Cookie IS sent
+                                         (top-level nav)
 ```
 
 ---
@@ -152,24 +148,24 @@ The `__volta_session` cookie is set with `SameSite=Lax`, which blocks cross-orig
 
 For traditional HTML form submissions (POST, PATCH, DELETE), volta generates a CSRF token stored in the session record and requires it in every form submission:
 
-```
-  Main.java - CSRF middleware:
+```text
+Main.java - CSRF middleware:
 
-  1. Check: Is this a POST/PATCH/DELETE request?
-     ├── No  → Skip CSRF check
-     └── Yes → Continue
+1. Check: Is this a POST/PATCH/DELETE request?
+       No  → Skip CSRF check
+       Yes → Continue
 
-  2. Check: Is this a JSON/XHR request?
-     ├── Yes → Skip (JSON + SameSite is sufficient)
-     └── No  → Continue (this is an HTML form)
+2. Check: Is this a JSON/XHR request?
+       Yes → Skip (JSON + SameSite is sufficient)
+       No  → Continue (this is an HTML form)
 
-  3. Check: Is there a session cookie?
-     ├── No  → 403 "CSRF token invalid"
-     └── Yes → Continue
+3. Check: Is there a session cookie?
+       No  → 403 "CSRF token invalid"
+       Yes → Continue
 
-  4. Check: Does the _csrf parameter match the session's token?
-     ├── No  → 403 "CSRF token invalid"
-     └── Yes → Process request
+4. Check: Does the _csrf parameter match the session's token?
+       No  → 403 "CSRF token invalid"
+       Yes → Process request
 ```
 
 ### Layer 3: JSON API exemption

@@ -34,19 +34,18 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0yMDI2LTAzLTMxVDA5LTAwIn0.eyJp
 
 Let's break it apart:
 
-```
+```text
 HEADER.PAYLOAD.SIGNATURE
 
   Part 1: Header          Part 2: Payload         Part 3: Signature
   (metadata)              (the actual data)        (proof of integrity)
-  ┌──────────────┐        ┌──────────────────┐     ┌──────────────────┐
-  │ {            │        │ {                │     │                  │
-  │  "alg":"RS256│        │  "sub":"user-id" │     │  (binary data    │
-  │  "typ":"JWT" │        │  "exp":171190..  │     │   that proves    │
-  │  "kid":"key-"│        │  "volta_tid":... │     │   parts 1+2      │
-  │ }            │        │  ...             │     │   were not        │
-  └──────────────┘        │ }                │     │   tampered with)  │
-                          └──────────────────┘     └──────────────────┘
+
+    {                       {
+     "alg":"RS256            "sub":"user-id"          (binary data
+     "typ":"JWT"             "exp":171190..            that proves
+     "kid":"key-"            "volta_tid":...           parts 1+2
+    }                        ...                       were not
+                            }                          tampered with)
 ```
 
 Each part is **Base64URL-encoded** (a way to represent binary data as URL-safe text). They are NOT encrypted. Anyone can decode them.
@@ -154,34 +153,27 @@ The signature is created by taking the header + "." + payload, and signing it wi
 
 ### JWT lifecycle in volta
 
-```
-  1. User logs in via Google OIDC
-                │
-                ▼
-  2. volta creates a session (cookie-based, 8 hours)
-                │
-                ▼
-  3. volta issues a JWT (RS256, 5-minute expiry)
-     ┌────────────────────────────────────┐
-     │  JWT contains: user ID, tenant ID, │
-     │  roles, display name, tenant slug  │
-     └────────────────────────────────────┘
-                │
-                ▼
-  4. JWT is sent to apps via:
-     - X-Volta-JWT header (ForwardAuth)
-     - Authorization: Bearer <jwt> (Internal API)
-                │
-                ▼
-  5. App verifies JWT locally using JWKS public key
-     (no callback to volta needed)
-                │
-                ▼
-  6. JWT expires after 5 minutes
-                │
-                ▼
-  7. volta-sdk-js detects 401 -> calls /auth/refresh
-     -> gets new JWT from valid session -> retries
+```text
+1. User logs in via Google OIDC
+
+2. volta creates a session (cookie-based, 8 hours)
+
+3. volta issues a JWT (RS256, 5-minute expiry)
+
+      JWT contains: user ID, tenant ID,
+      roles, display name, tenant slug
+
+4. JWT is sent to apps via:
+   - X-Volta-JWT header (ForwardAuth)
+   - Authorization: Bearer <jwt> (Internal API)
+
+5. App verifies JWT locally using JWKS public key
+   (no callback to volta needed)
+
+6. JWT expires after 5 minutes
+
+7. volta-sdk-js detects 401 -> calls /auth/refresh
+   -> gets new JWT from valid session -> retries
 ```
 
 ### Why 5-minute expiry?

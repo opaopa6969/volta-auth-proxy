@@ -48,19 +48,17 @@ HTML is the **frame of the house**. It defines: "There's a heading here, a parag
 
 This creates:
 
-```
-  ┌─────────────────────────────────┐
-  │  Welcome to Our Store           │  <-- big heading
-  │                                 │
-  │  We sell the freshest fruit     │  <-- paragraph
-  │  in town!                       │
-  │                                 │
-  │  • Apples                       │  <-- list
-  │  • Bananas                      │
-  │  • Oranges                      │
-  │                                 │
-  │  [Add to Cart]                  │  <-- button
-  └─────────────────────────────────┘
+```text
+Welcome to Our Store              <-- big heading
+
+We sell the freshest fruit        <-- paragraph
+in town!
+
+• Apples                          <-- list
+• Bananas
+• Oranges
+
+[Add to Cart]                     <-- button
 ```
 
 ---

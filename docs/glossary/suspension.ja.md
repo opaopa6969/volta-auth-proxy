@@ -18,35 +18,27 @@
 
 サスペンションはマルチテナントSaaSの重要な運用ツールです：
 
-```
-  シナリオ1：課金失敗
-  ┌──────────────────────────────────────┐
-  │ Stripe：「Acmeの支払いが失敗」        │
-  │   → voltaがAcmeテナントを停止         │
-  │   → Acmeの50人全員がロックアウト       │
-  │   → Acmeが支払い方法を更新            │
-  │   → voltaがテナントを再有効化          │
-  │   → 50人全員が再びログイン可能         │
-  └──────────────────────────────────────┘
+**シナリオ1: 課金失敗**
+- Stripe: 「Acme の支払いが失敗」
+- -> volta が Acme テナントを停止
+- -> Acme の 50 人全員がロックアウト
+- -> Acme が支払い方法を更新
+- -> volta がテナントを再有効化
+- -> 50 人全員が再びログイン可能
 
-  シナリオ2：セキュリティインシデント
-  ┌──────────────────────────────────────┐
-  │ 不審なアクティビティを検出             │
-  │   → 管理者がテナントを停止             │
-  │   → すべてのセッションが即座に取り消し  │
-  │   → 調査を実施                        │
-  │   → 問題解決、テナント再有効化          │
-  └──────────────────────────────────────┘
+**シナリオ2: セキュリティインシデント**
+- 不審なアクティビティを検出
+- -> 管理者がテナントを停止
+- -> すべてのセッションが即座に取り消し
+- -> 調査を実施
+- -> 問題解決、テナント再有効化
 
-  シナリオ3：利用規約違反
-  ┌──────────────────────────────────────┐
-  │ テナントがToSに違反                    │
-  │   → 管理者がテナントを停止             │
-  │   → 法的保全のためデータ保持           │
-  │   → テナントがサポートに連絡           │
-  │   → 問題解決またはデータエクスポート    │
-  └──────────────────────────────────────┘
-```
+**シナリオ3: 利用規約違反**
+- テナントが ToS に違反
+- -> 管理者がテナントを停止
+- -> 法的保全のためデータ保持
+- -> テナントがサポートに連絡
+- -> 問題解決またはデータエクスポート
 
 サスペンションがないと、選択肢は「アクティブ」か「削除」だけです。一時的な状況に対する中間地帯がありません。
 
@@ -56,32 +48,16 @@
 
 ### サスペンションの仕組み
 
+```mermaid
+flowchart TD
+    T[トリガー: 管理者/課金/ポリシー] --> S1["tenant.status = SUSPENDED に設定<br/>tenant.suspended_at = NOW()<br/>tenant.suspended_reason = '...'"]
+    S1 --> S2["すべてのアクティブセッションを取り消し<br/>DELETE FROM sessions<br/>WHERE tenant_id = :tid"]
+    S2 --> S3["すべての Cookie を無効化<br/>(セッション消失 -> Cookie は孤立)"]
+    S3 --> S4["Webhook Outbox に書き込み<br/>イベント: tenant.suspended"]
+    S4 --> S5["以降のログイン試行はすべて -> 403<br/>「組織が停止されています」"]
 ```
-  ┌─────────────────────────────────────────────────┐
-  │              サスペンションプロセス                  │
-  │                                                   │
-  │  1. トリガー（管理者/課金/ポリシー）                 │
-  │     │                                             │
-  │  2. ▼ tenant.status = SUSPENDEDに設定              │
-  │     │  tenant.suspended_at = NOW()                 │
-  │     │  tenant.suspended_reason = "..."             │
-  │     │                                             │
-  │  3. ▼ すべてのアクティブセッションを取り消し          │
-  │     │  DELETE FROM sessions                        │
-  │     │  WHERE tenant_id = :tid                      │
-  │     │                                             │
-  │  4. ▼ すべてのCookieを無効化                       │
-  │     │  （セッション消失 → Cookieは孤立）             │
-  │     │                                             │
-  │  5. ▼ Webhook Outboxに書き込み                     │
-  │     │  イベント：tenant.suspended                   │
-  │     │                                             │
-  │  6. ▼ 以降のログイン試行はすべて → 403              │
-  │     │  「組織が停止されています」                    │
-  │     │                                             │
-  │  すべて1つのデータベーストランザクション内            │
-  └─────────────────────────────────────────────────┘
-```
+
+すべて1つのデータベーストランザクション内で実行。
 
 ### サスペンション中にブロックされるもの
 
@@ -99,48 +75,22 @@
 
 ### 再有効化
 
-```
-  ┌─────────────────────────────────────────────────┐
-  │              再有効化プロセス                      │
-  │                                                   │
-  │  1. トリガー（管理者/課金復旧）                    │
-  │     │                                             │
-  │  2. ▼ tenant.status = ACTIVEに設定                │
-  │     │  tenant.reactivated_at = NOW()               │
-  │     │  suspended_reasonをクリア                     │
-  │     │                                             │
-  │  3. ▼ Webhook Outboxに書き込み                     │
-  │     │  イベント：tenant.reactivated                │
-  │     │                                             │
-  │  4. ▼ ユーザーが再びログイン可能に                  │
-  │     │  （新しいセッションが必要 - 古いものは         │
-  │     │   サスペンション中に取り消し済み）              │
-  └─────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    T[トリガー: 管理者 / 課金復旧] --> R1["tenant.status = ACTIVE に設定<br/>tenant.reactivated_at = NOW()<br/>suspended_reason をクリア"]
+    R1 --> R2["Webhook Outbox に書き込み<br/>イベント: tenant.reactivated"]
+    R2 --> R3["ユーザーが再びログイン可能に<br/>(新しいセッションが必要 - 古いものは取り消し済み)"]
 ```
 
 ### テナント状態のステートマシン
 
-```
-  ┌──────────┐
-  │  ACTIVE  │◄────────────────────────────┐
-  │          │                             │
-  └────┬─────┘                             │
-       │                                   │
-       │ suspend()                reactivate()
-       │                                   │
-       ▼                                   │
-  ┌──────────┐                             │
-  │SUSPENDED │─────────────────────────────┘
-  │          │
-  └────┬─────┘
-       │
-       │ delete()（永久、まれ）
-       │
-       ▼
-  ┌──────────┐
-  │ DELETED  │  （ソフトデリート、データは
-  │          │   コンプライアンス期間保持）
-  └──────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE
+    ACTIVE --> SUSPENDED: suspend()
+    SUSPENDED --> ACTIVE: reactivate()
+    SUSPENDED --> DELETED: delete()（永久、まれ）
+    DELETED: DELETED<br/>(ソフトデリート、データは<br/>コンプライアンス期間保持)
 ```
 
 ---
@@ -170,19 +120,16 @@
 
 voltaがStripeから`customer.subscription.deleted`イベントを[取り込む](ingestion.md)と：
 
-```
-  Stripe                   volta-auth-proxy
-  ======                   ================
-
-  subscription.deleted ──► POST /webhooks/stripe
-                            │
-                            ├─ Stripe署名を検証
-                            ├─ Stripeカスタマー → voltaテナントにマッピング
-                            ├─ tenant.suspend(reason="billing")
-                            │    ├─ 全セッション取り消し
-                            │    ├─ Outbox書き込み：tenant.suspended
-                            │    └─ 成功を返す
-                            └─ Stripeに200を返す
+```mermaid
+sequenceDiagram
+    participant Stripe
+    participant Volta as volta-auth-proxy
+    Stripe->>Volta: POST /webhooks/stripe (subscription.deleted)
+    Volta->>Volta: Stripe 署名を検証
+    Volta->>Volta: Stripe カスタマー -> volta テナントにマッピング
+    Volta->>Volta: tenant.suspend(reason="billing")
+    Note over Volta: 全セッション取り消し<br/>Outbox 書き込み: tenant.suspended
+    Volta-->>Stripe: 200 OK
 ```
 
 ### 認証フローでのサスペンション状態チェック

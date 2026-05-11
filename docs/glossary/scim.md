@@ -18,27 +18,26 @@ SCIM defines a REST API with standardized endpoints (`/Users`, `/Groups`) and a 
 
 Without SCIM, IT admins face a nightmare:
 
-```
-  Manual provisioning (without SCIM):
-  ┌──────────┐
-  │ IT Admin │──── Create account in App A
-  │          │──── Create account in App B
-  │          │──── Create account in App C
-  │          │──── Create account in App D
-  │          │──── ... (for every new employee)
-  │          │
-  │          │──── Employee leaves?
-  │          │──── Delete from App A (maybe forgot App B...)
-  └──────────┘
+```text
+Manual provisioning (without SCIM):
 
-  Automated provisioning (with SCIM):
-  ┌──────────┐     ┌─────────┐     ┌───────┐
-  │ IT Admin │────►│  Okta   │────►│ App A │ (SCIM)
-  │          │     │ (IdP)   │────►│ App B │ (SCIM)
-  │          │     │         │────►│ App C │ (SCIM)
-  │          │     │         │────►│ App D │ (SCIM)
-  └──────────┘     └─────────┘     └───────┘
-  (one action)     (auto-syncs all apps)
+  IT Admin       Create account in App A
+                 Create account in App B
+                 Create account in App C
+                 Create account in App D
+                 ... (for every new employee)
+
+                 Employee leaves?
+                 Delete from App A (maybe forgot App B...)
+
+Automated provisioning (with SCIM):
+
+  IT Admin      >   Okta        >  App A   (SCIM)
+                   (IdP)        >  App B   (SCIM)
+                                >  App C   (SCIM)
+                                >  App D   (SCIM)
+
+(one action)     (auto-syncs all apps)
 ```
 
 Key benefits:
@@ -98,56 +97,50 @@ SCIM 2.0 (RFC 7644) defines these standard endpoints:
 
 ### The provisioning flow
 
-```
-  Okta (Identity Provider)              volta-auth-proxy (Service Provider)
-  =========================              ==================================
+```text
+Okta (Identity Provider)              volta-auth-proxy (Service Provider)
+=========================              ==================================
 
-  1. IT admin creates user "Alice" in Okta.
-     Okta has volta configured as a SCIM app.
+1. IT admin creates user "Alice" in Okta.
+   Okta has volta configured as a SCIM app.
 
-  2. Okta sends:
-     POST /scim/v2/Users
-     Authorization: Bearer <scim-api-token>
-     {
-       "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-       "userName": "alice@acme.com",
-       "name": {"givenName": "Alice", "familyName": "Smith"},
-       "emails": [{"value": "alice@acme.com", "primary": true}],
-       "active": true
-     }
+2. Okta sends:
+   POST /scim/v2/Users
+   Authorization: Bearer <scim-api-token>
+   {
+     "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+     "userName": "alice@acme.com",
+     "name": {"givenName": "Alice", "familyName": "Smith"},
+     "emails": [{"value": "alice@acme.com", "primary": true}],
+     "active": true
+   }
 
-  ──────────────────────────────────────────────────────────►
+                                      3. volta creates user:
+                                         - Creates account
+                                         - Assigns to tenant
+                                         - Sets default role (MEMBER)
+                                         - Returns SCIM response
 
-                                        3. volta creates user:
-                                           - Creates account
-                                           - Assigns to tenant
-                                           - Sets default role (MEMBER)
-                                           - Returns SCIM response
+4. Okta stores volta's user ID (externalId mapping).
+   Future updates use this ID.
 
-  ◄──────────────────────────────────────────────────────────
+=== Later: Alice is deactivated in Okta ===
 
-  4. Okta stores volta's user ID (externalId mapping).
-     Future updates use this ID.
+5. Okta sends:
+   PATCH /scim/v2/Users/{volta-user-id}
+   {
+     "schemas": [
+       "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+     ],
+     "Operations": [
+       {"op": "replace", "path": "active", "value": false}
+     ]
+   }
 
-  === Later: Alice is deactivated in Okta ===
-
-  5. Okta sends:
-     PATCH /scim/v2/Users/{volta-user-id}
-     {
-       "schemas": [
-         "urn:ietf:params:scim:api:messages:2.0:PatchOp"
-       ],
-       "Operations": [
-         {"op": "replace", "path": "active", "value": false}
-       ]
-     }
-
-  ──────────────────────────────────────────────────────────►
-
-                                        6. volta deactivates user:
-                                           - Revokes all sessions
-                                           - Marks account inactive
-                                           - User can no longer log in
+                                      6. volta deactivates user:
+                                         - Revokes all sessions
+                                         - Marks account inactive
+                                         - User can no longer log in
 ```
 
 ### SCIM filtering
@@ -179,25 +172,24 @@ Identity providers query for existing users before creating them (to avoid dupli
 
 volta implements SCIM 2.0 service provider endpoints under `/scim/v2/*`:
 
-```
-  volta-auth-proxy SCIM endpoints:
-  ┌─────────────────────────────────────────────────┐
-  │  POST   /scim/v2/Users          → Create user   │
-  │  GET    /scim/v2/Users/:id      → Get user      │
-  │  GET    /scim/v2/Users?filter=  → Search users   │
-  │  PUT    /scim/v2/Users/:id      → Replace user   │
-  │  PATCH  /scim/v2/Users/:id      → Update user    │
-  │  DELETE /scim/v2/Users/:id      → Delete user    │
-  │                                                  │
-  │  POST   /scim/v2/Groups         → Create group   │
-  │  GET    /scim/v2/Groups/:id     → Get group      │
-  │  PATCH  /scim/v2/Groups/:id     → Update group   │
-  │  DELETE /scim/v2/Groups/:id     → Delete group   │
-  │                                                  │
-  │  GET    /scim/v2/ServiceProviderConfig            │
-  │  GET    /scim/v2/Schemas                          │
-  │  GET    /scim/v2/ResourceTypes                    │
-  └─────────────────────────────────────────────────┘
+```text
+volta-auth-proxy SCIM endpoints:
+
+   POST   /scim/v2/Users          → Create user
+   GET    /scim/v2/Users/:id      → Get user
+   GET    /scim/v2/Users?filter=  → Search users
+   PUT    /scim/v2/Users/:id      → Replace user
+   PATCH  /scim/v2/Users/:id      → Update user
+   DELETE /scim/v2/Users/:id      → Delete user
+
+   POST   /scim/v2/Groups         → Create group
+   GET    /scim/v2/Groups/:id     → Get group
+   PATCH  /scim/v2/Groups/:id     → Update group
+   DELETE /scim/v2/Groups/:id     → Delete group
+
+   GET    /scim/v2/ServiceProviderConfig
+   GET    /scim/v2/Schemas
+   GET    /scim/v2/ResourceTypes
 ```
 
 ### Authentication for SCIM

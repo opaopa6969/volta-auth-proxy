@@ -16,32 +16,26 @@ Think of it like a bouncer at a restaurant. The bouncer (Traefik) stands at the 
 
 Without ForwardAuth (or something like it), every application would need to implement its own authentication:
 
-```
-  Without ForwardAuth:
-  ┌─────────┐   ┌─────────────────────┐
-  │ App A   │   │ Auth code in App A   │  ← Duplicated auth logic
-  └─────────┘   └─────────────────────┘
-  ┌─────────┐   ┌─────────────────────┐
-  │ App B   │   │ Auth code in App B   │  ← Same logic, different bugs
-  └─────────┘   └─────────────────────┘
-  ┌─────────┐   ┌─────────────────────┐
-  │ App C   │   │ Auth code in App C   │  ← Now maintain it in 3 places
-  └─────────┘   └─────────────────────┘
+**Without ForwardAuth:**
 
-  With ForwardAuth:
-  ┌─────────────────────────────────┐
-  │ volta-auth-proxy (one place)    │  ← All auth logic here
-  └─────────────────────────────────┘
-            ↑ "Is this OK?"
-  ┌─────────────────────────────────┐
-  │ Traefik (reverse proxy)         │  ← Asks volta before forwarding
-  └─────────────────────────────────┘
-       ↓ yes           ↓ no
-  ┌─────────┐     ┌─────────┐
-  │ App A   │     │ Redirect │
-  │ (no auth│     │ to login │
-  │  code!) │     └─────────┘
-  └─────────┘
+```mermaid
+flowchart LR
+    AppA["App A"] --> AuthA["Auth code in App A<br/>(Duplicated auth logic)"]
+    AppB["App B"] --> AuthB["Auth code in App B<br/>(Same logic, different bugs)"]
+    AppC["App C"] --> AuthC["Auth code in App C<br/>(Now maintain it in 3 places)"]
+```
+
+**With ForwardAuth:**
+
+```mermaid
+flowchart TB
+    Traefik["Traefik (reverse proxy)<br/>Asks volta before forwarding"]
+    Volta["volta-auth-proxy (one place)<br/>All auth logic here"]
+    AppA2["App A (no auth code!)"]
+    Login["Redirect to login"]
+    Traefik -->|"Is this OK?"| Volta
+    Volta -->|yes| AppA2
+    Volta -->|no| Login
 ```
 
 ForwardAuth means your apps have **zero authentication code**. They just read headers that Traefik passes through after volta approves the request.
@@ -52,103 +46,93 @@ ForwardAuth means your apps have **zero authentication code**. They just read he
 
 ### Request flow diagram
 
-```
-  Browser                   Traefik                volta-auth-proxy        App
-  =======                   =======                ================        ===
+```text
+Browser                   Traefik                volta-auth-proxy        App
+=======                   =======                ================        ===
 
-  1. GET /dashboard
-  ──────────────────────►
+1. GET /dashboard
 
-                           2. "Hold on, let me check auth first"
+                         2. "Hold on, let me check auth first"
 
-                              GET /auth/verify
-                              (forwards original headers:
-                               Cookie, Host, X-Forwarded-*)
-                           ──────────────────────►
+                            GET /auth/verify
+                            (forwards original headers:
+                             Cookie, Host, X-Forwarded-*)
 
-                                                   3. Read session cookie
-                                                   4. Look up session in DB
-                                                   5. Verify user + tenant
-                                                   6. Check role vs app's
-                                                      allowed_roles
-                                                   7. Issue fresh JWT
+                                                 3. Read session cookie
+                                                 4. Look up session in DB
+                                                 5. Verify user + tenant
+                                                 6. Check role vs app's
+                                                    allowed_roles
+                                                 7. Issue fresh JWT
 
-                           ◄──────────────────────
-                              200 OK
-                              X-Volta-User-Id: user-uuid
-                              X-Volta-Tenant-Id: tenant-uuid
-                              X-Volta-Roles: ADMIN
-                              X-Volta-JWT: eyJhbGci...
-                              X-Volta-Display-Name: Taro
-                              X-Volta-Email: taro@acme.com
-                              X-Volta-Tenant-Slug: acme
-                              X-Volta-App-Id: app-wiki
+                            200 OK
+                            X-Volta-User-Id: user-uuid
+                            X-Volta-Tenant-Id: tenant-uuid
+                            X-Volta-Roles: ADMIN
+                            X-Volta-JWT: eyJhbGci...
+                            X-Volta-Display-Name: Taro
+                            X-Volta-Email: taro@acme.com
+                            X-Volta-Tenant-Slug: acme
+                            X-Volta-App-Id: app-wiki
 
-                           8. "OK, user is authenticated"
-                              Forward original request
-                              + add volta headers
+                         8. "OK, user is authenticated"
+                            Forward original request
+                            + add volta headers
 
-                                                                    ──────►
-                                                                    GET /dashboard
-                                                                    X-Volta-User-Id: user-uuid
-                                                                    X-Volta-Tenant-Id: tenant-uuid
-                                                                    X-Volta-Roles: ADMIN
-                                                                    X-Volta-JWT: eyJhbGci...
+                                                                  GET /dashboard
+                                                                  X-Volta-User-Id: user-uuid
+                                                                  X-Volta-Tenant-Id: tenant-uuid
+                                                                  X-Volta-Roles: ADMIN
+                                                                  X-Volta-JWT: eyJhbGci...
 
-                                                                    9. App reads headers
-                                                                       Renders dashboard
-                                                                       for the right user
-                                                                       and tenant
+                                                                  9. App reads headers
+                                                                     Renders dashboard
+                                                                     for the right user
+                                                                     and tenant
 
-  ◄──────────────────────────────────────────────────────────────────
-  10. User sees their dashboard
+10. User sees their dashboard
 ```
 
 ### When authentication fails
 
-```
-  Browser                   Traefik                volta-auth-proxy
-  =======                   =======                ================
+```text
+Browser                   Traefik                volta-auth-proxy
+=======                   =======                ================
 
-  1. GET /dashboard
-     (no session cookie, or expired session)
-  ──────────────────────►
+1. GET /dashboard
+   (no session cookie, or expired session)
 
-                              GET /auth/verify
-                           ──────────────────────►
+                            GET /auth/verify
 
-                                                   2. No valid session found
+                                                 2. No valid session found
 
-                           ◄──────────────────────
-                              401 Unauthorized
-                              (for JSON requests)
-                              OR
-                              302 Redirect to /login
-                              (for browser requests)
+                            401 Unauthorized
+                            (for JSON requests)
+                            OR
+                            302 Redirect to /login
+                            (for browser requests)
 
-                           3. Traefik returns the 401/302 to browser
+                         3. Traefik returns the 401/302 to browser
 
-  ◄──────────────────────
-  4. Browser redirects to /login
+4. Browser redirects to /login
 ```
 
 ### Why the proxy never sees the request body
 
 This is a crucial point. In the ForwardAuth pattern:
 
-```
-  What Traefik sends to volta:          What Traefik sends to the app:
-  ┌──────────────────────────┐          ┌──────────────────────────────┐
-  │ GET /auth/verify          │          │ GET /dashboard                │
-  │ Cookie: __volta_session=  │          │ Cookie: __volta_session=      │
-  │ X-Forwarded-Host: wiki.  │          │ X-Volta-User-Id: user-uuid   │
-  │ X-Forwarded-Uri: /dash   │          │ X-Volta-Tenant-Id: tenant-id │
-  │ X-Forwarded-Method: GET  │          │ X-Volta-JWT: eyJhbGci...     │
-  │                           │          │                              │
-  │ NO REQUEST BODY           │          │ (original request body,      │
-  │                           │          │  if any, goes directly to    │
-  └──────────────────────────┘          │  the app)                    │
-                                        └──────────────────────────────┘
+```text
+What Traefik sends to volta:          What Traefik sends to the app:
+
+  GET /auth/verify                       GET /dashboard
+  Cookie: __volta_session=               Cookie: __volta_session=
+  X-Forwarded-Host: wiki.               X-Volta-User-Id: user-uuid
+  X-Forwarded-Uri: /dash                X-Volta-Tenant-Id: tenant-id
+  X-Forwarded-Method: GET               X-Volta-JWT: eyJhbGci...
+
+  NO REQUEST BODY                        (original request body,
+                                          if any, goes directly to
+                                         the app)
 ```
 
 volta-auth-proxy **never** sees the actual request body (POST data, file uploads, etc.). It only sees headers. This is important because:
@@ -161,42 +145,36 @@ volta-auth-proxy **never** sees the actual request body (POST data, file uploads
 
 Some auth systems work as full reverse proxies, where all traffic flows through them:
 
+**Reverse Proxy Pattern (NOT what volta uses):**
+
+```mermaid
+flowchart LR
+    Browser --> AuthProxy["Auth Proxy<br/>(sees ALL traffic)"]
+    AuthProxy --> App
+    App --> AuthProxy
+    AuthProxy --> Browser
 ```
-  Reverse Proxy Pattern (NOT what volta uses):
-  ┌─────────┐     ┌──────────────┐     ┌─────────┐
-  │ Browser  │────►│ Auth Proxy   │────►│   App   │
-  │          │◄────│ (sees ALL    │◄────│         │
-  │          │     │  traffic)    │     │         │
-  └─────────┘     └──────────────┘     └─────────┘
 
-  Problems:
-  - Auth proxy is a bottleneck (all traffic goes through it)
-  - Auth proxy sees request/response bodies (privacy concern)
-  - If auth proxy goes down, everything goes down
-  - Auth proxy needs to handle large file uploads, websockets, etc.
+Problems:
+- Auth proxy is a bottleneck (all traffic goes through it)
+- Auth proxy sees request/response bodies (privacy concern)
+- If auth proxy goes down, everything goes down
+- Auth proxy needs to handle large file uploads, websockets, etc.
 
+**ForwardAuth Pattern (what volta uses):**
 
-  ForwardAuth Pattern (what volta uses):
-  ┌─────────┐     ┌──────────────┐     ┌─────────┐
-  │ Browser  │────►│  Traefik     │────►│   App   │
-  │          │◄────│              │◄────│         │
-  └─────────┘     └──────────────┘     └─────────┘
-                         │
-                    "Is this OK?"
-                         │
-                  ┌──────▼───────┐
-                  │ volta-auth-  │
-                  │ proxy        │
-                  │ (sees only   │
-                  │  headers)    │
-                  └──────────────┘
-
-  Benefits:
-  - volta only handles auth checks (lightweight)
-  - Actual traffic flows directly through Traefik to app
-  - volta can go down briefly without losing in-flight requests
-  - No bottleneck for large payloads
+```mermaid
+flowchart TB
+    Browser2[Browser] --> Traefik
+    Traefik --> App2[App]
+    Traefik -->|"Is this OK?"| Volta["volta-auth-proxy<br/>(sees only headers)"]
 ```
+
+Benefits:
+- volta only handles auth checks (lightweight)
+- Actual traffic flows directly through Traefik to app
+- volta can go down briefly without losing in-flight requests
+- No bottleneck for large payloads
 
 ---
 

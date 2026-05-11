@@ -35,40 +35,35 @@ Frameworks eliminate thousands of lines of boilerplate so you can focus on what 
 
 Every web framework follows roughly the same pattern:
 
-```
-  Incoming HTTP Request
-         │
-         ▼
-  ┌──────────────────┐
-  │    Framework      │
-  │                   │
-  │  1. Parse request │
-  │  2. Match route   │──── GET /users/:id  ->  your handler
-  │  3. Run middleware │──── auth check, logging, etc.
-  │  4. Call handler   │──── YOUR CODE runs here
-  │  5. Send response  │
-  └──────────────────┘
-         │
-         ▼
-  HTTP Response back to client
+```text
+Incoming HTTP Request
+
+     Framework
+
+   1. Parse request
+   2. Match route         GET /users/:id  ->  your handler
+   3. Run middleware       auth check, logging, etc.
+   4. Call handler         YOUR CODE runs here
+   5. Send response
+
+HTTP Response back to client
 ```
 
 You register routes and handlers. The framework takes care of everything else.
 
 ### Framework vs. library: the control flow
 
-```
-  Library (you are in control):          Framework (it is in control):
-  ┌───────────────┐                      ┌───────────────┐
-  │  Your Code    │                      │  Framework    │
-  │               │                      │               │
-  │  result =     │                      │  onRequest -> │──> your handler()
-  │   lib.doX()   │──> Library           │  onError ->   │──> your errorHandler()
-  │               │                      │  onStart ->   │──> your init()
-  │  use result   │<── returns           │               │
-  └───────────────┘                      └───────────────┘
+```text
+Library (you are in control):          Framework (it is in control):
 
-  You call the library.                  The framework calls you.
+   Your Code                              Framework
+
+   result =                               onRequest ->    > your handler()
+    lib.doX()      > Library              onError ->      > your errorHandler()
+                                          onStart ->      > your init()
+   use result    <   returns
+
+You call the library.                  The framework calls you.
 ```
 
 ### Types of frameworks
@@ -84,20 +79,19 @@ You register routes and handlers. The framework takes care of everything else.
 
 This is an important distinction, especially for volta-auth-proxy's philosophy:
 
-```
-  Lightweight (Javalin):              Full-stack (Spring Boot):
-  ┌─────────────────────┐            ┌─────────────────────────────┐
-  │  HTTP routing        │            │  HTTP routing                │
-  │  Request/response    │            │  Request/response            │
-  │  Middleware hooks     │            │  Middleware (filters)        │
-  │  WebSocket support   │            │  Dependency injection        │
-  │                      │            │  ORM (JPA/Hibernate)         │
-  │  That's it.          │            │  Security (Spring Security)  │
-  │  You pick the rest.  │            │  Templating (Thymeleaf)      │
-  │                      │            │  Caching framework           │
-  └─────────────────────┘            │  Job scheduling              │
-                                     │  50+ auto-configurations     │
-                                     └─────────────────────────────┘
+```text
+Lightweight (Javalin):              Full-stack (Spring Boot):
+
+   HTTP routing                        HTTP routing
+   Request/response                    Request/response
+   Middleware hooks                     Middleware (filters)
+   WebSocket support                   Dependency injection
+                                       ORM (JPA/Hibernate)
+   That's it.                          Security (Spring Security)
+   You pick the rest.                  Templating (Thymeleaf)
+                                       Caching framework
+                                      Job scheduling
+                                      50+ auto-configurations
 ```
 
 A lightweight framework gives you just enough to handle HTTP. You choose your own [database](database.md) library, your own [template](template.md) engine, your own caching layer. A full-stack framework bundles everything together, which can be convenient but also leads to [config hell](config-hell.md).

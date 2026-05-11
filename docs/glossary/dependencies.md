@@ -57,44 +57,40 @@ volta-auth-proxy uses [Maven](maven.md) to manage dependencies. Dependencies are
 
 ### How Maven resolves dependencies
 
-```
-  pom.xml says: "I need Javalin 6.3.0"
-       │
-       ▼
-  Maven checks local cache (~/.m2/repository)
-       │
-       ├── Found? → Use it
-       │
-       └── Not found? → Download from Maven Central
-                              │
-                              ▼
-                   ┌──────────────────┐
-                   │  Maven Central   │
-                   │  (repository)    │
-                   │                  │
-                   │  javalin-6.3.0   │
-                   │    └─ needs:     │
-                   │      jetty 11.x  │
-                   │      slf4j 2.x   │
-                   └──────────────────┘
-                              │
-                   Also downloads Javalin's
-                   own dependencies (transitive)
+```text
+pom.xml says: "I need Javalin 6.3.0"
+
+Maven checks local cache (~/.m2/repository)
+
+         Found? → Use it
+
+         Not found? → Download from Maven Central
+
+                    Maven Central
+                    (repository)
+
+                    javalin-6.3.0
+                         needs:
+                        jetty 11.x
+                        slf4j 2.x
+
+                 Also downloads Javalin's
+                 own dependencies (transitive)
 ```
 
 ### Direct vs transitive dependencies
 
-```
-  Your pom.xml declares:        Maven also downloads:
-  ┌───────────────────┐         ┌───────────────────┐
-  │ Javalin           │────────▶│ Jetty (web server) │
-  │ HikariCP          │         │ SLF4J (logging)    │
-  │ Caffeine          │         │ Jackson (JSON)     │
-  │ Flyway            │         │ PostgreSQL driver   │
-  │ jte               │         │ ... dozens more     │
-  └───────────────────┘         └───────────────────┘
-     Direct (you chose)           Transitive (pulled in)
-       ~10-15 entries              ~50-100 JARs total
+```text
+Your pom.xml declares:        Maven also downloads:
+
+  Javalin                    >  Jetty (web server)
+  HikariCP                      SLF4J (logging)
+  Caffeine                      Jackson (JSON)
+  Flyway                        PostgreSQL driver
+  jte                           ... dozens more
+
+   Direct (you chose)           Transitive (pulled in)
+     ~10-15 entries              ~50-100 JARs total
 ```
 
 ### Dependency scope

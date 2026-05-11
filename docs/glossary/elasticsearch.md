@@ -110,17 +110,16 @@ Elasticsearch is an **optional external audit log sink** for volta-auth-proxy. B
 
 ### Architecture
 
-```
-  volta-auth-proxy
-       │
-       │  Audit events (login, logout, failures, etc.)
-       │
-       ├──► PostgreSQL (always -- primary storage)
-       │
-       └──► Elasticsearch (optional -- external sink)
-                │
-                ▼
-            Kibana (visualization/dashboards)
+```text
+volta-auth-proxy
+
+        Audit events (login, logout, failures, etc.)
+
+        > PostgreSQL (always -- primary storage)
+
+        > Elasticsearch (optional -- external sink)
+
+          Kibana (visualization/dashboards)
 ```
 
 ### What gets sent to Elasticsearch

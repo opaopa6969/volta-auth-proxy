@@ -33,33 +33,33 @@ The ramen kit is an SDK. Someone already figured out the hard parts and packaged
 
 Without an SDK, talking to volta-auth-proxy from your app requires writing a lot of repetitive code:
 
-```
-  Without SDK (you write everything):
-  ───────────────────────────────────
-  1. Read the X-Volta-User-Id header from the request
-  2. Read the X-Volta-Tenant-Id header
-  3. Read the X-Volta-Roles header
-  4. Parse the roles string into a list
-  5. Build an HTTP client to call volta's Internal API
-  6. Add the Authorization header with the service token
-  7. Handle network errors, timeouts, retries
-  8. Parse JSON responses
-  9. Handle error responses (400, 401, 403, 404, 500)
-  10. Map JSON to your language's objects
+```text
+Without SDK (you write everything):
 
-  That's a LOT of code that has nothing to do with
-  your app's actual purpose.
+1. Read the X-Volta-User-Id header from the request
+2. Read the X-Volta-Tenant-Id header
+3. Read the X-Volta-Roles header
+4. Parse the roles string into a list
+5. Build an HTTP client to call volta's Internal API
+6. Add the Authorization header with the service token
+7. Handle network errors, timeouts, retries
+8. Parse JSON responses
+9. Handle error responses (400, 401, 403, 404, 500)
+10. Map JSON to your language's objects
+
+That's a LOT of code that has nothing to do with
+your app's actual purpose.
 ```
 
-```
-  With SDK (pre-built for you):
-  ─────────────────────────────
-  VoltaUser user = VoltaAuth.getUser(request);
-  String tenantId = user.getTenantId();
-  boolean isAdmin = user.hasRole("ADMIN");
-  List<Member> members = volta.listMembers(tenantId);
+```text
+With SDK (pre-built for you):
 
-  Four lines. Done. Back to building your app.
+VoltaUser user = VoltaAuth.getUser(request);
+String tenantId = user.getTenantId();
+boolean isAdmin = user.hasRole("ADMIN");
+List<Member> members = volta.listMembers(tenantId);
+
+Four lines. Done. Back to building your app.
 ```
 
 ---

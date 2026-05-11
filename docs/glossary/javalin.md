@@ -69,28 +69,21 @@ Compare this to the Spring Boot equivalent:
 
 ### Javalin's architecture
 
-```
-  Your code (Main.java)
-       │
-       ▼
-  ┌─────────────────────┐
-  │  Javalin             │  ← Thin wrapper
-  │  - Route matching    │
-  │  - Request/Response  │
-  │  - Middleware chain   │
-  │  - Exception handler │
-  └─────────────────────┘
-       │
-       ▼
-  ┌─────────────────────┐
-  │  Jetty               │  ← Embedded HTTP server
-  │  - HTTP parsing      │
-  │  - TLS/SSL           │
-  │  - Thread pool       │
-  └─────────────────────┘
-       │
-       ▼
-  TCP/HTTP traffic
+```text
+Your code (Main.java)
+
+   Javalin                ← Thin wrapper
+   - Route matching
+   - Request/Response
+   - Middleware chain
+   - Exception handler
+
+   Jetty                  ← Embedded HTTP server
+   - HTTP parsing
+   - TLS/SSL
+   - Thread pool
+
+TCP/HTTP traffic
 ```
 
 ### Middleware in Javalin

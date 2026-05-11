@@ -47,21 +47,21 @@ CREATE TABLE tenants (
 
 ### Schema vs data
 
-```
-  Schema (structure):              Data (content):
-  ┌──────────────────────┐        ┌──────────────────────────────┐
-  │ TABLE: users         │        │ id: a1b2c3                   │
-  │ ├─ id: UUID (PK)    │        │ email: alice@example.com     │
-  │ ├─ email: VARCHAR    │        │ name: Alice                  │
-  │ ├─ name: VARCHAR     │        │ created_at: 2025-01-15       │
-  │ └─ created_at: TS    │        ├──────────────────────────────┤
-  │                      │        │ id: d4e5f6                   │
-  │                      │        │ email: bob@example.com       │
-  │                      │        │ name: Bob                    │
-  │                      │        │ created_at: 2025-02-20       │
-  └──────────────────────┘        └──────────────────────────────┘
-    Defines the shape                Contains actual records
-    Changes via migration            Changes via INSERT/UPDATE
+```text
+Schema (structure):              Data (content):
+
+  TABLE: users                    id: a1b2c3
+     id: UUID (PK)               email: alice@example.com
+     email: VARCHAR               name: Alice
+     name: VARCHAR                created_at: 2025-01-15
+     created_at: TS
+                                  id: d4e5f6
+                                  email: bob@example.com
+                                  name: Bob
+                                  created_at: 2025-02-20
+
+  Defines the shape                Contains actual records
+  Changes via migration            Changes via INSERT/UPDATE
 ```
 
 ### Key schema concepts
@@ -78,20 +78,31 @@ CREATE TABLE tenants (
 
 ### Table relationships
 
+```mermaid
+erDiagram
+    users {
+        uuid id PK
+        string email
+        string name
+    }
+    memberships {
+        uuid user_id FK
+        uuid tenant_id FK
+        string role
+    }
+    tenants {
+        uuid id PK
+        string name
+        string subdomain
+    }
+    users ||--o{ memberships : has
+    tenants ||--o{ memberships : has
 ```
-  ┌──────────┐     ┌──────────────┐     ┌──────────┐
-  │  users   │     │ memberships  │     │ tenants  │
-  │          │     │              │     │          │
-  │ id (PK)  │◀────│ user_id (FK) │     │ id (PK)  │
-  │ email    │     │ tenant_id(FK)│────▶│ name     │
-  │ name     │     │ role         │     │ subdomain│
-  └──────────┘     └──────────────┘     └──────────┘
 
-  A user has many memberships.
-  A tenant has many memberships.
-  A membership connects one user to one tenant with a role.
-  This is a "many-to-many" relationship via a join table.
-```
+- A user has many memberships.
+- A tenant has many memberships.
+- A membership connects one user to one tenant with a role.
+- This is a "many-to-many" relationship via a join table.
 
 ---
 
@@ -101,24 +112,16 @@ CREATE TABLE tenants (
 
 volta-auth-proxy uses 9 PostgreSQL tables:
 
-```
-  ┌─────────────────────────────────────────────────────┐
-  │                volta schema                          │
-  │                                                      │
-  │  ┌──────────┐  ┌──────────────┐  ┌──────────┐      │
-  │  │  users   │──│ memberships  │──│ tenants  │      │
-  │  └──────────┘  └──────────────┘  └──────────┘      │
-  │       │                                │             │
-  │       │         ┌──────────────┐       │             │
-  │       └─────────│  sessions    │       │             │
-  │                 └──────────────┘       │             │
-  │                                        │             │
-  │  ┌──────────────┐  ┌──────────────┐   │             │
-  │  │ invitations  │──│ (tenant FK)  │───┘             │
-  │  └──────────────┘  └──────────────┘                 │
-  │                                                      │
-  │  + rate_limits, audit_log, schema_version, etc.     │
-  └─────────────────────────────────────────────────────┘
+```text
+              volta schema
+
+   users        memberships       tenants
+
+                  sessions
+
+  invitations       (tenant FK)
+
++ rate_limits, audit_log, schema_version, etc.
 ```
 
 ### Key tables and their purpose

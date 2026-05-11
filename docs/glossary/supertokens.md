@@ -36,35 +36,26 @@ SuperTokens is notable for its developer experience -- the React/Next.js SDKs pr
 
 ### Architecture
 
-```
-  ┌──────────────────────────────────────────┐
-  │            Your Application               │
-  │                                           │
-  │  ┌───────────────┐  ┌─────────────────┐  │
-  │  │  Frontend SDK  │  │  Backend SDK    │  │
-  │  │  (React, Vue)  │  │  (Node, Python) │  │
-  │  │                │  │                 │  │
-  │  │  Pre-built     │  │  Auth routes    │  │
-  │  │  login forms   │  │  Session mgmt   │  │
-  │  └───────────────┘  └────────┬────────┘  │
-  │                              │            │
-  └──────────────────────────────┼────────────┘
-                                 │ HTTP
-                                 ▼
-                    ┌──────────────────────┐
-                    │  SuperTokens Core    │
-                    │  (Java process)      │
-                    │                      │
-                    │  User storage        │
-                    │  Session management  │
-                    │  Recipe logic        │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │     PostgreSQL /      │
-                    │     MySQL             │
-                    └──────────────────────┘
+```text
+       Your Application
+
+Frontend SDK        Backend SDK
+(React, Vue)        (Node, Python)
+
+Pre-built           Auth routes
+login forms         Session mgmt
+
+                           HTTP
+
+               SuperTokens Core
+               (Java process)
+
+               User storage
+               Session management
+               Recipe logic
+
+                  PostgreSQL /
+                  MySQL
 ```
 
 ### Recipes

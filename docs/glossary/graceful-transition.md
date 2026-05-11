@@ -30,73 +30,68 @@ The cost of a non-graceful transition scales with the number of active tokens. I
 
 ### The overlap window
 
-```
-  Time ────────────────────────────────────────────────►
+```text
+Time                                                 >
 
-  Key A:  ████████████████████████░░░░░░░░░░░░░░░░░░░░
-          active                  retired (still valid
-                                  for verification)
+Key A:  ████████████████████████░░░░░░░░░░░░░░░░░░░░
+        active                  retired (still valid
+                                for verification)
 
-  Key B:  ░░░░░░░░░░░░░░░░░░░░░░████████████████████████
-                                  active (signs new JWTs)
+Key B:  ░░░░░░░░░░░░░░░░░░░░░░████████████████████████
+                                active (signs new JWTs)
 
-  Overlap:                        ▓▓▓▓▓▓▓▓▓▓▓▓
-                                  Both keys accepted.
-                                  Key A: verify only
-                                  Key B: sign + verify
+Overlap:                        ▓▓▓▓▓▓▓▓▓▓▓▓
+                                Both keys accepted.
+                                Key A: verify only
+                                Key B: sign + verify
 
-  After overlap:
-  Key A removed from JWKS. All Key A tokens have expired.
+After overlap:
+Key A removed from JWKS. All Key A tokens have expired.
 ```
 
 ### kid-based key selection
 
-```
-  JWT with kid "key-A":
-  ┌──────────────────────────────────┐
-  │  Header: { "kid": "key-A" }     │
-  │  Payload: { "sub": "alice" }    │
-  │  Signature: signed with Key A   │
-  └──────────────────────────────────┘
-       │
-       ▼  Verifier checks kid
-  ┌──────────────────────────────────┐
-  │  JWKS has both Key A and Key B  │
-  │  kid = "key-A" → use Key A      │
-  │  Verification: SUCCESS          │
-  └──────────────────────────────────┘
+```text
+JWT with kid "key-A":
 
-  JWT with kid "key-B":
-  ┌──────────────────────────────────┐
-  │  Header: { "kid": "key-B" }     │
-  │  Payload: { "sub": "bob" }      │
-  │  Signature: signed with Key B   │
-  └──────────────────────────────────┘
-       │
-       ▼  Verifier checks kid
-  ┌──────────────────────────────────┐
-  │  JWKS has both Key A and Key B  │
-  │  kid = "key-B" → use Key B      │
-  │  Verification: SUCCESS          │
-  └──────────────────────────────────┘
+   Header: { "kid": "key-A" }
+   Payload: { "sub": "alice" }
+   Signature: signed with Key A
+
+     v  Verifier checks kid
+
+   JWKS has both Key A and Key B
+   kid = "key-A" → use Key A
+   Verification: SUCCESS
+
+JWT with kid "key-B":
+
+   Header: { "kid": "key-B" }
+   Payload: { "sub": "bob" }
+   Signature: signed with Key B
+
+     v  Verifier checks kid
+
+   JWKS has both Key A and Key B
+   kid = "key-B" → use Key B
+   Verification: SUCCESS
 ```
 
 ### How long should the overlap last?
 
 The overlap must be at least as long as the longest-lived token signed with the old key:
 
-```
-  volta's math:
-  ┌──────────────────────────────────────────────┐
-  │  JWT TTL:           5 minutes                │
-  │  Worst case:        Token issued at T-0,     │
-  │                     rotation at T+0.001s     │
-  │  Token expires at:  T + 5 min                │
-  │                                              │
-  │  Minimum overlap:   5 minutes                │
-  │  Recommended:       5-10 minutes             │
-  │  After overlap:     Safe to remove old key   │
-  └──────────────────────────────────────────────┘
+```text
+volta's math:
+
+   JWT TTL:           5 minutes
+   Worst case:        Token issued at T-0,
+                      rotation at T+0.001s
+   Token expires at:  T + 5 min
+
+   Minimum overlap:   5 minutes
+   Recommended:       5-10 minutes
+   After overlap:     Safe to remove old key
 ```
 
 ---
@@ -130,28 +125,28 @@ public synchronized String rotateKey() {
 
 ### The transition timeline
 
-```
-  T+0:00  Rotation triggered
-          ├── New Key B generated
-          ├── Old Key A marked "retired" in DB
-          ├── New JWTs signed with Key B
-          └── JWKS publishes Key B (Key A still in DB for reference)
+```text
+T+0:00  Rotation triggered
+            New Key B generated
+            Old Key A marked "retired" in DB
+            New JWTs signed with Key B
+            JWKS publishes Key B (Key A still in DB for reference)
 
-  T+0:01  Client presents JWT signed with Key A
-          ├── volta verifies with Key A (still available)
-          └── Verification succeeds
+T+0:01  Client presents JWT signed with Key A
+            volta verifies with Key A (still available)
+            Verification succeeds
 
-  T+2:30  Client's Key A JWT expires
-          ├── Client calls /api/v1/auth/token (silent refresh)
-          ├── volta issues new JWT signed with Key B
-          └── Client uses Key B JWT going forward
+T+2:30  Client's Key A JWT expires
+            Client calls /api/v1/auth/token (silent refresh)
+            volta issues new JWT signed with Key B
+            Client uses Key B JWT going forward
 
-  T+5:00  ALL Key A JWTs have expired
-          ├── Key A is no longer needed
-          └── Safe to remove Key A from system
+T+5:00  ALL Key A JWTs have expired
+            Key A is no longer needed
+            Safe to remove Key A from system
 
-  No user experienced any error.
-  No downtime. No 401s. No re-login required.
+No user experienced any error.
+No downtime. No 401s. No re-login required.
 ```
 
 ### Why volta's design makes graceful transitions easy

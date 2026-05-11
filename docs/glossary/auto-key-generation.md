@@ -31,46 +31,40 @@ Auto key generation eliminates all of these. The system always has correct, uniq
 
 ### The first-boot flow
 
-```
-  volta-auth-proxy starts
-         │
-         ▼
-  Query signing_keys table
-         │
-         ├── Keys exist? ──→ YES ──→ Load and decrypt keys
-         │                           (using KeyCipher + AES-256-GCM)
-         │                           Ready to sign JWTs.
-         │
-         └── Keys exist? ──→ NO ──→ Generate new RSA-2048 key pair
-                                     │
-                                     ▼
-                                    Encrypt with AES-256-GCM
-                                     │
-                                     ▼
-                                    Store in signing_keys table
-                                     │
-                                     ▼
-                                    Ready to sign JWTs.
+```text
+volta-auth-proxy starts
+
+Query signing_keys table
+
+           Keys exist?   → YES   → Load and decrypt keys
+                                   (using KeyCipher + AES-256-GCM)
+                                   Ready to sign JWTs.
+
+           Keys exist?   → NO   → Generate new RSA-2048 key pair
+
+                                  Encrypt with AES-256-GCM
+
+                                  Store in signing_keys table
+
+                                  Ready to sign JWTs.
 ```
 
 ### What gets generated
 
-```
-  ┌──────────────────────────────────────────────────┐
-  │  Auto-generated on first boot:                   │
-  │                                                  │
-  │  Algorithm:  RSA                                 │
-  │  Key size:   2048 bits                           │
-  │  Source:     java.security.KeyPairGenerator       │
-  │  Randomness: java.security.SecureRandom          │
-  │  Key ID:     "key-2026-04-01T12-00"              │
-  │              (timestamp-based, unique)            │
-  │                                                  │
-  │  Storage:    signing_keys table                  │
-  │  Encryption: AES-256-GCM (via KeyCipher)         │
-  │  Format:     "v1:" + base64(IV) + ":" +          │
-  │              base64(encrypted_key)               │
-  └──────────────────────────────────────────────────┘
+```text
+Auto-generated on first boot:
+
+Algorithm:  RSA
+Key size:   2048 bits
+Source:     java.security.KeyPairGenerator
+Randomness: java.security.SecureRandom
+Key ID:     "key-2026-04-01T12-00"
+            (timestamp-based, unique)
+
+Storage:    signing_keys table
+Encryption: AES-256-GCM (via KeyCipher)
+Format:     "v1:" + base64(IV) + ":" +
+            base64(encrypted_key)
 ```
 
 ### Idempotency
@@ -130,16 +124,15 @@ private RSAKey createKey() {
 
 Only one thing: `JWT_KEY_ENCRYPTION_SECRET` -- a passphrase used to derive the AES-256 key that encrypts the auto-generated RSA keys at rest. Everything else is automatic:
 
-```
-  Operator provides:                    volta generates automatically:
-  ┌─────────────────────────────┐      ┌──────────────────────────────┐
-  │ JWT_KEY_ENCRYPTION_SECRET   │      │ RSA-2048 key pair            │
-  │ (environment variable)      │      │ Key ID (kid)                 │
-  │                             │      │ AES-256 derived key          │
-  │ That's it.                  │      │ Encrypted key storage        │
-  └─────────────────────────────┘      │ JWKS endpoint                │
-                                       │ JWT signing capability       │
-                                       └──────────────────────────────┘
+```text
+Operator provides:                    volta generates automatically:
+
+  JWT_KEY_ENCRYPTION_SECRET            RSA-2048 key pair
+  (environment variable)               Key ID (kid)
+                                       AES-256 derived key
+  That's it.                           Encrypted key storage
+                                       JWKS endpoint
+                                       JWT signing capability
 ```
 
 ### Subsequent boots

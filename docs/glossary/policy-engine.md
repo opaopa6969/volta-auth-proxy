@@ -37,16 +37,15 @@ With a policy engine:
 
 ### The three components
 
-```
-  ┌─────────────┐    ┌──────────────────┐    ┌───────────────┐
-  │ Enforcement  │    │ Policy Engine    │    │ Policy Store  │
-  │ Point (PEP) │───►│ (Decision Point) │◄───│ (Rules)       │
-  │              │    │                  │    │               │
-  │ "Block or    │    │ "Evaluate rules, │    │ "Who can do   │
-  │  allow the   │    │  return allow/   │    │  what to      │
-  │  request"    │    │  deny"           │    │  which"       │
-  └─────────────┘    └──────────────────┘    └───────────────┘
-      (code)              (engine)               (data)
+```text
+Enforcement         Policy Engine           Policy Store
+Point (PEP)     >  (Decision Point)  <     (Rules)
+
+"Block or           "Evaluate rules,        "Who can do
+ allow the           return allow/           what to
+ request"            deny"                   which"
+
+  (code)              (engine)               (data)
 ```
 
 ### Common policy models
@@ -60,56 +59,52 @@ With a policy engine:
 
 ### Popular policy engines
 
-```
-  ┌────────────────────────────────────────────────────────┐
-  │ Engine     │ Language │ Model │ Notes                   │
-  │────────────│──────────│───────│─────────────────────────│
-  │ jCasbin    │ Java     │ PERM  │ Flexible, multiple      │
-  │            │          │       │ models. volta Phase 4.  │
-  │────────────│──────────│───────│─────────────────────────│
-  │ OPA        │ Go       │ Rego  │ CNCF project. Powerful  │
-  │ (Rego)     │          │       │ but steep learning curve│
-  │────────────│──────────│───────│─────────────────────────│
-  │ Cedar      │ Rust     │ ABAC  │ AWS-backed. Strong type │
-  │            │          │       │ system. Newer.          │
-  │────────────│──────────│───────│─────────────────────────│
-  │ Keycloak   │ Java     │ RBAC  │ Full IdP, heavy. volta  │
-  │            │          │       │ deliberately avoids.    │
-  └────────────────────────────────────────────────────────┘
+```text
+Engine       Language   Model   Notes
+
+jCasbin      Java       PERM    Flexible, multiple
+                                models. volta Phase 4.
+
+OPA          Go         Rego    CNCF project. Powerful
+(Rego)                          but steep learning curve
+
+Cedar        Rust       ABAC    AWS-backed. Strong type
+                                system. Newer.
+
+Keycloak     Java       RBAC    Full IdP, heavy. volta
+                                deliberately avoids.
 ```
 
 ### jCasbin model (volta Phase 4)
 
 jCasbin uses a PERM (Policy, Effect, Request, Matchers) model:
 
-```
-  Model definition (model.conf):
-  ┌─────────────────────────────────────────────┐
-  │ [request_definition]                        │
-  │ r = sub, obj, act                           │
-  │                                             │
-  │ [policy_definition]                         │
-  │ p = sub, obj, act                           │
-  │                                             │
-  │ [role_definition]                           │
-  │ g = _, _                                    │
-  │                                             │
-  │ [policy_effect]                             │
-  │ e = some(where (p.eft == allow))            │
-  │                                             │
-  │ [matchers]                                  │
-  │ m = g(r.sub, p.sub) && r.obj == p.obj       │
-  │     && r.act == p.act                       │
-  └─────────────────────────────────────────────┘
+```text
+Model definition (model.conf):
 
-  Policy file (policy.csv):
-  ┌─────────────────────────────────────────────┐
-  │ p, ADMIN, /admin/members, read              │
-  │ p, ADMIN, /admin/invitations, read          │
-  │ p, OWNER, /admin/keys, manage               │
-  │ g, alice, ADMIN                             │
-  │ g, ADMIN, MEMBER   (role inheritance)       │
-  └─────────────────────────────────────────────┘
+  [request_definition]
+  r = sub, obj, act
+
+  [policy_definition]
+  p = sub, obj, act
+
+  [role_definition]
+  g = _, _
+
+  [policy_effect]
+  e = some(where (p.eft == allow))
+
+  [matchers]
+  m = g(r.sub, p.sub) && r.obj == p.obj
+      && r.act == p.act
+
+Policy file (policy.csv):
+
+  p, ADMIN, /admin/members, read
+  p, ADMIN, /admin/invitations, read
+  p, OWNER, /admin/keys, manage
+  g, alice, ADMIN
+  g, ADMIN, MEMBER   (role inheritance)
 ```
 
 ---
@@ -120,42 +115,42 @@ jCasbin uses a PERM (Policy, Effect, Request, Matchers) model:
 
 volta currently implements policy evaluation directly in Java code, using rules from `dsl/policy.yaml`:
 
-```
-  Request arrives
-  │
-  ├── ForwardAuth (/auth/verify)
-  │   │
-  │   ├── Read user's role from session/JWT
-  │   ├── Read app's allowed_roles from volta-config.yaml
-  │   └── Check: user.role in app.allowed_roles?
-  │       ├── Yes → 200 + X-Volta-* headers
-  │       └── No  → 403 ROLE_INSUFFICIENT
-  │
-  └── Internal API (/api/v1/*)
-      │
-      ├── Read user's role from JWT
-      └── Check: role >= required_role?
-          (Using hierarchy: OWNER > ADMIN > MEMBER > VIEWER)
+```text
+Request arrives
+
+    ForwardAuth (/auth/verify)
+
+        Read user's role from session/JWT
+        Read app's allowed_roles from volta-config.yaml
+        Check: user.role in app.allowed_roles?
+            Yes → 200 + X-Volta-* headers
+            No  → 403 ROLE_INSUFFICIENT
+
+    Internal API (/api/v1/*)
+
+        Read user's role from JWT
+        Check: role >= required_role?
+        (Using hierarchy: OWNER > ADMIN > MEMBER > VIEWER)
 ```
 
 The enforcement logic lives in `AppRegistry.java` (for ForwardAuth app matching) and `AuthService.java` (for API authorization).
 
 ### Phase 4: jCasbin integration
 
-```
-  Current (Phase 1-3):              Future (Phase 4):
-  ┌──────────────────────┐         ┌──────────────────────┐
-  │ AuthService.java     │         │ AuthService.java     │
-  │                      │         │                      │
-  │ if (role >= ADMIN) { │  ───►   │ if (casbin.enforce(  │
-  │   allow();           │         │   user, resource,    │
-  │ }                    │         │   action)) {         │
-  │                      │         │   allow();           │
-  └──────────────────────┘         │ }                    │
-                                   └──────────────────────┘
-  Rules in Java code                Rules in policy files
-  Hard to change                    Change without restart
-  Only RBAC                         RBAC + ABAC + custom
+```text
+Current (Phase 1-3):              Future (Phase 4):
+
+  AuthService.java                 AuthService.java
+
+  if (role >= ADMIN) {       >     if (casbin.enforce(
+    allow();                         user, resource,
+  }                                  action)) {
+                                     allow();
+                                   }
+
+Rules in Java code                Rules in policy files
+Hard to change                    Change without restart
+Only RBAC                         RBAC + ABAC + custom
 ```
 
 ### Why volta does not use a policy engine yet

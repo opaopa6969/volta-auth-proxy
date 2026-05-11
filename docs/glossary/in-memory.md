@@ -27,57 +27,48 @@ In-memory storage is used when speed is more important than durability, or when 
 
 ### Memory hierarchy
 
-```
-  ┌─────────────────────────────────────────────────────┐
-  │              Memory Hierarchy                        │
-  │                                                      │
-  │  Speed                          Size                 │
-  │  ◀────────────────────────────────▶                  │
-  │  Fastest                      Largest                │
-  │                                                      │
-  │  ┌──────────┐                                       │
-  │  │CPU Cache │  ~1ns    ~8MB     ← Tiny, fastest     │
-  │  └──────────┘                                       │
-  │  ┌──────────┐                                       │
-  │  │   RAM    │  ~100ns  ~16-64GB  ← In-memory lives  │
-  │  └──────────┘                     here               │
-  │  ┌──────────┐                                       │
-  │  │   SSD    │  ~100μs  ~1-4TB   ← PostgreSQL data   │
-  │  └──────────┘                                       │
-  │  ┌──────────┐                                       │
-  │  │   HDD    │  ~10ms   ~4-16TB  ← Backups, logs     │
-  │  └──────────┘                                       │
-  │                                                      │
-  │  1ns = 0.000001ms                                    │
-  │  RAM is ~1000x faster than SSD                       │
-  │  RAM is ~100,000x faster than HDD                    │
-  └─────────────────────────────────────────────────────┘
+```text
+            Memory Hierarchy
+
+Speed                          Size
+
+Fastest                      Largest
+
+ CPU Cache    ~1ns    ~8MB     ← Tiny, fastest
+
+    RAM       ~100ns  ~16-64GB  ← In-memory lives
+                                 here
+
+    SSD       ~100μs  ~1-4TB   ← PostgreSQL data
+
+    HDD       ~10ms   ~4-16TB  ← Backups, logs
+
+1ns = 0.000001ms
+RAM is ~1000x faster than SSD
+RAM is ~100,000x faster than HDD
 ```
 
 ### What "volatile" means
 
-```
-  Server running:                Server restarts:
-  ┌────────────────────┐        ┌────────────────────┐
-  │ RAM (in-memory)    │        │ RAM (in-memory)    │
-  │                    │        │                    │
-  │ session_cache: {   │        │ (empty)            │
-  │   "abc": valid     │───X───▶│                    │
-  │   "def": valid     │  lost! │                    │
-  │ }                  │        │                    │
-  │                    │        │                    │
-  │ rate_limits: {     │        │                    │
-  │   "1.2.3.4": 47   │───X───▶│                    │
-  │ }                  │  lost! │                    │
-  └────────────────────┘        └────────────────────┘
+```text
+Server running:                Server restarts:
 
-  ┌────────────────────┐        ┌────────────────────┐
-  │ Disk (PostgreSQL)  │        │ Disk (PostgreSQL)  │
-  │                    │        │                    │
-  │ sessions table:    │        │ sessions table:    │
-  │   abc: valid       │────────▶│   abc: valid       │
-  │   def: valid       │  safe! │   def: valid       │
-  └────────────────────┘        └────────────────────┘
+  RAM (in-memory)               RAM (in-memory)
+
+  session_cache: {              (empty)
+    "abc": valid         X   >
+    "def": valid        lost!
+  }
+
+  rate_limits: {
+    "1.2.3.4": 47       X   >
+  }                     lost!
+
+  Disk (PostgreSQL)             Disk (PostgreSQL)
+
+  sessions table:               sessions table:
+    abc: valid                >    abc: valid
+    def: valid          safe!     def: valid
 ```
 
 ### In-memory vs disk: when to use which
@@ -99,30 +90,24 @@ In-memory storage is used when speed is more important than durability, or when 
 
 volta uses [Caffeine](caffeine-cache.md) for in-memory caching. Caffeine stores data in the JVM's heap memory:
 
-```
-  ┌─────────────────────────────────────┐
-  │  JVM Heap (volta-auth-proxy)        │
-  │                                     │
-  │  ┌───────────────────────────────┐  │
-  │  │  Caffeine Cache               │  │
-  │  │                               │  │
-  │  │  Session cache:               │  │
-  │  │  ┌────────────────────────┐   │  │
-  │  │  │ "sess_abc" → {userId,  │   │  │
-  │  │  │              role,     │   │  │
-  │  │  │              tenantId} │   │  │
-  │  │  └────────────────────────┘   │  │
-  │  │                               │  │
-  │  │  Rate limit cache:            │  │
-  │  │  ┌────────────────────────┐   │  │
-  │  │  │ "192.168.1.1" → 47    │   │  │
-  │  │  │ "10.0.0.5" → 12       │   │  │
-  │  │  └────────────────────────┘   │  │
-  │  │                               │  │
-  │  │  TTL: 30s (sessions)          │  │
-  │  │  TTL: 60s (rate limits)       │  │
-  │  └───────────────────────────────┘  │
-  └─────────────────────────────────────┘
+```text
+JVM Heap (volta-auth-proxy)
+
+   Caffeine Cache
+
+   Session cache:
+
+     "sess_abc" → {userId,
+                  role,
+                  tenantId}
+
+   Rate limit cache:
+
+     "192.168.1.1" → 47
+     "10.0.0.5" → 12
+
+   TTL: 30s (sessions)
+   TTL: 60s (rate limits)
 ```
 
 ### Use case 1: Session caching
@@ -166,20 +151,20 @@ if (count > MAX_REQUESTS_PER_MINUTE) {
 
 When volta scales horizontally, in-memory Caffeine becomes a local "L1" cache with [Redis](redis.md) as a shared "L2" cache:
 
-```
-  Request arrives at volta-2:
+```text
+Request arrives at volta-2:
 
-  1. Check Caffeine (L1, local, ~0.001ms)
-     │
-     ├── Hit? → Return immediately
-     │
-     └── Miss? → Check Redis (L2, shared, ~0.5ms)
-                  │
-                  ├── Hit? → Store in Caffeine, return
-                  │
-                  └── Miss? → Query PostgreSQL (~3ms)
-                               Store in Redis + Caffeine
-                               Return
+1. Check Caffeine (L1, local, ~0.001ms)
+
+       Hit? → Return immediately
+
+       Miss? → Check Redis (L2, shared, ~0.5ms)
+
+                    Hit? → Store in Caffeine, return
+
+                    Miss? → Query PostgreSQL (~3ms)
+                             Store in Redis + Caffeine
+                             Return
 ```
 
 ---

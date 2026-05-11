@@ -37,28 +37,18 @@ ZITADEL sits in the "self-hosted heavy" category. It is a complete platform with
 
 ZITADEL uses an event-sourcing architecture with CQRS (Command Query Responsibility Segregation):
 
-```
-  ┌─────────────────────────────────────────┐
-  │              ZITADEL                     │
-  │                                          │
-  │  ┌──────────┐    ┌──────────────────┐   │
-  │  │  Console  │    │  Management API  │   │
-  │  │  (Web UI) │    │  (gRPC / REST)   │   │
-  │  └──────────┘    └──────────────────┘   │
-  │         │                │               │
-  │         ▼                ▼               │
-  │  ┌──────────────────────────────────┐   │
-  │  │        Core Engine                │   │
-  │  │  Event Sourcing + CQRS            │   │
-  │  │  Projections for read models      │   │
-  │  └──────────────────────────────────┘   │
-  │         │                               │
-  │         ▼                               │
-  │  ┌──────────────┐                      │
-  │  │  CockroachDB  │  (or PostgreSQL)    │
-  │  │  (event store) │                     │
-  │  └──────────────┘                      │
-  └─────────────────────────────────────────┘
+```text
+         ZITADEL
+
+Console          Management API
+(Web UI)         (gRPC / REST)
+
+      Core Engine
+Event Sourcing + CQRS
+Projections for read models
+
+CockroachDB     (or PostgreSQL)
+(event store)
 ```
 
 ### Key features

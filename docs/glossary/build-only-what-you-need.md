@@ -115,24 +115,24 @@ The waterfall model says: gather all requirements, design everything, build ever
 
 Phase-based development is not waterfall in disguise. The difference is:
 
-```
-  Waterfall:
-  [Gather ALL requirements] → [Design EVERYTHING] → [Build EVERYTHING] → [Ship]
-  ────────────────────────────────────────────────────────────────────────────►
-  12+ months before anything works
+```text
+Waterfall:
+[Gather ALL requirements] → [Design EVERYTHING] → [Build EVERYTHING] → [Ship]
 
-  Phase-based:
-  [Phase 1: core requirements] → [Build] → [Ship] → [Learn]
-  ──────────────────────────────────────────────────────────►
-  Weeks. Something works.
+12+ months before anything works
 
-      [Phase 2: scaling needs] → [Build] → [Ship] → [Learn]
-      ──────────────────────────────────────────────────────►
-      Months later. More works.
+Phase-based:
+[Phase 1: core requirements] → [Build] → [Ship] → [Learn]
 
-          [Phase 3: enterprise needs] → [Build] → [Ship]
-          ──────────────────────────────────────────────►
-          When customers need it. Not before.
+Weeks. Something works.
+
+    [Phase 2: scaling needs] → [Build] → [Ship] → [Learn]
+
+    Months later. More works.
+
+        [Phase 3: enterprise needs] → [Build] → [Ship]
+
+        When customers need it. Not before.
 ```
 
 Each phase completes the feedback loop. You ship, you learn, you plan the next phase based on what you learned. This is slower than the grand plan *in theory*. In practice, it is much faster, because the grand plan never actually ships on time.

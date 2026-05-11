@@ -30,16 +30,14 @@ However, OPA's power comes with complexity. Rego is a declarative logic programm
 
 ### Architecture: the sidecar pattern
 
-```
-  ┌─────────────────┐         ┌──────────────┐
-  │  Your App        │  HTTP   │     OPA      │
-  │                  │────────►│              │
-  │  "Can alice      │         │  Evaluates   │
-  │   DELETE          │         │  Rego policy │
-  │   /api/users/42?" │         │              │
-  │                  │◄────────│  { "allow":  │
-  │                  │         │    true }     │
-  └─────────────────┘         └──────────────┘
+```text
+Your App           HTTP         OPA
+
+"Can alice                   Evaluates
+ DELETE                       Rego policy
+ /api/users/42?"
+                 <           { "allow":
+                               true }
 ```
 
 OPA runs as a separate process (often as a sidecar container in Kubernetes). Your application sends HTTP POST requests to OPA's REST API with the input data, and OPA evaluates policies against that input.
@@ -87,15 +85,13 @@ OPA separates **input** (the specific request being evaluated) from **data** (re
 
 OPA can load policies and data from **bundles** -- tar.gz archives served by an HTTP server. This allows centralized policy management:
 
-```
-  ┌──────────────────┐      ┌────────────────┐
-  │  Policy Server    │      │      OPA       │
-  │  (HTTP, S3, etc.) │◄─────│  Polls for     │
-  │                   │      │  new bundles   │
-  │  bundle.tar.gz    │─────►│  every 30s     │
-  │   ├── policy.rego │      │                │
-  │   └── data.json   │      │  Updates live  │
-  └──────────────────┘      └────────────────┘
+```text
+Policy Server                  OPA
+(HTTP, S3, etc.)  <        Polls for
+                           new bundles
+bundle.tar.gz          >   every 30s
+     policy.rego
+     data.json             Updates live
 ```
 
 ### OPA vs jCasbin vs Cedar
@@ -136,25 +132,21 @@ volta's core philosophy is simplicity and control:
 
 ### Integration pattern (if chosen)
 
-```
-  Browser ──► Traefik ──► volta-auth-proxy
-                               │
-                               │  1. Authenticate (session/JWT)
-                               │  2. Build authorization context
-                               │
-                               ▼
-                          ┌────────┐
-                          │  OPA   │  (sidecar)
-                          │        │
-                          │  POST  │  /v1/data/volta/authz
-                          │  input:│  {user, tenant, resource, action}
-                          │        │
-                          │  resp: │  {allow: true/false}
-                          └────────┘
-                               │
-                               ▼
-                          3. If allowed: 200 + headers
-                             If denied: 403
+```text
+Browser   > Traefik   > volta-auth-proxy
+
+                                1. Authenticate (session/JWT)
+                                2. Build authorization context
+
+                           OPA      (sidecar)
+
+                           POST     /v1/data/volta/authz
+                           input:   {user, tenant, resource, action}
+
+                           resp:    {allow: true/false}
+
+                        3. If allowed: 200 + headers
+                           If denied: 403
 ```
 
 ---

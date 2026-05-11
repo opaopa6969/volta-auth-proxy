@@ -30,25 +30,15 @@ This matters for volta-auth-proxy because:
 
 ### On-premise AD (AD DS)
 
-```
-  ┌─────────────────────────────────────┐
-  │     Corporate Network                │
-  │                                      │
-  │  ┌──────────────────────┐           │
-  │  │  Domain Controller    │           │
-  │  │  (Active Directory)   │           │
-  │  │                       │           │
-  │  │  Users, Groups,       │           │
-  │  │  Computers, Policies  │           │
-  │  └──────────┬────────────┘           │
-  │             │ LDAP / Kerberos        │
-  │             │                        │
-  │  ┌──────────┼────────────┐          │
-  │  │          │             │          │
-  │  ▼          ▼             ▼          │
-  │ Windows   File Server   Printer     │
-  │ PC                                   │
-  └─────────────────────────────────────┘
+```mermaid
+flowchart TD
+    DC["Domain Controller<br/>(Active Directory)<br/>Users, Groups,<br/>Computers, Policies"]
+    PC[Windows PC]
+    FS[File Server]
+    PR[Printer]
+    DC -->|LDAP / Kerberos| PC
+    DC -->|LDAP / Kerberos| FS
+    DC -->|LDAP / Kerberos| PR
 ```
 
 Key protocols:
@@ -62,33 +52,27 @@ Key protocols:
 
 ### Cloud: Microsoft Entra ID (Azure AD)
 
-```
-  ┌───────────────────────────────────────────┐
-  │          Microsoft Entra ID (Cloud)        │
-  │                                            │
-  │  Users, Groups, App Registrations          │
-  │  Conditional Access Policies               │
-  │  MFA, Identity Protection                  │
-  │                                            │
-  │     SAML / OIDC / SCIM                     │
-  │         │         │         │              │
-  └─────────┼─────────┼─────────┼──────────────┘
-            │         │         │
-            ▼         ▼         ▼
-         Microsoft  Salesforce  Your SaaS
-         365                    (via volta)
+```mermaid
+flowchart TD
+    Entra["Microsoft Entra ID (Cloud)<br/>Users, Groups, App Registrations<br/>Conditional Access Policies<br/>MFA, Identity Protection"]
+    M365["Microsoft 365"]
+    SF["Salesforce"]
+    SaaS["Your SaaS (via volta)"]
+    Entra -->|SAML / OIDC / SCIM| M365
+    Entra -->|SAML / OIDC / SCIM| SF
+    Entra -->|SAML / OIDC / SCIM| SaaS
 ```
 
 ### Hybrid: AD Connect
 
 Most enterprises run both on-premise AD and cloud Entra ID, synchronized via **AD Connect**:
 
-```
-  On-premise AD ◄──── AD Connect (sync) ────► Microsoft Entra ID
-  (Kerberos/LDAP)                              (SAML/OIDC/SCIM)
-       │                                            │
-       ▼                                            ▼
-  Internal apps                              SaaS apps (via volta)
+```mermaid
+flowchart LR
+    AD["On-premise AD<br/>(Kerberos/LDAP)<br/>Internal apps"]
+    Sync["AD Connect (sync)"]
+    Entra["Microsoft Entra ID<br/>(SAML/OIDC/SCIM)<br/>SaaS apps (via volta)"]
+    AD <--> Sync <--> Entra
 ```
 
 ### Comparison with other IdPs
@@ -111,24 +95,17 @@ volta-auth-proxy plans to support Microsoft Entra ID as an upstream IdP in **Pha
 
 ### Integration architecture (Phase 3)
 
-```
-  Employee ──► volta-auth-proxy
-                    │
-                    │  SAML or OIDC
-                    ▼
-              Microsoft Entra ID
-                    │
-                    │  Authenticates user
-                    │  Returns: email, groups, tenant info
-                    │
-                    ▼
-              volta-auth-proxy
-                    │
-                    ├── Map Entra groups to volta roles
-                    ├── Resolve volta tenant
-                    ├── Create/update user
-                    ├── Create session
-                    └── Issue volta JWT
+```mermaid
+sequenceDiagram
+    participant E as Employee
+    participant V as volta-auth-proxy
+    participant Entra as Microsoft Entra ID
+    E->>V: Access protected resource
+    V->>Entra: SAML or OIDC redirect
+    Entra->>Entra: Authenticate user
+    Entra-->>V: Return email, groups, tenant info
+    V->>V: Map Entra groups to volta roles<br/>Resolve volta tenant<br/>Create/update user<br/>Create session<br/>Issue volta JWT
+    V-->>E: Authenticated session
 ```
 
 ### SCIM integration (Phase 3+)

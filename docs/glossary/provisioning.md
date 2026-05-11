@@ -18,33 +18,29 @@ In the identity management world, provisioning is typically automated via [SCIM]
 
 Manual account management does not scale and creates security risks:
 
-```
-  Manual provisioning (the nightmare):
-  ┌──────────┐
-  │ New hire  │
-  │ "Alice"   │
-  └─────┬────┘
-        │
-        ▼
-  ┌──────────────────────────────────────────────┐
-  │ IT Admin's to-do list:                        │
-  │                                               │
-  │ □ Create account in email system              │
-  │ □ Create account in Slack                     │
-  │ □ Create account in GitHub                    │
-  │ □ Create account in volta (your SaaS app)     │
-  │ □ Create account in 12 more systems...        │
-  │                                               │
-  │ Time: 2 hours per employee                    │
-  │ Error rate: "forgot GitHub" happens weekly    │
-  └──────────────────────────────────────────────┘
+```text
+Manual provisioning (the nightmare):
 
-  Automated provisioning:
-  ┌──────────┐     ┌──────┐     ┌───────────────┐
-  │ New hire  │────►│ Okta │────►│ All systems   │
-  │ "Alice"   │     │ (IdP)│     │ (via SCIM)    │
-  └──────────┘     └──────┘     └───────────────┘
-  Time: 30 seconds. Error rate: 0%.
+  New hire
+  "Alice"
+
+  IT Admin's to-do list:
+
+  □ Create account in email system
+  □ Create account in Slack
+  □ Create account in GitHub
+  □ Create account in volta (your SaaS app)
+  □ Create account in 12 more systems...
+
+  Time: 2 hours per employee
+  Error rate: "forgot GitHub" happens weekly
+
+Automated provisioning:
+
+  New hire       >  Okta      >  All systems
+  "Alice"           (IdP)        (via SCIM)
+
+Time: 30 seconds. Error rate: 0%.
 ```
 
 Key benefits:
@@ -61,22 +57,17 @@ Key benefits:
 
 ### Provisioning lifecycle
 
-```
-  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-  │   PROVISION  │────►│   UPDATE     │────►│ DEPROVISION  │
-  │              │     │              │     │              │
-  │ Create user  │     │ Change role  │     │ Deactivate   │
-  │ Assign role  │     │ Update name  │     │ Revoke access│
-  │ Grant access │     │ Move team    │     │ Clean up     │
-  └──────────────┘     └──────────────┘     └──────────────┘
-       │                     │                    │
-       ▼                     ▼                    ▼
-  ┌──────────────────────────────────────────────────────┐
-  │                volta-auth-proxy                       │
-  │  users table: active=true    role changed    active=false │
-  │  sessions: created           sessions: valid  sessions: revoked │
-  │  webhook: user.created       webhook: role    webhook: user.deleted │
-  └──────────────────────────────────────────────────────┘
+```text
+  PROVISION       >    UPDATE          >  DEPROVISION
+
+Create user          Change role          Deactivate
+Assign role          Update name          Revoke access
+Grant access         Move team            Clean up
+
+               volta-auth-proxy
+ users table: active=true    role changed    active=false
+ sessions: created           sessions: valid  sessions: revoked
+ webhook: user.created       webhook: role    webhook: user.deleted
 ```
 
 ### Provisioning methods
@@ -90,74 +81,70 @@ Key benefits:
 
 ### SCIM provisioning flow
 
-```
-  Okta                          volta-auth-proxy
-  ====                          ================
+```text
+Okta                          volta-auth-proxy
+====                          ================
 
-  Admin assigns user to app
-        │
-        ▼
-  POST /scim/v2/Users ─────────────────────────►
-  {                                              volta:
-    "userName": "alice@acme.com",                1. Create user record
-    "name": {...},                               2. Assign to tenant
-    "active": true                               3. Set default role
-  }                                              4. Fire user.created webhook
-                               ◄─────────────────
-                               201 Created
-                               {"id": "volta-uuid", ...}
+Admin assigns user to app
 
-  Admin changes user's group
-        │
-        ▼
-  PATCH /scim/v2/Users/volta-uuid ──────────────►
-  {                                              volta:
-    "Operations": [{                             1. Update role
-      "op": "replace",                           2. Fire role_changed webhook
-      "path": "groups",
-      "value": [{"value": "admin-group"}]
-    }]
-  }
-                               ◄─────────────────
-                               200 OK
+POST /scim/v2/Users                          >
+{                                              volta:
+  "userName": "alice@acme.com",                1. Create user record
+  "name": {...},                               2. Assign to tenant
+  "active": true                               3. Set default role
+}                                              4. Fire user.created webhook
 
-  Admin removes user from app
-        │
-        ▼
-  PATCH /scim/v2/Users/volta-uuid ──────────────►
-  {                                              volta:
-    "Operations": [{                             1. Set active=false
-      "op": "replace",                           2. Revoke all sessions
-      "path": "active",                          3. Fire user.deleted webhook
-      "value": false
-    }]
-  }
-                               ◄─────────────────
-                               200 OK
+                             201 Created
+                             {"id": "volta-uuid", ...}
+
+Admin changes user's group
+
+PATCH /scim/v2/Users/volta-uuid               >
+{                                              volta:
+  "Operations": [{                             1. Update role
+    "op": "replace",                           2. Fire role_changed webhook
+    "path": "groups",
+    "value": [{"value": "admin-group"}]
+  }]
+}
+
+                             200 OK
+
+Admin removes user from app
+
+PATCH /scim/v2/Users/volta-uuid               >
+{                                              volta:
+  "Operations": [{                             1. Set active=false
+    "op": "replace",                           2. Revoke all sessions
+    "path": "active",                          3. Fire user.deleted webhook
+    "value": false
+  }]
+}
+
+                             200 OK
 ```
 
 ### JIT (Just-In-Time) provisioning flow
 
-```
-  User                  volta-auth-proxy         Identity Provider
-  ====                  ================         =================
+```text
+User                  volta-auth-proxy         Identity Provider
+====                  ================         =================
 
-  First login
-  ──────────────────►
-                       Redirect to IdP
-                       ──────────────────────────────────►
-                                                 User authenticates
-                       ◄──────────────────────────────────
-                       Receives OAuth callback with user info
+First login
 
-                       User exists in volta?
-                         NO → Create user (JIT provision)
-                              Assign default role
-                              Fire user.created webhook
-                         YES → Update if attributes changed
+                     Redirect to IdP
 
-  ◄──────────────────
-  Logged in (new account ready)
+                                               User authenticates
+
+                     Receives OAuth callback with user info
+
+                     User exists in volta?
+                       NO → Create user (JIT provision)
+                            Assign default role
+                            Fire user.created webhook
+                       YES → Update if attributes changed
+
+Logged in (new account ready)
 ```
 
 ---
@@ -176,18 +163,16 @@ volta supports three provisioning methods:
 
 Every provisioned user belongs to a [tenant](tenant.md). volta does not allow "free-floating" users:
 
-```
-  Provisioning always answers two questions:
-  1. WHO is the user? (email, name, identity)
-  2. WHERE do they belong? (tenant_id)
+```text
+Provisioning always answers two questions:
+1. WHO is the user? (email, name, identity)
+2. WHERE do they belong? (tenant_id)
 
-  ┌──────────────────────────────────────┐
-  │  User: alice@acme.com               │
-  │  Tenant: acme-corp (tenant_id)       │
-  │  Role: MEMBER (default)              │
-  │  Source: SCIM / Invitation / JIT     │
-  │  Active: true                        │
-  └──────────────────────────────────────┘
+   User: alice@acme.com
+   Tenant: acme-corp (tenant_id)
+   Role: MEMBER (default)
+   Source: SCIM / Invitation / JIT
+   Active: true
 ```
 
 ### Deprovisioning and security

@@ -30,32 +30,19 @@
 
 一般的なデプロイは複数のステージを経由します：
 
-```
-  開発者のノートPC
-       │
-       ▼
-  ┌──────────────────┐
-  │  ソースコード管理   │  ← git push
-  │  (GitHub等)        │
-  └────────┬─────────┘
-           │
-           ▼
-  ┌──────────────────┐
-  │  CI/CDパイプライン  │  ← ビルド、テスト、パッケージ
-  │  (GitHub Actions)  │
-  └────────┬─────────┘
-           │
-           ▼
-  ┌──────────────────┐
-  │  アーティファクト   │  ← JARファイル、Dockerイメージ
-  │  ストア             │
-  └────────┬─────────┘
-           │
-           ▼
-  ┌──────────────────┐
-  │  本番サーバー       │  ← アプリが動くサーバー
-  │                    │
-  └──────────────────┘
+```text
+開発者のノートPC
+
+   ソースコード管理      ← git push
+   (GitHub等)
+
+   CI/CDパイプライン     ← ビルド、テスト、パッケージ
+   (GitHub Actions)
+
+   アーティファクト      ← JARファイル、Dockerイメージ
+   ストア
+
+   本番サーバー          ← アプリが動くサーバー
 ```
 
 ### デプロイ戦略
@@ -86,20 +73,16 @@ java -jar volta-auth-proxy-1.0.0.jar
 
 同じJARがすべての環境で動きます。変わるのは設定だけです：
 
-```
-  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
-  │   開発       │   │ ステージング  │   │   本番       │
-  │              │   │              │   │              │
-  │ DB: localhost│   │ DB: staging  │   │ DB: prod-db  │
-  │ PORT: 8080  │   │ PORT: 8080   │   │ PORT: 8080   │
-  │ LOG: debug  │   │ LOG: info    │   │ LOG: warn    │
-  │ GOOGLE_ID:  │   │ GOOGLE_ID:   │   │ GOOGLE_ID:   │
-  │  test-xxx   │   │  stage-xxx   │   │  prod-xxx    │
-  └─────────────┘   └─────────────┘   └─────────────┘
-        │                 │                  │
-        └────────────┬────┘──────────────────┘
-                     │
-              同じJARファイル
+```text
+  開発             ステージング          本番
+
+DB: localhost      DB: staging        DB: prod-db
+PORT: 8080        PORT: 8080         PORT: 8080
+LOG: debug        LOG: info          LOG: warn
+GOOGLE_ID:        GOOGLE_ID:         GOOGLE_ID:
+ test-xxx          stage-xxx          prod-xxx
+
+          同じJARファイル
 ```
 
 設定はハードコードではなく、[環境変数](environment-variable.ja.md)で注入します。
@@ -112,24 +95,15 @@ java -jar volta-auth-proxy-1.0.0.jar
 
 volta-auth-proxyは[シングルプロセス](single-process.ja.md)のJavaアプリケーションで、[Traefik](reverse-proxy.ja.md)リバースプロキシの後ろにfat JARとしてデプロイされます：
 
-```
-  インターネット
-     │
-     ▼
-  ┌──────────┐
-  │ Traefik   │  ← TLS終端、ルーティング
-  └────┬─────┘
-       │
-       ▼
-  ┌──────────────────┐
-  │ volta-auth-proxy  │  ← 単一JVMプロセス
-  │ (JVM上のfat JAR)  │
-  └────────┬─────────┘
-       │
-       ▼
-  ┌──────────┐
-  │ Postgres  │  ← データベース
-  └──────────┘
+```text
+インターネット
+
+  Traefik      ← TLS終端、ルーティング
+
+  volta-auth-proxy     ← 単一JVMプロセス
+  (JVM上のfat JAR)
+
+  Postgres     ← データベース
 ```
 
 ### voltaをデプロイするために必要なもの
@@ -144,24 +118,15 @@ volta-auth-proxyは[シングルプロセス](single-process.ja.md)のJavaアプ
 
 Phase 2では[Redis](redis.ja.md)と[水平スケーリング](horizontal-scaling.ja.md)が追加され、デプロイ構成が変わります：
 
-```
-  インターネット
-     │
-     ▼
-  ┌──────────────┐
-  │ ロードバランサ │
-  └──┬─────┬─────┘
-     │     │
-     ▼     ▼
-  ┌─────┐ ┌─────┐
-  │volta│ │volta│  ← 複数インスタンス
-  │  1  │ │  2  │
-  └──┬──┘ └──┬──┘
-     │     │
-     ▼     ▼
-  ┌──────┐ ┌──────────┐
-  │Postgres│ │  Redis    │  ← 共有セッションストア
-  └──────┘ └──────────┘
+```text
+インターネット
+
+  ロードバランサ
+
+ volta   volta   ← 複数インスタンス
+   1       2
+
+ Postgres     Redis       ← 共有セッションストア
 ```
 
 ---

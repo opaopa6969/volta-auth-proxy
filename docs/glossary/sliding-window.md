@@ -60,22 +60,21 @@ The clock resets with every interaction. An active user can work all day without
 
 These are the two fundamental timeout strategies. Most systems use one or both:
 
-```
-  Sliding window:
-  ─────────────────────────────────────────────►
-  Login    Activity  Activity  Activity    8h idle → expires
-  09:00    10:30     12:00     14:00       22:00
+```text
+Sliding window:
 
-  The window SLIDES forward with each interaction.
+Login    Activity  Activity  Activity    8h idle → expires
+09:00    10:30     12:00     14:00       22:00
 
+The window SLIDES forward with each interaction.
 
-  Absolute timeout:
-  ─────────────────────────────────────────────►
-  Login                                   Always expires at 17:00
-  09:00                                   17:00
-  (no matter how active the user is)
+Absolute timeout:
 
-  The deadline is FIXED at login time.
+Login                                   Always expires at 17:00
+09:00                                   17:00
+(no matter how active the user is)
+
+The deadline is FIXED at login time.
 ```
 
 | Aspect | Sliding window | Absolute timeout |

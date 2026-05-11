@@ -18,26 +18,23 @@ In volta-auth-proxy, payloads appear everywhere: JWT payloads carry user claims,
 
 Understanding the distinction between payload and metadata is essential for security, debugging, and integration:
 
-```
-  HTTP Request anatomy:
-  ┌──────────────────────────────────────────────┐
-  │  METADATA (headers, routing):                 │
-  │  ┌──────────────────────────────────────────┐│
-  │  │ POST /api/v1/tenants/acme/members        ││
-  │  │ Host: volta.example.com                   ││
-  │  │ Content-Type: application/json            ││
-  │  │ Authorization: Bearer eyJhbGci...         ││
-  │  │ X-Volta-Request-Id: req-uuid              ││
-  │  └──────────────────────────────────────────┘│
-  │                                               │
-  │  PAYLOAD (the actual data):                   │
-  │  ┌──────────────────────────────────────────┐│
-  │  │ {                                         ││
-  │  │   "email": "alice@acme.com",             ││
-  │  │   "role": "MEMBER"                        ││
-  │  │ }                                         ││
-  │  └──────────────────────────────────────────┘│
-  └──────────────────────────────────────────────┘
+```text
+HTTP Request anatomy:
+
+   METADATA (headers, routing):
+
+     POST /api/v1/tenants/acme/members
+     Host: volta.example.com
+     Content-Type: application/json
+     Authorization: Bearer eyJhbGci...
+     X-Volta-Request-Id: req-uuid
+
+   PAYLOAD (the actual data):
+
+     {
+       "email": "alice@acme.com",
+       "role": "MEMBER"
+     }
 ```
 
 - **Security**: Payloads may contain sensitive data that needs encryption or signing
@@ -53,22 +50,22 @@ Understanding the distinction between payload and metadata is essential for secu
 
 A [JWT](jwt.md) has three parts: header, payload, and signature. The payload is a JSON object encoded as [base64url](base64.md):
 
-```
-  JWT: eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOi...  .signature
-       ├── header ────────┤ ├── payload ──┤  ├── sig ──┤
+```text
+JWT: eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOi...  .signature
+         header               payload          sig
 
-  Decoded payload:
-  {
-    "iss": "volta-auth",           ← issuer
-    "sub": "user-uuid",            ← subject (who)
-    "aud": ["volta-apps"],         ← audience (for whom)
-    "exp": 1711900000,             ← expiration
-    "iat": 1711899700,             ← issued at
-    "volta_v": 1,                  ← volta version
-    "volta_tid": "acme-uuid",      ← tenant ID
-    "volta_roles": ["ADMIN"],      ← user roles
-    "volta_email": "a@acme.com"    ← email
-  }
+Decoded payload:
+{
+  "iss": "volta-auth",           ← issuer
+  "sub": "user-uuid",            ← subject (who)
+  "aud": ["volta-apps"],         ← audience (for whom)
+  "exp": 1711900000,             ← expiration
+  "iat": 1711899700,             ← issued at
+  "volta_v": 1,                  ← volta version
+  "volta_tid": "acme-uuid",      ← tenant ID
+  "volta_roles": ["ADMIN"],      ← user roles
+  "volta_email": "a@acme.com"    ← email
+}
 ```
 
 Each field in the JWT payload is called a "claim." volta adds custom claims prefixed with `volta_` to avoid collisions with standard claims.
@@ -77,64 +74,62 @@ Each field in the JWT payload is called a "claim." volta adds custom claims pref
 
 The HTTP request body is the payload:
 
-```
-  POST /scim/v2/Users
-  Content-Type: application/json
-  Content-Length: 187
+```text
+POST /scim/v2/Users
+Content-Type: application/json
+Content-Length: 187
 
-  {                          ←─┐
-    "schemas": [...],           │
-    "userName": "alice@a.com",  │  PAYLOAD
-    "name": {                   │
-      "givenName": "Alice",     │
-      "familyName": "Smith"     │
-    },                          │
-    "active": true              │
-  }                          ←─┘
+{                          ←
+  "schemas": [...],
+  "userName": "alice@a.com",     PAYLOAD
+  "name": {
+    "givenName": "Alice",
+    "familyName": "Smith"
+  },
+  "active": true
+}                          ←
 ```
 
 ### Webhook payload
 
 When volta sends a [webhook](webhook.md), the HTTP body is the payload:
 
-```
-  POST https://app.com/webhooks/volta
-  Content-Type: application/json
-  X-Volta-Signature: sha256=abc123    ← metadata
-  X-Volta-Event: user.created         ← metadata
+```text
+POST https://app.com/webhooks/volta
+Content-Type: application/json
+X-Volta-Signature: sha256=abc123    ← metadata
+X-Volta-Event: user.created         ← metadata
 
-  {                                    ←─┐
-    "event": "user.created",              │
-    "timestamp": "2026-04-01T12:00:00Z",  │ PAYLOAD
-    "tenant_id": "acme-uuid",             │
-    "data": {                             │
-      "user_id": "user-uuid",            │
-      "email": "alice@acme.com",          │
-      "roles": ["MEMBER"]                 │
-    }                                     │
-  }                                    ←─┘
+{                                    ←
+  "event": "user.created",
+  "timestamp": "2026-04-01T12:00:00Z",    PAYLOAD
+  "tenant_id": "acme-uuid",
+  "data": {
+    "user_id": "user-uuid",
+    "email": "alice@acme.com",
+    "roles": ["MEMBER"]
+  }
+}                                    ←
 ```
 
 The HMAC signature in the header is computed over this payload to ensure integrity.
 
 ### Payload size considerations
 
-```
-  ┌──────────────────────────────────────────────┐
-  │  Payload size limits in volta:                │
-  │                                               │
-  │  JWT payload:     ~2 KB typical               │
-  │    (must fit in HTTP header as Bearer token)  │
-  │                                               │
-  │  Webhook payload: 64 KB max                   │
-  │    (event data should be concise)             │
-  │                                               │
-  │  SCIM payload:    256 KB max                  │
-  │    (user/group objects can be large)          │
-  │                                               │
-  │  API request:     1 MB max                    │
-  │    (general request body limit)               │
-  └──────────────────────────────────────────────┘
+```text
+Payload size limits in volta:
+
+JWT payload:     ~2 KB typical
+  (must fit in HTTP header as Bearer token)
+
+Webhook payload: 64 KB max
+  (event data should be concise)
+
+SCIM payload:    256 KB max
+  (user/group objects can be large)
+
+API request:     1 MB max
+  (general request body limit)
 ```
 
 ---

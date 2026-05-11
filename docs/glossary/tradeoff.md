@@ -24,21 +24,20 @@ volta-auth-proxy is interesting because it is honest about its trade-offs. It do
 
 ### Trade-off 1: Control vs convenience
 
-```
-  Auth0 / Clerk:                       volta-auth-proxy:
-  ┌──────────────────────┐             ┌──────────────────────┐
-  │ High convenience     │             │ High control         │
-  │                      │             │                      │
-  │ ✓ Dashboard setup    │             │ ✓ Full source code   │
-  │ ✓ SDKs for everything│             │ ✓ Modify any behavior│
-  │ ✓ Managed hosting    │             │ ✓ Own your data      │
-  │ ✓ Security team      │             │ ✓ No vendor lock-in  │
-  │                      │             │                      │
-  │ ✗ Can't self-host    │             │ ✗ You host it        │
-  │ ✗ Can't modify code  │             │ ✗ You configure it   │
-  │ ✗ Pricing scales     │             │ ✗ You secure it      │
-  │ ✗ Vendor lock-in     │             │ ✗ You maintain it    │
-  └──────────────────────┘             └──────────────────────┘
+```text
+Auth0 / Clerk:                       volta-auth-proxy:
+
+  High convenience                     High control
+
+  ✓ Dashboard setup                    ✓ Full source code
+  ✓ SDKs for everything                ✓ Modify any behavior
+  ✓ Managed hosting                    ✓ Own your data
+  ✓ Security team                      ✓ No vendor lock-in
+
+  ✗ Can't self-host                    ✗ You host it
+  ✗ Can't modify code                  ✗ You configure it
+  ✗ Pricing scales                     ✗ You secure it
+  ✗ Vendor lock-in                     ✗ You maintain it
 ```
 
 volta trades convenience for control. You cannot click a button to set up auth in 5 minutes. But you can read every line of code, modify any behavior, and never worry about a vendor changing terms.
@@ -49,15 +48,14 @@ This is the biggest trade-off. When you use Auth0, their security team monitors 
 
 When you use volta, **you are the security team.**
 
-```
-  Auth0:                               volta:
-  ┌──────────────────────┐             ┌──────────────────────┐
-  │ CVE in auth library? │             │ CVE in auth library? │
-  │ Auth0 patches it.    │             │ YOU patch it.        │
-  │ You do nothing.      │             │ You update deps.     │
-  │                      │             │ You redeploy.        │
-  │                      │             │ You verify the fix.  │
-  └──────────────────────┘             └──────────────────────┘
+```text
+Auth0:                               volta:
+
+  CVE in auth library?                 CVE in auth library?
+  Auth0 patches it.                    YOU patch it.
+  You do nothing.                      You update deps.
+                                       You redeploy.
+                                       You verify the fix.
 ```
 
 This is not a small thing. Security responsibility is real work. volta makes this trade-off consciously: $0/month, but you own the security burden.
@@ -97,18 +95,16 @@ The trade-off: if volta's opinion is wrong for your use case, you must modify th
 
 volta runs as a single process. This is simple but limits horizontal scaling:
 
-```
-  volta (single process):
-  ┌──────────────────┐
-  │ volta-auth-proxy  │  One process does everything.
-  │ + Postgres        │  Simple. Limited scaling.
-  └──────────────────┘
+```text
+volta (single process):
 
-  Distributed (e.g., Ory):
-  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐
-  │Proxy │ │Login │ │OAuth │ │Perms │  Four processes.
-  │      │ │      │ │      │ │      │  Complex. Scalable.
-  └──────┘ └──────┘ └──────┘ └──────┘
+  volta-auth-proxy     One process does everything.
+  + Postgres           Simple. Limited scaling.
+
+Distributed (e.g., Ory):
+
+ Proxy    Login    OAuth    Perms    Four processes.
+                                     Complex. Scalable.
 ```
 
 For most SaaS products with thousands (not millions) of users, a single volta instance behind a single PostgreSQL instance is more than enough. But if you are building the next Slack with 10 million daily active users, volta's architecture will need adaptation.

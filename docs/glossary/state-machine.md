@@ -31,26 +31,24 @@ Without a state machine, auth logic becomes a tangled web of if/else branches sc
 ### Core concepts
 
 ```
-  ┌─────────────────────────────────────────────────┐
-  │  State Machine = States + Transitions + Guards   │
-  │                                                  │
-  │  State:      Where the system is now             │
-  │  Trigger:    What event happened                 │
-  │  Guard:      Condition that must be true         │
-  │  Action:     Side effect performed               │
-  │  Transition: State A ──(trigger + guard)──► State B │
-  └─────────────────────────────────────────────────┘
+State Machine = States + Transitions + Guards
+
+- State:      Where the system is now
+- Trigger:    What event happened
+- Guard:      Condition that must be true
+- Action:     Side effect performed
+- Transition: State A --(trigger + guard)--> State B
 ```
 
 ### A simple example
 
-```
-  ┌──────────┐  insert coin   ┌──────────┐  push button  ┌──────────┐
-  │  LOCKED  │ ──────────────►│  READY   │ ─────────────►│ VENDING  │
-  └──────────┘                └──────────┘               └──────────┘
-       ▲                           │                          │
-       │         timeout           │       item dispensed     │
-       └───────────────────────────┘          └───────────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> LOCKED
+    LOCKED --> READY : insert coin
+    READY --> VENDING : push button
+    READY --> LOCKED : timeout
+    VENDING --> LOCKED : item dispensed
 ```
 
 This vending machine has 3 states, 4 transitions, and clear rules. You cannot get a drink without inserting a coin first.
@@ -59,13 +57,13 @@ This vending machine has 3 states, 4 transitions, and clear rules. You cannot ge
 
 A critical property: given the same state + trigger + guard values, the result is always the same. There is no randomness, no "sometimes this, sometimes that."
 
-```
-  State: UNAUTHENTICATED
-  Trigger: GET /login
-  Guard: !request.accept_json
-  ──────────────────────────────
-  Result: ALWAYS → AUTH_PENDING (redirect to Google)
-          Never anything else.
+```text
+State: UNAUTHENTICATED
+Trigger: GET /login
+Guard: !request.accept_json
+
+Result: ALWAYS → AUTH_PENDING (redirect to Google)
+        Never anything else.
 ```
 
 ### Global transitions
@@ -88,32 +86,17 @@ Some transitions apply from many states. Instead of repeating them in every stat
 
 ### The 8 states
 
-```
-  ┌─────────────────────┐
-  │   UNAUTHENTICATED   │ ◄── No session. Must log in.
-  └─────────┬───────────┘
-            │ GET /login
-            ▼
-  ┌─────────────────────┐
-  │    AUTH_PENDING      │ ◄── Waiting for OIDC callback.
-  └─────────┬───────────┘
-            │ GET /callback (success)
-            ▼
-       ┌────┴────┬──────────────┐
-       ▼         ▼              ▼
-  ┌─────────┐ ┌───────────┐ ┌──────────────┐
-  │NO_TENANT│ │TENANT_SEL. │ │INVITE_CONSENT│
-  └─────────┘ └─────┬─────┘ └──────┬───────┘
-       │            │               │
-       │            ▼               │
-       │    ┌───────────────┐       │
-       └───►│ AUTHENTICATED │◄──────┘
-            └───────┬───────┘
-                    │ tenant.suspended
-                    ▼
-            ┌─────────────────┐
-            │TENANT_SUSPENDED │
-            └─────────────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> UNAUTHENTICATED : No session. Must log in.
+    UNAUTHENTICATED --> AUTH_PENDING : GET /login
+    AUTH_PENDING --> NO_TENANT : GET /callback (success)
+    AUTH_PENDING --> TENANT_SELECTION : GET /callback (success)
+    AUTH_PENDING --> INVITE_CONSENT : GET /callback (success)
+    NO_TENANT --> AUTHENTICATED
+    TENANT_SELECTION --> AUTHENTICATED
+    INVITE_CONSENT --> AUTHENTICATED
+    AUTHENTICATED --> TENANT_SUSPENDED : tenant.suspended
 ```
 
 ### State definitions from `dsl/auth-machine.yaml`

@@ -132,37 +132,37 @@ voltaが初めて起動して、Flywayが空のデータベースを見つける
 
 ## 簡単な例
 
-```
-  1日目：voltaを初めてセットアップ
-  ──────────────────────────────
-  データベース：空
-  マイグレーションフォルダ：V1__init.sql
+```text
+1日目：voltaを初めてセットアップ
 
-  $ ./mvnw spring-boot:run
-  Flyway：「データベースが空。V1__init.sqlを実行中...」
-  Flyway：「users、tenants、memberships、sessionsテーブルを作成」
-  Flyway：「記録：V1完了」
+データベース：空
+マイグレーションフォルダ：V1__init.sql
 
-  30日目：新機能に新しいテーブルが必要
-  ─────────────────────────────────────
-  データベース：V1テーブルあり
-  マイグレーションフォルダ：V1__init.sql、V2__add_audit_logs.sql
+$ ./mvnw spring-boot:run
+Flyway：「データベースが空。V1__init.sqlを実行中...」
+Flyway：「users、tenants、memberships、sessionsテーブルを作成」
+Flyway：「記録：V1完了」
 
-  $ ./mvnw spring-boot:run
-  Flyway：「V1は完了済み。新しいマイグレーションを確認中...」
-  Flyway：「V2__add_audit_logs.sqlを発見。実行中...」
-  Flyway：「audit_logsテーブルを作成」
-  Flyway：「記録：V2完了」
+30日目：新機能に新しいテーブルが必要
 
-  31日目：別の開発者がゼロからセットアップ
-  ──────────────────────────────────────────
-  データベース：空（新規セットアップ）
-  マイグレーションフォルダ：V1__init.sql、V2__add_audit_logs.sql
+データベース：V1テーブルあり
+マイグレーションフォルダ：V1__init.sql、V2__add_audit_logs.sql
 
-  $ ./mvnw spring-boot:run
-  Flyway：「データベースが空。V1__init.sqlを実行中...」
-  Flyway：「V2__add_audit_logs.sqlを実行中...」
-  Flyway：「すべて完了。データベースはV2。」
+$ ./mvnw spring-boot:run
+Flyway：「V1は完了済み。新しいマイグレーションを確認中...」
+Flyway：「V2__add_audit_logs.sqlを発見。実行中...」
+Flyway：「audit_logsテーブルを作成」
+Flyway：「記録：V2完了」
+
+31日目：別の開発者がゼロからセットアップ
+
+データベース：空（新規セットアップ）
+マイグレーションフォルダ：V1__init.sql、V2__add_audit_logs.sql
+
+$ ./mvnw spring-boot:run
+Flyway：「データベースが空。V1__init.sqlを実行中...」
+Flyway：「V2__add_audit_logs.sqlを実行中...」
+Flyway：「すべて完了。データベースはV2。」
 ```
 
 新しい開発者は他の全員と全く同じデータベースを自動的に得ます。

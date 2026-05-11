@@ -76,7 +76,7 @@ volta targets sub-10ms response time for ForwardAuth verification. Here is how:
 
 4. **Pre-computed JWTs.** JWTs are signed with a pre-loaded RSA key. No key fetching, no external JWKS calls during request handling.
 
-```
+```text
 ForwardAuth /auth/verify breakdown:
   Read cookie from headers:           ~0.01ms
   Session lookup (cache hit):         ~0.1ms
@@ -84,7 +84,7 @@ ForwardAuth /auth/verify breakdown:
   Role authorization check:           ~0.01ms
   JWT creation + RS256 signing:       ~1-2ms
   Header assembly + response:         ~0.01ms
-  ─────────────────────────────────────────
+
   Total (cache hit):                  ~1-3ms
   Total (DB hit):                     ~3-8ms
 ```

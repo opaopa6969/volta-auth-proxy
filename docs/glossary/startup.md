@@ -30,36 +30,29 @@ Startup time affects almost every aspect of operations:
 
 ### What happens during startup
 
-```
-  Process starts
-       │
-       ▼
-  1. JVM / Runtime initialization
-     (Java: class loading, JIT warmup)
-       │
-       ▼
-  2. Configuration loading
-     (Read YAML/env vars, validate settings)
-       │
-       ▼
-  3. Database initialization
-     (Connect, run migrations, verify schema)
-       │
-       ▼
-  4. Framework initialization
-     (Set up routes, middleware, filters)
-       │
-       ▼
-  5. Dependency initialization
-     (Connect to cache, message queue, external services)
-       │
-       ▼
-  6. Start listening on port
-     ("Ready to accept requests")
-       │
-       ▼
-  7. Health check passes
-     ("I am alive and ready")
+```text
+Process starts
+
+1. JVM / Runtime initialization
+   (Java: class loading, JIT warmup)
+
+2. Configuration loading
+   (Read YAML/env vars, validate settings)
+
+3. Database initialization
+   (Connect, run migrations, verify schema)
+
+4. Framework initialization
+   (Set up routes, middleware, filters)
+
+5. Dependency initialization
+   (Connect to cache, message queue, external services)
+
+6. Start listening on port
+   ("Ready to accept requests")
+
+7. Health check passes
+   ("I am alive and ready")
 ```
 
 ### Startup time comparison
@@ -127,21 +120,19 @@ volta-auth-proxy starts in approximately **200 milliseconds**. This is a deliber
 
 ### The development experience difference
 
-```
-  volta development cycle:
-  ┌──────────────────────────────────────────┐
-  │  Edit code → Save → Auto-restart (200ms) │
-  │  → See result → Edit again               │
-  │  Total cycle: ~1 second                  │
-  └──────────────────────────────────────────┘
+```text
+volta development cycle:
 
-  Keycloak development cycle:
-  ┌──────────────────────────────────────────┐
-  │  Edit code → Save → Rebuild (30s)        │
-  │  → Wait for startup (30s) → See result   │
-  │  → Edit again                            │
-  │  Total cycle: ~60+ seconds               │
-  └──────────────────────────────────────────┘
+   Edit code → Save → Auto-restart (200ms)
+   → See result → Edit again
+   Total cycle: ~1 second
+
+Keycloak development cycle:
+
+   Edit code → Save → Rebuild (30s)
+   → Wait for startup (30s) → See result
+   → Edit again
+   Total cycle: ~60+ seconds
 ```
 
 ---

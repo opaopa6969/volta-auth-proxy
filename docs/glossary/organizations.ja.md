@@ -24,25 +24,22 @@ Auth0とClerkはこのパターンを認識し、「Organizations」をファー
 
 Auth0は2021年にB2Bプラットフォームの一部としてOrganizationsを導入しました：
 
-```
-  Auth0 Organizationsモデル：
-  ┌──────────────────────────────────────────────────┐
-  │ Auth0テナント（あなたのAuth0アカウント）           │
-  │                                                    │
-  │  ┌─────────────┐  ┌─────────────┐                │
-  │  │ Org: Acme    │  │ Org: Beta    │               │
-  │  │              │  │              │                │
-  │  │ メンバー:    │  │ メンバー:    │                │
-  │  │  alice (admin)│  │  alice (viewer)│              │
-  │  │  bob (member) │  │  charlie (admin)│             │
-  │  │              │  │              │                │
-  │  │ 接続:        │  │ 接続:        │                │
-  │  │  Google SSO  │  │  Okta SAML  │                │
-  │  │              │  │              │                │
-  │  │ ブランド:    │  │ ブランド:    │                │
-  │  │  Acmeロゴ    │  │  Betaロゴ    │                │
-  │  └─────────────┘  └─────────────┘                │
-  └──────────────────────────────────────────────────┘
+```text
+Auth0 Organizationsモデル：
+
+  Auth0テナント（あなたのAuth0アカウント）
+
+     Org: Acme         Org: Beta
+
+     メンバー:         メンバー:
+      alice (admin)      alice (viewer)
+      bob (member)       charlie (admin)
+
+     接続:             接続:
+      Google SSO        Okta SAML
+
+     ブランド:         ブランド:
+      Acmeロゴ          Betaロゴ
 ```
 
 主な機能：

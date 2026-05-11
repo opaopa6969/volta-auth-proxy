@@ -41,22 +41,20 @@ In the SaaS world, most tools are offered as cloud services: you pay a monthly f
 
 ### The honest trade-off
 
-```
-  Cloud-hosted auth (Auth0/Clerk):
-  ┌──────────────────────────────────┐
-  │  Easy to start                   │
-  │  Someone else handles ops        │
-  │  Gets expensive at scale         │
-  │  You lose control over time      │
-  └──────────────────────────────────┘
+```text
+Cloud-hosted auth (Auth0/Clerk):
 
-  Self-hosted auth (volta):
-  ┌──────────────────────────────────┐
-  │  More setup work upfront         │
-  │  You handle ops                  │
-  │  Stays cheap at any scale        │
-  │  You keep full control forever   │
-  └──────────────────────────────────┘
+   Easy to start
+   Someone else handles ops
+   Gets expensive at scale
+   You lose control over time
+
+Self-hosted auth (volta):
+
+   More setup work upfront
+   You handle ops
+   Stays cheap at any scale
+   You keep full control forever
 ```
 
 ---

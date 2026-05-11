@@ -27,15 +27,14 @@ Just like a street address has parts (country, city, street, apartment), a URL h
 
 ## The parts of a URL
 
-```
-  https://shop.example.com:443/shoes/sneakers?color=red&size=28
-  ─────   ────────────────  ─── ─────────────── ───────────────
-    │            │            │        │               │
-    │            │            │        │               └─ Query: filters/options
-    │            │            │        └─ Path: which page
-    │            │            └─ Port: which door (usually hidden)
-    │            └─ Domain: which building
-    └─ Protocol: how to get there
+```text
+https://shop.example.com:443/shoes/sneakers?color=red&size=28
+
+                                                        Query: filters/options
+                                        Path: which page
+                               Port: which door (usually hidden)
+                  Domain: which building
+     Protocol: how to get there
 ```
 
 Let's use a shopping mall analogy:

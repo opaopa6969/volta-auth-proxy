@@ -49,61 +49,44 @@ In volta-auth-proxy, the connection pool is managed by HikariCP, the fastest con
 
 ### Pool lifecycle
 
-```
-  ┌────────────────────────────────────────────────┐
-  │               Connection Pool                   │
-  │                                                  │
-  │  ┌──────────────────────────────────────────┐   │
-  │  │  Available connections (idle)             │   │
-  │  │                                          │   │
-  │  │  ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐    │   │
-  │  │  │Conn│ │Conn│ │Conn│ │Conn│ │Conn│    │   │
-  │  │  │ 1  │ │ 2  │ │ 3  │ │ 4  │ │ 5  │    │   │
-  │  │  └────┘ └────┘ └────┘ └────┘ └────┘    │   │
-  │  └──────────────────────────────────────────┘   │
-  │                                                  │
-  │  ┌──────────────────────────────────────────┐   │
-  │  │  In-use connections (active)              │   │
-  │  │                                          │   │
-  │  │  ┌────┐ ┌────┐ ┌────┐                   │   │
-  │  │  │Conn│ │Conn│ │Conn│  ← serving         │   │
-  │  │  │ 6  │ │ 7  │ │ 8  │    requests        │   │
-  │  │  └────┘ └────┘ └────┘                   │   │
-  │  └──────────────────────────────────────────┘   │
-  │                                                  │
-  │  Pool size: 10  │  Active: 3  │  Idle: 5        │
-  │  Minimum: 5     │  Maximum: 10                   │
-  └────────────────────────────────────────────────┘
+```text
+             Connection Pool
+
+   Available connections (idle)
+
+    Conn   Conn   Conn   Conn   Conn
+     1      2      3      4      5
+
+   In-use connections (active)
+
+    Conn   Conn   Conn   ← serving
+     6      7      8       requests
+
+Pool size: 10     Active: 3     Idle: 5
+Minimum: 5        Maximum: 10
 ```
 
 ### How HikariCP manages the pool
 
-```
-  Request comes in:
-       │
-       ▼
-  Is there an idle connection?
-       │
-  ┌────┴────┐
-  │         │
-  Yes       No
-  │         │
-  ▼         ▼
-  Borrow    Is pool at max size?
-  it        │
-  (<0.1ms)  ├── No → Create new connection
-            │        Return it to request
-            │
-            └── Yes → Wait (up to connectionTimeout)
-                      │
-                 ┌────┴────┐
-                 │         │
-              Connection   Timeout
-              returned     exceeded
-                 │         │
-                 ▼         ▼
-              Use it    Throw
-                       SQLException
+```text
+Request comes in:
+
+Is there an idle connection?
+
+Yes       No
+
+Borrow    Is pool at max size?
+it
+(<0.1ms)      No → Create new connection
+                   Return it to request
+
+              Yes → Wait (up to connectionTimeout)
+
+            Connection   Timeout
+            returned     exceeded
+
+            Use it    Throw
+                     SQLException
 ```
 
 ### Key HikariCP settings
@@ -159,28 +142,27 @@ The `try-with-resources` block guarantees the connection is returned even if an 
 
 ### Pool sizing for volta
 
-```
-  Pool size considerations:
+```text
+Pool size considerations:
 
-  ForwardAuth check: ~2ms per query
-  Peak requests/second: ~500 (example)
+ForwardAuth check: ~2ms per query
+Peak requests/second: ~500 (example)
 
-  Connections needed = requests/sec × query_time_sec
-                     = 500 × 0.002
-                     = 1 connection
+Connections needed = requests/sec × query_time_sec
+                   = 500 × 0.002
+                   = 1 connection
 
-  But: other queries run too (user lookup, tenant check)
-  And: queries sometimes take longer under load
+But: other queries run too (user lookup, tenant check)
+And: queries sometimes take longer under load
 
-  Rule of thumb:
-  ┌─────────────────────────────────┐
-  │ connections = (2 × CPU cores)   │
-  │            + number of disks    │
-  │                                 │
-  │ For a 4-core server:            │
-  │ connections = (2 × 4) + 1 = 9  │
-  │ Round to 10                     │
-  └─────────────────────────────────┘
+Rule of thumb:
+
+  connections = (2 × CPU cores)
+             + number of disks
+
+  For a 4-core server:
+  connections = (2 × 4) + 1 = 9
+  Round to 10
 ```
 
 ### Phase 2: Pool sizing with multiple instances

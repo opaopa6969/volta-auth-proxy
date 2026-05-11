@@ -102,23 +102,20 @@ With this policy:
 
 ### Architecture in a Java application
 
-```
-  HTTP Request
-       │
-       ▼
-  ┌──────────────┐
-  │  Controller   │
-  │              │
-  │  enforcer    │──► jCasbin Enforcer
-  │  .enforce()  │       │
-  │              │       ├── Model (PERM rules)
-  │              │       └── Policy (from DB/file)
-  │              │              │
-  │  if allowed: │◄─── true/false
-  │    proceed   │
-  │  else:       │
-  │    403       │
-  └──────────────┘
+```text
+HTTP Request
+
+   Controller
+
+   enforcer       > jCasbin Enforcer
+   .enforce()
+                           Model (PERM rules)
+                           Policy (from DB/file)
+
+   if allowed:  <    true/false
+     proceed
+   else:
+     403
 ```
 
 ---

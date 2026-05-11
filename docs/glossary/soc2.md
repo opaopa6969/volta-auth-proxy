@@ -43,44 +43,39 @@ SOC 2 is built around five principles (you do not need all five):
 
 ### The audit process
 
-```
-  Step 1: Decide which criteria to include
-          (Security is mandatory; others are optional)
-              │
-              ▼
-  Step 2: Implement controls
-          - Access management (who can access what)
-          - Encryption (data at rest and in transit)
-          - Logging and monitoring
-          - Incident response procedures
-          - Employee security training
-          - Change management (how code gets to production)
-          - Vendor management (your dependencies)
-              │
-              ▼
-  Step 3: Operate controls for a period
-          ┌─────────────────────────────┐
-          │  Type I:  Point-in-time     │
-          │  "Controls exist today"     │
-          │  (snapshot, easier)         │
-          ├─────────────────────────────┤
-          │  Type II: Over a period     │
-          │  "Controls worked for 6-12  │
-          │   months continuously"      │
-          │  (much harder, much more    │
-          │   valuable to customers)    │
-          └─────────────────────────────┘
-              │
-              ▼
-  Step 4: Independent auditor reviews
-          - Examines evidence
-          - Tests controls
-          - Interviews employees
-              │
-              ▼
-  Step 5: Auditor issues SOC 2 report
-          - Pass: "Controls are effective"
-          - Fail: "These controls have gaps"
+```text
+Step 1: Decide which criteria to include
+        (Security is mandatory; others are optional)
+
+Step 2: Implement controls
+        - Access management (who can access what)
+        - Encryption (data at rest and in transit)
+        - Logging and monitoring
+        - Incident response procedures
+        - Employee security training
+        - Change management (how code gets to production)
+        - Vendor management (your dependencies)
+
+Step 3: Operate controls for a period
+
+           Type I:  Point-in-time
+           "Controls exist today"
+           (snapshot, easier)
+
+           Type II: Over a period
+           "Controls worked for 6-12
+            months continuously"
+           (much harder, much more
+            valuable to customers)
+
+Step 4: Independent auditor reviews
+        - Examines evidence
+        - Tests controls
+        - Interviews employees
+
+Step 5: Auditor issues SOC 2 report
+        - Pass: "Controls are effective"
+        - Fail: "These controls have gaps"
 ```
 
 ### What controls look like in practice
@@ -114,12 +109,12 @@ volta-auth-proxy does **not** have SOC 2 certification. This is a deliberate Pha
 
 Because volta runs on the customer's infrastructure, many SOC 2 concerns shift to the customer:
 
-```
-  Managed SaaS (Auth0, etc.):
-    Customer data ──► Vendor's servers ──► SOC 2 required by vendor
+```text
+Managed SaaS (Auth0, etc.):
+  Customer data   > Vendor's servers   > SOC 2 required by vendor
 
-  Self-hosted (volta):
-    Customer data ──► Customer's servers ──► Customer's SOC 2 covers it
+Self-hosted (volta):
+  Customer data   > Customer's servers   > Customer's SOC 2 covers it
 ```
 
 The customer's existing SOC 2 certification can cover volta as an internal tool, similar to how it covers their database or web server.

@@ -23,21 +23,21 @@ flowchart TD
     Struct -->|該当なし| Quick
 
     subgraph "Phase 0（全構造共通）"
-        P0["プロジェクトコンテキスト自動収集\nREADME / docs / tree / deps / git log"]
+        P0["プロジェクトコンテキスト自動収集<br/>README / docs / tree / deps / git log"]
     end
 
     subgraph "座談会型（roundtable）"
         Q1["Kit 読み込み"] --> Q2["テーマ確認"]
         Q2 --> Q4["キャラ選択（axis ベース）"]
-        Q4 --> Q5["会話劇生成\n応答義務あり"]
+        Q4 --> Q5["会話劇生成<br/>応答義務あり"]
         Q5 --> Q7["保存 + Gap 一覧 + 選択肢"]
     end
 
     subgraph "マルチフェーズ型（tribunal / wargame / pitch / consult / investigation）"
         M1["Kit 読み込み"] --> M2["テーマ確認 + 評価者/部門選択 ⏸"]
-        M2 --> MP1["Phase 1: 独立評価（非対話）\nフォーマット強制"]
-        MP1 --> MP2["Phase 2: 反論対話\n応答義務あり"]
-        MP2 --> MP3["Phase 3: 統合\nGap 一覧"]
+        M2 --> MP1["Phase 1: 独立評価（非対話）<br/>フォーマット強制"]
+        MP1 --> MP2["Phase 2: 反論対話<br/>応答義務あり"]
+        MP2 --> MP3["Phase 3: 統合<br/>Gap 一覧"]
         MP3 --> M7["保存 + 選択肢"]
     end
 
@@ -53,10 +53,10 @@ flowchart TD
 flowchart TD
     S8["サマリー + 選択肢 ⏸"] --> C1{"ユーザー選択"}
 
-    C1 -->|"1. DGE を回す"| S9B["前回コンテキスト\n+ TreeView"]
-    C1 -->|"2. 自動反復"| S9A["自動反復モード\n（最大 5 回）"]
+    C1 -->|"1. DGE を回す"| S9B["前回コンテキスト<br/>+ TreeView"]
+    C1 -->|"2. 自動反復"| S9A["自動反復モード<br/>（最大 5 回）"]
     C1 -->|"3. 実装する"| S10["累積 Spec 化"]
-    C1 -->|"4. 素の LLM マージ"| S9C["subagent\n素レビュー → マージ"]
+    C1 -->|"4. 素の LLM マージ"| S9C["subagent<br/>素レビュー → マージ"]
     C1 -->|"5. 後で"| End([終了])
 
     S9B -->|テーマ選択| S2([Step 2 へ])
@@ -78,7 +78,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    S1["Step 1:\ndge-tool version"] -->|成功| TM["🔧 Tool mode"]
+    S1["Step 1:<br/>dge-tool version"] -->|成功| TM["🔧 Tool mode"]
     S1 -->|失敗| SM["📝 Skill mode"]
 
     TM --> S7T["Step 7: dge-tool save"]
@@ -107,9 +107,9 @@ flowchart LR
 
     subgraph Engine["DGE エンジン"]
         S0["Step 0: flow 判定"]
-        S5["Step 5: 会話劇生成\n(flow.extract.marker)"]
-        S10["Step 10: Spec 生成\n(flow.generate.types)"]
-        S9C["Step 9C: subagent\n素 LLM マージ"]
+        S5["Step 5: 会話劇生成<br/>(flow.extract.marker)"]
+        S10["Step 10: Spec 生成<br/>(flow.generate.types)"]
+        S9C["Step 9C: subagent<br/>素 LLM マージ"]
     end
 
     subgraph Output["出力"]

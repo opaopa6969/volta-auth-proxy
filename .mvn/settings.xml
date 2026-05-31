@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven settings for CI.
+  Provides credentials for the Unlaxer Nexus repository so that
+  org.unlaxer:tramli (and other unlaxer artifacts not on Maven Central)
+  can be resolved during CI builds.
+
+  Required GitHub Actions secrets:
+    NEXUS_USERNAME  – Nexus user with read access to maven-public
+    NEXUS_PASSWORD  – Corresponding password / token
+
+  If the secrets are absent the server block is still present but
+  Maven will attempt an anonymous request, which may also succeed on
+  open Nexus instances.
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0
+                              https://maven.apache.org/xsd/settings-1.2.0.xsd">
+
+  <servers>
+    <server>
+      <id>unlaxer-nexus</id>
+      <username>${env.NEXUS_USERNAME}</username>
+      <password>${env.NEXUS_PASSWORD}</password>
+    </server>
+  </servers>
+
+</settings>

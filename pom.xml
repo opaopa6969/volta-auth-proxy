@@ -19,6 +19,20 @@
         <junit.version>5.12.2</junit.version>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>unlaxer-nexus</id>
+            <name>Unlaxer Nexus</name>
+            <url>https://nexus.unlaxer.org/repository/maven-public/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>io.javalin</groupId>

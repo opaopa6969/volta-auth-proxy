@@ -203,7 +203,9 @@ public final class ApiRouter {
             ctx.json(Map.of("ok", true));
         });
 
-        app.get("/api/me/sessions", ctx -> {
+        // 自セッション一覧ハンドラ。/api/me/sessions と統一prefixの
+        // /api/v1/users/me/sessions で同一ロジックを共有する（薄いエイリアス）。
+        io.javalin.http.Handler listOwnSessionsHandler = ctx -> {
             AuthPrincipal principal = AuthRouter.requireAuth(ctx, authService);
             List<Map<String, String>> sessions = sessionStore.listUserSessions(principal.userId()).stream()
                     .filter(s -> s.isValidAt(Instant.now()))
@@ -218,9 +220,11 @@ public final class ApiRouter {
                     ))
                     .toList();
             ctx.json(Map.of("items", sessions));
-        });
+        };
 
-        app.delete("/api/me/sessions/{id}", ctx -> {
+        // 自セッション失効ハンドラ。/api/me/sessions/{id} と統一prefixの
+        // /api/v1/users/me/sessions/{id} で同一ロジックを共有する。
+        io.javalin.http.Handler revokeOwnSessionHandler = ctx -> {
             AuthPrincipal principal = AuthRouter.requireAuth(ctx, authService);
             UUID sessionId = UUID.fromString(ctx.pathParam("id"));
             SessionRecord target = sessionStore.findSession(sessionId)
@@ -231,7 +235,17 @@ public final class ApiRouter {
             sessionStore.revokeSession(sessionId);
             auditService.log(ctx, "SESSION_REVOKED", principal, "SESSION", sessionId.toString(), Map.of("via", "api-me"));
             ctx.json(Map.of("ok", true));
-        });
+        };
+
+        app.get("/api/me/sessions", listOwnSessionsHandler);
+        app.delete("/api/me/sessions/{id}", revokeOwnSessionHandler);
+
+        // 統一prefixの正準ルート（後方互換のため上記旧ルートは残す）。
+        // GET  /api/v1/users/me/sessions      → 自セッション一覧
+        // DELETE /api/v1/users/me/sessions/{id} → 自セッション失効
+        // 認可は既存の自セッション系と同一（ログインユーザー自身のセッションのみ）。
+        app.get("/api/v1/users/me/sessions", listOwnSessionsHandler);
+        app.delete("/api/v1/users/me/sessions/{id}", revokeOwnSessionHandler);
 
         app.delete("/api/me/sessions", ctx -> {
             AuthPrincipal principal = AuthRouter.requireAuth(ctx, authService);

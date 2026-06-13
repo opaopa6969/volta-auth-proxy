@@ -13,7 +13,7 @@ class InvitationRecordTest {
         return new InvitationRecord(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                "code123",
+                SecurityUtils.sha256Hex("code123"),
                 "user@example.com",
                 "MEMBER",
                 maxUses,

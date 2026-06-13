@@ -7,6 +7,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
+import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.util.JSONObjectUtils;
@@ -25,8 +26,10 @@ import java.security.spec.X509EncodedKeySpec;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,13 +38,20 @@ public final class JwtService {
     private final AppConfig config;
     private final SqlStore store;
     private final KeyCipher keyCipher;
+    // The active signing key. All newly minted JWTs are signed with this key.
     private volatile RSAKey rsaKey;
+    // Verification key set, keyed by kid. Contains the active key plus any
+    // "rotated" (retiring) keys still within their grace period, so JWTs issued
+    // under a previous key remain verifiable until the old key is revoked.
+    // This is what gets published to the JWKS endpoint.
+    private volatile Map<String, RSAKey> verificationKeys;
 
     public JwtService(AppConfig config, SqlStore store) {
         this.config = config;
         this.store = store;
         this.keyCipher = new KeyCipher(config.jwtKeyEncryptionSecret());
         this.rsaKey = loadOrCreateKey();
+        this.verificationKeys = loadVerificationKeys();
     }
 
     public String issueToken(AuthPrincipal principal) {
@@ -87,7 +97,8 @@ public final class JwtService {
             if (!JWSAlgorithm.RS256.equals(jwt.getHeader().getAlgorithm())) {
                 throw new IllegalArgumentException("Unsupported JWT algorithm");
             }
-            JWSVerifier verifier = new RSASSAVerifier(rsaKey.toRSAPublicKey());
+            RSAKey verifyKey = selectVerificationKey(jwt.getHeader().getKeyID());
+            JWSVerifier verifier = new RSASSAVerifier(verifyKey.toRSAPublicKey());
             if (!jwt.verify(verifier)) {
                 throw new IllegalArgumentException("Invalid JWT signature");
             }
@@ -109,14 +120,74 @@ public final class JwtService {
 
     public String jwksJson() {
         try {
-            RSAKey publicKey = new RSAKey.Builder(rsaKey.toRSAPublicKey())
-                    .keyID(rsaKey.getKeyID())
-                    .algorithm(JWSAlgorithm.RS256)
-                    .build();
-            return JSONObjectUtils.toJSONString(new JWKSet(publicKey).toJSONObject());
+            List<JWK> publicKeys = new ArrayList<>();
+            // Publish every verification key (active + retiring) so relying
+            // parties can validate JWTs signed with either the current or a
+            // recently rotated key. The active key is listed first.
+            for (RSAKey key : verificationKeys.values()) {
+                publicKeys.add(new RSAKey.Builder(key.toRSAPublicKey())
+                        .keyID(key.getKeyID())
+                        .algorithm(JWSAlgorithm.RS256)
+                        .build());
+            }
+            if (publicKeys.isEmpty()) {
+                publicKeys.add(new RSAKey.Builder(rsaKey.toRSAPublicKey())
+                        .keyID(rsaKey.getKeyID())
+                        .algorithm(JWSAlgorithm.RS256)
+                        .build());
+            }
+            return JSONObjectUtils.toJSONString(new JWKSet(publicKeys).toJSONObject());
         } catch (JOSEException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Picks the verification key for an incoming JWT. When the token carries a
+     * {@code kid} we look it up in the published key set (active + retiring).
+     * For backward compatibility with tokens that have no kid — or a single-key
+     * deployment — we fall back to the active signing key.
+     */
+    private RSAKey selectVerificationKey(String kid) {
+        RSAKey match = selectKey(this.verificationKeys, this.rsaKey, kid);
+        if (match != this.rsaKey || kid == null || this.rsaKey.getKeyID().equals(kid)) {
+            return match;
+        }
+        // Unknown kid: the key may have been added after this instance cached
+        // its set (e.g. another node rotated). Reload once and retry.
+        Map<String, RSAKey> reloaded = loadVerificationKeys();
+        this.verificationKeys = reloaded;
+        return selectKey(reloaded, this.rsaKey, kid);
+    }
+
+    /**
+     * Pure key-selection used by {@link #verify}. Returns the key matching
+     * {@code kid}; if {@code kid} is null or not present, falls back to the
+     * active signing key (backward compatibility with single-key / no-kid
+     * tokens). Package-private and static so it is unit-testable without a DB.
+     */
+    static RSAKey selectKey(Map<String, RSAKey> keys, RSAKey activeKey, String kid) {
+        if (kid != null) {
+            RSAKey match = keys.get(kid);
+            if (match != null) {
+                return match;
+            }
+        }
+        return activeKey;
+    }
+
+    private Map<String, RSAKey> loadVerificationKeys() {
+        Map<String, RSAKey> keys = new LinkedHashMap<>();
+        for (SqlStore.SigningKeyRecord record : store.loadVerificationSigningKeys()) {
+            RSAKey key = restoreKey(record);
+            keys.put(key.getKeyID(), key);
+        }
+        // Always include the in-memory active key so a freshly created key is
+        // usable for verification even before the next reload.
+        if (rsaKey != null) {
+            keys.putIfAbsent(rsaKey.getKeyID(), rsaKey);
+        }
+        return keys;
     }
 
     private RSAKey loadOrCreateKey() {
@@ -185,6 +256,9 @@ public final class JwtService {
                     keyCipher.encrypt(Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded()))
             );
             this.rsaKey = next;
+            // Reload so the new active key and the just-retired (rotated) key are
+            // both present in the verification set / JWKS during the grace period.
+            this.verificationKeys = loadVerificationKeys();
             return kid;
         } catch (Exception e) {
             throw new RuntimeException(e);

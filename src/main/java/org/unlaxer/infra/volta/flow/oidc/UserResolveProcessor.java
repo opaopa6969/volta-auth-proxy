@@ -40,10 +40,12 @@ public final class UserResolveProcessor implements StateProcessor {
         boolean mfaRequired;
 
         if (tokens.inviteCode() != null) {
-            InvitationRecord invitation = store.findInvitationByCode(tokens.inviteCode())
+            store.findInvitationByCode(tokens.inviteCode())
                     .orElseThrow(() -> new FlowException("INVITATION_NOT_FOUND", "招待リンクが見つかりません。"));
             roles = List.of("INVITED");
-            sessionReturnTo = "invite:" + invitation.code();
+            // Carry the raw invite code (not the stored hash) so the later
+            // findInvitationByCode lookup in AuthService can re-hash and match it.
+            sessionReturnTo = "invite:" + tokens.inviteCode();
         } else {
             MembershipRecord membership = store.findMembership(user.id(), tenant.id())
                     .orElseThrow(() -> new FlowException("TENANT_ACCESS_DENIED", "Tenant membership not found"));

@@ -617,14 +617,22 @@ public final class SqlStore {
         }
     }
 
+    /**
+     * Looks up an invitation by its raw (plaintext) code. The code is hashed
+     * before the query — only the hash is stored in the database, so this is a
+     * constant-cost hash comparison rather than a plaintext match.
+     */
     public Optional<InvitationRecord> findInvitationByCode(String code) {
+        if (code == null) {
+            return Optional.empty();
+        }
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     SELECT id, tenant_id, code, email, role, max_uses, used_count, created_by, expires_at
+                     SELECT id, tenant_id, code_hash, email, role, max_uses, used_count, created_by, expires_at
                      FROM invitations
-                     WHERE code = ?
+                     WHERE code_hash = ?
                      """)) {
-            ps.setString(1, code);
+            ps.setString(1, SecurityUtils.sha256Hex(code));
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return Optional.empty();
@@ -825,15 +833,20 @@ public final class SqlStore {
         }
     }
 
+    /**
+     * Creates an invitation. The {@code code} argument is the raw invite code;
+     * only its SHA-256 hash is persisted. The caller is responsible for
+     * delivering the raw code to the invitee (and not storing it anywhere).
+     */
     public UUID createInvitation(UUID tenantId, String code, String email, String role, int maxUses, UUID createdBy, Instant expiresAt) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     INSERT INTO invitations(tenant_id, code, email, role, max_uses, created_by, expires_at)
+                     INSERT INTO invitations(tenant_id, code_hash, email, role, max_uses, created_by, expires_at)
                      VALUES (?, ?, ?, ?, ?, ?, ?)
                      RETURNING id
                      """)) {
             ps.setObject(1, tenantId);
-            ps.setString(2, code);
+            ps.setString(2, SecurityUtils.sha256Hex(code));
             ps.setString(3, email);
             ps.setString(4, role);
             ps.setInt(5, maxUses);
@@ -851,7 +864,7 @@ public final class SqlStore {
     public List<InvitationRecord> listInvitations(UUID tenantId, int offset, int limit) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     SELECT id, tenant_id, code, email, role, max_uses, used_count, created_by, expires_at
+                     SELECT id, tenant_id, code_hash, email, role, max_uses, used_count, created_by, expires_at
                      FROM invitations
                      WHERE tenant_id = ?
                      ORDER BY created_at DESC
@@ -926,6 +939,36 @@ public final class SqlStore {
         }
     }
 
+    /**
+     * Loads every signing key that may still need to verify previously issued
+     * JWTs: the {@code active} key plus any {@code rotated} (retiring) keys that
+     * are still inside their grace period (i.e. not yet {@code revoked}).
+     * Used to publish a multi-key JWKS and to pick the verification key by kid.
+     */
+    public List<SigningKeyRecord> loadVerificationSigningKeys() {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT kid, public_key, private_key
+                     FROM signing_keys
+                     WHERE status IN ('active', 'rotated')
+                     ORDER BY (status = 'active') DESC, created_at DESC
+                     """)) {
+            List<SigningKeyRecord> result = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new SigningKeyRecord(
+                            rs.getString("kid"),
+                            rs.getString("public_key"),
+                            rs.getString("private_key")
+                    ));
+                }
+            }
+            return result;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static UserRecord readUser(ResultSet rs) throws SQLException {
         return new UserRecord(
                 rs.getObject("id", UUID.class),
@@ -939,7 +982,7 @@ public final class SqlStore {
         return new InvitationRecord(
                 rs.getObject("id", UUID.class),
                 rs.getObject("tenant_id", UUID.class),
-                rs.getString("code"),
+                rs.getString("code_hash"),
                 rs.getString("email"),
                 rs.getString("role"),
                 rs.getInt("max_uses"),
@@ -3275,7 +3318,7 @@ public final class SqlStore {
             default -> "";
         };
         String sql = """
-                SELECT id, tenant_id, code, email, role, max_uses, used_count, created_by, expires_at,
+                SELECT id, tenant_id, code_hash, email, role, max_uses, used_count, created_by, expires_at,
                        COUNT(*) OVER() AS total_count
                 FROM invitations
                 WHERE tenant_id = ?""" + statusCondition + """

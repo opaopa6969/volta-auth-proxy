@@ -68,7 +68,9 @@ public final class AdminRouter {
             List<InvitationRecord> invitations = store.listInvitations(principal.tenantId(), 0, 100);
             List<Map<String, String>> invitationView = invitations.stream().map(i -> Map.of(
                     "id", i.id().toString(),
-                    "code", i.code().substring(0, Math.min(8, i.code().length())) + "...",
+                    // Raw invite codes are no longer stored; show a non-reversible
+                    // hash prefix purely as a reference identifier for admins.
+                    "code", i.codeHash().substring(0, Math.min(8, i.codeHash().length())) + "...",
                     "role", i.role(),
                     "status", i.expiresAt().isBefore(Instant.now()) ? "\u274C 期限切れ" : (i.usedCount() > 0 ? "\u2705 使用済み" : "\u23F3 未使用"),
                     "expiresAt", i.expiresAt().toString(),

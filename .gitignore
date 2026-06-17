@@ -25,3 +25,12 @@ jte-classes/
 .DS_Store
 dependency-reduced-pom.xml
 com/
+target/
+build/
+out/
+__pycache__/
+dist/
+.gradle/
+.next/
+.nuxt/
+bower_components/

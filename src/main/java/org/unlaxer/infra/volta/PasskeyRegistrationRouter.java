@@ -80,6 +80,7 @@ public final class PasskeyRegistrationRouter {
                     "displayName", user.displayName() != null ? user.displayName() : user.email()
                 ),
                 "pubKeyCredParams", List.of(
+                    Map.of("type", "public-key", "alg", -8),   // EdDSA (Ed25519) — security key / OS の対応が増えている
                     Map.of("type", "public-key", "alg", -7),   // ES256
                     Map.of("type", "public-key", "alg", -257)  // RS256
                 ),

@@ -199,7 +199,7 @@ public final class Main {
         // CORS for auth-console and other subdomains
         app.before(ctx -> {
             String origin = ctx.header("Origin");
-            if (origin != null && isAllowedOrigin(origin)) {
+            if (origin != null && isAllowedOrigin(origin, config)) {
                 ctx.header("Access-Control-Allow-Origin", origin);
                 ctx.header("Access-Control-Allow-Credentials", "true");
                 ctx.header("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token");
@@ -253,7 +253,7 @@ public final class Main {
             // API requests with valid Origin are exempt from CSRF token check
             // (SameSite=Lax cookie prevents cross-origin cookie attachment)
             String origin = ctx.header("Origin");
-            if (origin != null && isAllowedOrigin(origin)) {
+            if (origin != null && isAllowedOrigin(origin, config)) {
                 return;
             }
             // No Origin header or unknown Origin → require CSRF token (form submission)
@@ -489,14 +489,47 @@ public final class Main {
     // --- Helpers that remain in Main ---
 
     static boolean isAllowedOrigin(String origin) {
+        return isAllowedOrigin(origin, null);
+    }
+
+    /**
+     * CSRF/CORS で許可する Origin か判定する。
+     *
+     * <p>組み込みの {@code unlaxer.org} / {@code localhost} に加え、{@code config} が渡されたときは
+     * デプロイ先のドメインも許可する:
+     * <ul>
+     *   <li>{@code BASE_URL} のホスト (公開ドメインそのもの)</li>
+     *   <li>{@code ALLOWED_REDIRECT_DOMAINS} (カンマ区切り) のホストとそのサブドメイン</li>
+     * </ul>
+     * これにより独自ドメインで動かしたとき、同一オリジンの POST (例: Magic Link フォーム) が
+     * CSRF で誤って弾かれなくなる。
+     */
+    static boolean isAllowedOrigin(String origin, AppConfig config) {
         try {
             java.net.URI uri = java.net.URI.create(origin);
             String host = uri.getHost();
             if (host == null) return false;
-            return host.equals("unlaxer.org")
+            if (host.equals("unlaxer.org")
                     || host.endsWith(".unlaxer.org")
                     || host.equals("localhost")
-                    || host.startsWith("localhost:");
+                    || host.startsWith("localhost:")) {
+                return true;
+            }
+            if (config != null) {
+                // BASE_URL のホスト
+                if (config.baseUrl() != null && !config.baseUrl().isBlank()) {
+                    String baseHost = java.net.URI.create(config.baseUrl()).getHost();
+                    if (baseHost != null && host.equalsIgnoreCase(baseHost)) return true;
+                }
+                // ALLOWED_REDIRECT_DOMAINS (カンマ区切り、サブドメインも許可)
+                if (config.allowedRedirectDomains() != null) {
+                    for (String d : config.allowedRedirectDomains().split(",")) {
+                        d = d.trim();
+                        if (!d.isEmpty() && (host.equalsIgnoreCase(d) || host.endsWith("." + d))) return true;
+                    }
+                }
+            }
+            return false;
         } catch (Exception e) {
             return false;
         }

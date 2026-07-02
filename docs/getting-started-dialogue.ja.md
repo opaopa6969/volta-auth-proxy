@@ -333,7 +333,43 @@ app.delete("/api/tasks/{id}", ctx -> {
 
 ***
 
-## Scene 8: 「最後に一つ」
+## Scene 8: 「CLI とかスマート TV はどうログインするの？」
+
+**カイ:** そういえば、うちのアプリ、CLI ツールも出す予定なんだ。あと将来テレビアプリも。あれって、ブラウザにリダイレクトできないよね？ リモコンでパスワード打つの地獄だし。
+
+**リン:** そこは **QR コードとデバイス認可**で解く。標準の [OAuth 2.0 Device Authorization Grant（RFC 8628）](glossary/oauth.ja.md)。仕組みはこう:
+
+```
+① CLI / TV が volta に「デバイス認可はじめて」と頼む
+     → POST /oauth/device_authorization
+② volta が短いコード（例: WDJB-MJHT）と QR を返す
+     → CLI は画面に「スマホで volta.example/device を開いてコードを入れてね」
+       （QR に verification_uri_complete を載せれば "読むだけ"）
+③ あなたはスマホでその URL を開く（もうログイン済み）→「承認」を押す
+④ CLI / TV は数秒ごとに「もう承認された？」と volta に polling
+     → POST /oauth/token (grant_type=…:device_code)
+⑤ 承認されたらトークン受領 → ログイン完了
+```
+
+**カイ:** つまり、貧弱なデバイス自身は頑張らなくて、認証はスマホに肩代わりさせるってこと？
+
+**リン:** その通り。**認証は "賢いデバイス"（スマホ）に委譲**する。TV はコードを出すだけ。実際のログインと承認はスマホの中で、なんなら[生体認証](glossary/verification.ja.md)込みで終わる。
+
+**カイ:** アプリ側で作るものは？
+
+**リン:** ほぼゼロ。CLI が `/oauth/device_authorization` を叩いてコードと QR を表示し、あとは `/oauth/token` を polling するだけ。承認画面（`/device`）も volta が出す。あなたが書くのは「コードを表示して、トークンを待つ」ループだけ。
+
+**カイ:** 承認画面を volta が出すって、地味に助かる。フィッシング対策とかも？
+
+**リン:** やってる。承認画面には**要求元アプリ名と権限**を出すから、ユーザーは何を承認するか分かる。`device_code` は平文保存せず[ハッシュ](glossary/verification.ja.md)だけ、`user_code` は短命 + レート制限、polling が速すぎたら `slow_down` で抑える。
+
+**カイ:** これ、Passkey の "別デバイスで QR" と同じ？
+
+**リン:** 似て非なるもの。**Passkey のハイブリッド QR は "鍵" を運ぶ**（PC でログインしたいが鍵はスマホ）。**デバイス認可の QR は "承認" を運ぶ**（貧弱デバイス自身をログインさせる）。目的が違う。詳しくは[教科書の第15章](education/auth-textbook.md)で対比してる。
+
+***
+
+## Scene 9: 「最後に一つ」
 
 **カイ:** volta が落ちたらどうなる？
 

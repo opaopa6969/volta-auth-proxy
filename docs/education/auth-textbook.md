@@ -22,6 +22,7 @@
 - [第12章: セキュリティの落とし穴 — 本番で起きた21の事件](#第12章-セキュリティの落とし穴--本番で起きた21の事件)
 - [第13章: 認証基盤の選び方 — Keycloak vs Auth0 vs 自前](#第13章-認証基盤の選び方--keycloak-vs-auth0-vs-自前)
 - [第14章: Auth as Code — 認証をコードで管理する](#第14章-auth-as-code--認証をコードで管理する)
+- [第15章: クロスデバイス認証 — QR コードでログイン](#第15章-クロスデバイス認証--qr-コードでログイン)
 
 ---
 
@@ -484,6 +485,10 @@ stateDiagram-v2
 🐣 「Passkey は MFA が不要なんですか？」
 
 🧑‍💻 「Passkey は "持っているもの"（デバイス）+ "生体"（指紋/顔）の2要素を兼ねてる。だから Passkey でログインしたら MFA 済みとして扱う。」
+
+🐣 「"別のデバイスで QR を読んでログイン" もありますよね？」
+
+🧑‍💻 「それは Passkey の "ハイブリッド" 方式ね。ただし "貧弱なデバイス自身をログインさせる" QR（デバイス認可）とは目的が別物。混同しやすいので第15章で対比するよ。」
 
 ---
 
@@ -957,6 +962,116 @@ class TokenExchangeProcessor implements StateProcessor {
 
 ---
 
+## 第15章: クロスデバイス認証 — QR コードでログイン
+
+### ブラウザが無い / キーボードが辛いデバイス問題
+
+🐣 「先輩、CLI ツールとか、テレビの動画アプリって、どうやってログインするんですか？ あの小さいリモコンでメールアドレスとパスワード打つの、地獄ですよね…」
+
+🧑‍💻 「いいところに気づいた。ここまで学んだ OAuth/OIDC も Passkey も、暗黙に "ちゃんとしたブラウザとキーボードがある" 前提だった。でも世の中には：」
+
+```
+・スマート TV の動画アプリ（リモコンしかない）
+・CLI ツール / 開発者ツール（ブラウザが無い、あっても別プロセス）
+・IoT 機器 / 券売機 / サイネージ（入力デバイスが貧弱）
+・デスクトップ / ネイティブアプリ（ブラウザに飛ばしたくない）
+```
+
+🧑‍💻 「こういう "入力が貧弱な (input-constrained) デバイス" のために作られたのが **Device Authorization Grant（RFC 8628）**。通称 "デバイスフロー"。ネイティブアプリの認可も、スマホの QR 読み取りも、これで一気に解ける。」
+
+### 発想の転換: 「認証は、もう1台の賢いデバイスに任せる」
+
+🐣 「貧弱なデバイスで頑張らない、ってことですか？」
+
+🧑‍💻 「そう。**認証だけ、手元のスマホ（=賢くて生体認証もある端末）に肩代わりさせる**。TV は "コード" を表示するだけ、実際のログインはスマホでやる。」
+
+```
+┌─────────────┐        ┌──────────────┐
+│  TV / CLI    │        │  あなたのスマホ  │
+│ (貧弱デバイス) │        │  (賢いデバイス)  │
+└──────┬──────┘        └───────┬──────┘
+       │ ①「コード WDJB-MJHT を                │
+       │   volta.example/device で入れてね」    │
+       │   (QR も表示)                         │
+       │                    ② QR を読む / URL を開く
+       │                    ③ 既存ログイン + 承認（生体でもOK）
+       │ ④ 数秒ごとに「もう承認された？」と polling
+       │ ⑤ 承認されたらトークン受領 → ログイン完了！
+```
+
+### RFC 8628 の登場人物
+
+```
+device_code               … デバイスが握る長い秘密。サーバへの polling に使う
+user_code                 … 人が打つ短いコード（例: WDJB-MJHT）。母音や 0/1 を
+                            除いた読み間違えにくい文字だけ
+verification_uri          … 「ここにコードを入れてね」の URL
+verification_uri_complete … user_code 入り URL。これを QR にすれば "読むだけ"
+interval                  … polling の最短間隔（秒）。速すぎると slow_down
+```
+
+### volta の実装（フロー）
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING : POST /oauth/device_authorization
+    PENDING --> APPROVED : スマホで承認 (POST /device/approve)
+    PENDING --> DENIED   : スマホで拒否 (POST /device/deny)
+    PENDING --> EXPIRED  : TTL 切れ
+    APPROVED --> COMPLETED : デバイスの次の polling でトークン発行
+    COMPLETED --> [*]
+    DENIED --> [*]
+    EXPIRED --> [*]
+```
+
+🐣 「デバイスは "承認まだ？" ってずっと聞き続けるんですね。」
+
+🧑‍💻 「そう、これを **polling** と言う。`POST /oauth/token` に `grant_type=urn:ietf:params:oauth:grant-type:device_code` と `device_code` を投げると、状態に応じて返事が変わる：」
+
+```
+authorization_pending … まだ承認されてない（待て）
+slow_down             … polling が速すぎる（間隔を空けろ）
+access_denied         … ユーザーが拒否した
+expired_token         … コードの期限切れ
+（承認済み）           … access_token を発行！
+```
+
+### セキュリティの勘所
+
+```
+・device_code は平文で保存しない（SHA-256 ハッシュのみ）。DB が漏れても
+  polling を乗っ取られない
+・user_code は短命 + レート制限。総当たりされる前に期限切れ
+・承認は「ログイン済みの本人」が明示的に押す = 承認画面にアプリ名と要求権限を出す
+  （フィッシングで別アプリを承認させられないように）
+・slow_down で polling 濫用を抑える
+```
+
+### Passkey の "QR" と何が違う？
+
+🐣 「あれ、Passkey にも "別のデバイスで QR 読んでログイン" ってありましたよね？（第7章）」
+
+🧑‍💻 「鋭い。混同しやすいから整理しよう。」
+
+```
+Passkey のハイブリッド (caBLE) QR:
+  → PC でログインしたいが鍵はスマホにある、を解決。
+    ブラウザ/OS が主役。Bluetooth で近接確認。認証の "鍵" を運ぶ。
+
+Device Grant の QR:
+  → 貧弱デバイス自身をログインさせる、を解決。
+    サーバ（volta）が主役。ネットワーク越し。認可の "承認" を運ぶ。
+```
+
+🧑‍💻 「どちらも "スマホで QR" だけど、**Passkey ハイブリッドは鍵の運搬、Device Grant は承認の委譲**。目的が違う。両方あって初めて "どんなデバイスでもログインできる" 世界になる。」
+
+> 📎 世の中の認証手法の全体地図（パスワード〜Passkey〜OP〜VC まで）と、volta の
+> 現状カバレッジ／今後のロードマップは、姉妹リポジトリ volta-gateway の
+> `docs/auth-methods-landscape.md` にまとめてある。この章の Device Grant は
+> そのロードマップ Phase 1 として実装された機能。
+
+---
+
 ## まとめ
 
 ```
@@ -974,6 +1089,7 @@ class TokenExchangeProcessor implements StateProcessor {
 第12章: セキュリティ = 21の落とし穴を1つずつ潰す
 第13章: 選択 = Auth0/Keycloak/Authelia/volta、用途で選ぶ
 第14章: Auth as Code = 認証をコードで管理し、git revert できる世界
+第15章: クロスデバイス = QR とデバイス認可(RFC 8628)で貧弱デバイスもログイン
 ```
 
 ---

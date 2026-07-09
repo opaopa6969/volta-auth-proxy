@@ -2,7 +2,7 @@
 
 [English](README.md) | [Japanese (日本語)](README.ja.md)
 
-**[Multi-tenant](docs/glossary/multi-tenant.md) auth. One [HTTP header](docs/glossary/header.md). That's it.**
+**[Multi-tenant](docs/glossary/multi-tenant.md) auth. Your apps just read [HTTP headers](docs/glossary/header.md). That's it.**
 
 [Multi-tenant](docs/glossary/multi-tenant.md) [identity gateway](docs/glossary/identity-gateway.md) for [SaaS](docs/glossary/saas.md).
 Handles [authentication](docs/glossary/authentication-vs-authorization.md), [tenant](docs/glossary/tenant.md)s, [role](docs/glossary/role.md)s, [invitations](docs/glossary/invitation-flow.md) so [downstream](docs/glossary/downstream-app.md) apps don't have to.
@@ -55,7 +55,7 @@ Handles [authentication](docs/glossary/authentication-vs-authorization.md), [ten
 flowchart LR
     Browser --> Traefik
     Traefik -->|ForwardAuth check| Volta[volta-auth-proxy]
-    Volta -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| Traefik
+    Volta -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Roles: MEMBER| Traefik
     Traefik --> App
 ```
 
@@ -64,7 +64,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     Browser --> Gateway[volta-gateway<br/>auth built-in]
-    Gateway -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| App
+    Gateway -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Roles: MEMBER| App
 ```
 
 [volta-gateway](https://github.com/opaopa6969/volta-gateway) is a Rust-based [reverse proxy](docs/glossary/reverse-proxy.md) that includes a volta-auth-proxy compatible auth server. No separate auth-proxy needed.
@@ -145,7 +145,7 @@ All flows are handled by a unified **AUTH-010 `AuthFlowHandler`** — a single e
 > **[tramli](https://github.com/opaopa6969/tramli)** is a standalone library usable in any [Java](docs/glossary/java.md) 21+ project.
 > For the design pattern guide, see [STATE-MACHINE-PATTERN-GUIDE.md](docs/STATE-MACHINE-PATTERN-GUIDE.md).
 
-#### OIDC Login Flow (9 states)
+#### OIDC Login Flow (11 states)
 
 ```mermaid
 stateDiagram-v2

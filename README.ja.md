@@ -2,7 +2,7 @@
 
 [English](README.md) | [Japanese (日本語)](README.ja.md)
 
-**マルチテナント認証を、[HTTP ヘッダ](docs/glossary/header.ja.md)1つで。**
+**マルチテナント認証を、[HTTP ヘッダ](docs/glossary/header.ja.md)を読むだけで。**
 
 [マルチテナント](docs/glossary/multi-tenant.ja.md) [SaaS](docs/glossary/saas.ja.md) 向け [Identity Gateway](docs/glossary/identity-gateway.ja.md)。
 [認証](docs/glossary/authentication-vs-authorization.ja.md)・テナント管理・[ロール](docs/glossary/role.ja.md)・[招待](docs/glossary/invitation-flow.ja.md)を一手に引き受け、[下流](docs/glossary/downstream-app.ja.md)の [App](docs/glossary/downstream-app.ja.md) は何もしなくてよくなります。
@@ -55,7 +55,7 @@
 flowchart LR
     Browser --> Traefik
     Traefik -->|ForwardAuth チェック| Volta[volta-auth-proxy]
-    Volta -->|認証・テナント解決<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| Traefik
+    Volta -->|認証・テナント解決<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Roles: MEMBER| Traefik
     Traefik --> App
 ```
 
@@ -64,7 +64,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     Browser --> Gateway[volta-gateway<br/>認証組み込み]
-    Gateway -->|認証・テナント解決<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| App
+    Gateway -->|認証・テナント解決<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Roles: MEMBER| App
 ```
 
 [volta-gateway](https://github.com/opaopa6969/volta-gateway) は Rust 製の[リバースプロキシ](docs/glossary/reverse-proxy.ja.md)で、volta-auth-proxy 互換の認証サーバーを内蔵しています。別途 auth-proxy を立てる必要はありません。
@@ -176,7 +176,7 @@ tramli プラグインにより、フローコードに触れずに横断的関�
 > **[tramli](https://github.com/opaopa6969/tramli)** は [Java](docs/glossary/java.ja.md) 21+ で使える独立ライブラリ。
 > 設計パターンガイド: [STATE-MACHINE-PATTERN-GUIDE.md](docs/STATE-MACHINE-PATTERN-GUIDE.md)
 
-#### OIDC ログインフロー (9状態)
+#### OIDC ログインフロー (11状態)
 
 ```mermaid
 stateDiagram-v2

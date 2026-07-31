@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: volta-auth-postgres
+    restart: unless-stopped
     ports:
       - "54329:5432"
     environment:
@@ -19,6 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: volta-auth-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
 

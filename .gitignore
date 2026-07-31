@@ -20,6 +20,10 @@ jte-classes/
 
 # Claude Code
 .claude/
+.mcp.json
+
+# Runtime (start-dev.sh / cron の出力先)
+logs/
 
 # OS
 .DS_Store

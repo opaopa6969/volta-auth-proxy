@@ -42,6 +42,14 @@ class HttpSupportTest {
         assertTrue(HttpSupport.isAllowedReturnTo("http://localhost/path", "localhost"));
     }
 
+    // Issue #46: when BASE_URL is https, http:// return_to must be rejected.
+    // In the test JVM, BASE_URL is unset → REQUIRE_HTTPS_RETURN_TO=false,
+    // so http stays allowed (dev mode). https is always allowed.
+    @Test
+    void httpsAlwaysAllowedRegardlessOfBaseUrl() {
+        assertTrue(HttpSupport.isAllowedReturnTo("https://app.example.com/path", "app.example.com"));
+    }
+
     @Test
     void parseOffsetDefault() {
         assertEquals(0, HttpSupport.parseOffset(null));

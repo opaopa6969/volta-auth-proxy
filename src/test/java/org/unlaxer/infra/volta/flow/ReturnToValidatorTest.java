@@ -1,11 +1,17 @@
 package org.unlaxer.infra.volta.flow;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class ReturnToValidatorTest {
-    private final ReturnToValidator validator = new ReturnToValidator("app.example.com,console.example.com");
+    private ReturnToValidator validator;
+
+    @BeforeEach
+    void setUp() {
+        validator = new ReturnToValidator("app.example.com,console.example.com");
+    }
 
     @Test
     void nullAndBlank_returnNull() {
@@ -44,5 +50,23 @@ class ReturnToValidatorTest {
         assertNull(validator.validateOrNull("https://app.example.com.evil.com/"));
         assertNull(validator.validateOrNull("javascript:alert(1)"));
         assertNull(validator.validateOrNull("ftp://app.example.com/file"));
+    }
+
+    // --- Issue #46: BASE_URL=https should reject http:// return_to ---
+    // In the test JVM, BASE_URL is unset (dev mode) so http stays allowed.
+    // Production behavior (https enforced) is documented in ReturnToValidator
+    // and HttpSupport.REQUIRE_HTTPS_RETURN_TO; covered by code inspection.
+
+    @Test
+    void httpAllowedWhenBaseUrlUnset_devMode() {
+        // Test JVM does not set BASE_URL → REQUIRE_HTTPS=false → http allowed
+        assertEquals("http://app.example.com/dash",
+                validator.validateOrNull("http://app.example.com/dash"));
+    }
+
+    @Test
+    void httpsAlwaysAllowed() {
+        assertEquals("https://app.example.com/x",
+                validator.validateOrNull("https://app.example.com/x"));
     }
 }

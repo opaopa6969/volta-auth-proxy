@@ -47,7 +47,11 @@ public final class HttpSupport {
         } catch (Exception e) {
             return false;
         }
-        if (uri.getHost() == null || !"https".equalsIgnoreCase(uri.getScheme()) && !"http".equalsIgnoreCase(uri.getScheme())) {
+        String scheme = uri.getScheme();
+        if (uri.getHost() == null || !"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) {
+            return false;
+        }
+        if ("http".equalsIgnoreCase(scheme) && REQUIRE_HTTPS_RETURN_TO) {
             return false;
         }
         String host = uri.getHost().toLowerCase();
@@ -67,6 +71,20 @@ public final class HttpSupport {
 
     private static final boolean FORCE_SECURE_COOKIE =
             "true".equalsIgnoreCase(System.getenv("FORCE_SECURE_COOKIE"));
+
+    // When BASE_URL is https, reject http:// return_to URLs to enforce https in production.
+    // Development environments (BASE_URL=http://localhost:...) keep allowing http.
+    private static final boolean REQUIRE_HTTPS_RETURN_TO = isBaseUrlHttps();
+
+    private static boolean isBaseUrlHttps() {
+        String baseUrl = System.getenv("BASE_URL");
+        if (baseUrl == null || baseUrl.isBlank()) return false;
+        try {
+            return "https".equalsIgnoreCase(URI.create(baseUrl.trim()).getScheme());
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     // AUTH-014 Phase 4 item 2: optional global tenancy policy. When set at
     // boot (see Main.java), setSessionCookie consults it to pick the effective

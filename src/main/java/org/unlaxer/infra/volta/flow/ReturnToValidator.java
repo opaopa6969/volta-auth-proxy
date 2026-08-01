@@ -14,6 +14,9 @@ public final class ReturnToValidator {
 
     private final Set<String> allowedDomains;
 
+    // When BASE_URL is https, reject http:// return_to URLs to enforce https in production.
+    private static final boolean REQUIRE_HTTPS = isBaseUrlHttps();
+
     public ReturnToValidator(String allowedDomainsCsv) {
         this.allowedDomains = Set.of(allowedDomainsCsv.split(","));
     }
@@ -38,6 +41,9 @@ public final class ReturnToValidator {
             if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) {
                 return null;
             }
+            if ("http".equalsIgnoreCase(scheme) && REQUIRE_HTTPS) {
+                return null;
+            }
             if (uri.getHost() != null && allowedDomains.contains(uri.getHost().trim())) {
                 return returnTo;
             }
@@ -45,5 +51,15 @@ public final class ReturnToValidator {
             // invalid URI
         }
         return null;
+    }
+
+    private static boolean isBaseUrlHttps() {
+        String baseUrl = System.getenv("BASE_URL");
+        if (baseUrl == null || baseUrl.isBlank()) return false;
+        try {
+            return "https".equalsIgnoreCase(URI.create(baseUrl.trim()).getScheme());
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

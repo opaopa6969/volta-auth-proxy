@@ -13,9 +13,15 @@ public final class ReturnToValidator {
     );
 
     private final Set<String> allowedDomains;
+    private final boolean productionBaseUrl;
 
     public ReturnToValidator(String allowedDomainsCsv) {
+        this(allowedDomainsCsv, System.getenv("BASE_URL"));
+    }
+
+    public ReturnToValidator(String allowedDomainsCsv, String baseUrl) {
         this.allowedDomains = Set.of(allowedDomainsCsv.split(","));
+        this.productionBaseUrl = baseUrl != null && baseUrl.toLowerCase().startsWith("https://");
     }
 
     public String validateOrNull(String returnTo) {
@@ -36,6 +42,10 @@ public final class ReturnToValidator {
             URI uri = URI.create(returnTo);
             String scheme = uri.getScheme();
             if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) {
+                return null;
+            }
+            // 本番 (BASE_URL が https) では http:// を拒否し open redirect を防ぐ。
+            if ("http".equalsIgnoreCase(scheme) && productionBaseUrl) {
                 return null;
             }
             if (uri.getHost() != null && allowedDomains.contains(uri.getHost().trim())) {

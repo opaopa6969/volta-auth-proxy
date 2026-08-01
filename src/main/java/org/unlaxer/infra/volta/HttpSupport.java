@@ -50,6 +50,11 @@ public final class HttpSupport {
         if (uri.getHost() == null || !"https".equalsIgnoreCase(uri.getScheme()) && !"http".equalsIgnoreCase(uri.getScheme())) {
             return false;
         }
+        // 本番 (BASE_URL が https) では http:// の returnTo を拒否し、open redirect を防ぐ。
+        // 開発環境 (BASE_URL が http または未設定) は従来通り http を許可。
+        if ("http".equalsIgnoreCase(uri.getScheme()) && isProductionBaseUrl()) {
+            return false;
+        }
         String host = uri.getHost().toLowerCase();
         for (String pattern : allowedDomainsCsv.split(",")) {
             String p = pattern.trim().toLowerCase();
@@ -63,6 +68,17 @@ public final class HttpSupport {
             }
         }
         return false;
+    }
+
+    private static final boolean PRODUCTION_BASE_URL = isProductionBaseUrl0();
+
+    private static boolean isProductionBaseUrl() {
+        return PRODUCTION_BASE_URL;
+    }
+
+    private static boolean isProductionBaseUrl0() {
+        String baseUrl = System.getenv("BASE_URL");
+        return baseUrl != null && baseUrl.toLowerCase().startsWith("https://");
     }
 
     private static final boolean FORCE_SECURE_COOKIE =

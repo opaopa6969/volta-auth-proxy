@@ -582,7 +582,7 @@ PostgreSQL 16 をプライマリストアとして使用。HikariCP 6.3.0 でコ
 
 ### 3.1 Flyway マイグレーション概要
 
-23 マイグレーション (V1 〜 V23) が `src/main/resources/db/migration/` に配置。
+27 マイグレーション (V1 〜 V27) が `src/main/resources/db/migration/public/` に配置。
 起動時に Flyway が自動適用。`fail-fast` — テーブル不在は起動失敗。
 
 | バージョン | ファイル | 追加内容 |
@@ -610,6 +610,10 @@ PostgreSQL 16 をプライマリストアとして使用。HikariCP 6.3.0 でコ
 | V21 | `conditional_access_and_gdpr.sql` | conditional_access_rules, gdpr_requests |
 | V22 | `pagination_indexes.sql` | ページネーション用複合インデックス |
 | V23 | `billing_usage.sql` | billing_usage (課金イベント) |
+| V24 | `rls_shared_tables.sql` | 共有テーブルの Row-Level Security (RLS) |
+| V25 | `tenants_isolation_column.sql` | tenants テナント分離カラム |
+| V26 | `tenants_maintenance.sql` | tenants メンテナンス状態 |
+| V27 | `invitation_code_hash.sql` | invitation コードのハッシュ化保存 |
 
 ### 3.2 コアテーブル
 
@@ -2315,4 +2319,4 @@ graph TB
 `docs/decisions/001-004`, source inspection of `Main.java`, `AuthFlowHandler.java`,
 `AuthRouter.java`, `ApiRouter.java`, `AdminRouter.java`, `AppConfig.java`,
 `PolicyEngine.java`, `LocalNetworkBypass.java`, `OidcFlowDef.java`,
-`*FlowState.java`, Flyway migrations V1-V23, `pom.xml`, `docker-compose.demo.yml`.*
+`*FlowState.java`, Flyway migrations V1-V27, `pom.xml`, `docker-compose.demo.yml`*.

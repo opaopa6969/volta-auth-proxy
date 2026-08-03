@@ -203,6 +203,12 @@
       "file": "/home/opa/work/AskOS-workspace/volta-auth-proxy/docs/decisions/004-accept-tenant-scoped-mfa.md",
       "line": 36,
       "text": "## なぜ (b) を却下したか"
+    },
+    {
+      "timestamp": "2026-07-29T21:03:47Z",
+      "file": "/home/opa/work/volta-workspace/volta-auth-proxy/infra/logrotate/volta-auth-proxy",
+      "line": 8,
+      "text": "# copytruncate で inode を保ったまま切り詰める。JVM の再起動は不要。"
     }
   ]
 }

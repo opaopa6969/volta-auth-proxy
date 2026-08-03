@@ -557,14 +557,47 @@ public final class Main {
             actionHref = "/";
             actionLabel = "しばらく待って再試行";
         }
-        ctx.status(status).render("error/error.jte", model(
-                "title", "エラー",
-                "errorCode", code,
-                "message", userMessage,
-                "actions", List.of(Map.of("label", actionLabel, "url", actionHref, "style", "primary")),
-                "showSupport", List.of("SESSION_REVOKED", "TENANT_SUSPENDED", "INTERNAL_ERROR").contains(code),
-                "supportContact", System.getenv().getOrDefault("SUPPORT_CONTACT", "管理者にお問い合わせください")
-        ));
+        try {
+            ctx.status(status).render("error/error.jte", model(
+                    "title", "エラー",
+                    "errorCode", code,
+                    "message", userMessage,
+                    "actions", List.of(Map.of("label", actionLabel, "url", actionHref, "style", "primary")),
+                    "showSupport", List.of("SESSION_REVOKED", "TENANT_SUSPENDED", "INTERNAL_ERROR").contains(code),
+                    "supportContact", System.getenv().getOrDefault("SUPPORT_CONTACT", "管理者にお問い合わせください")
+            ));
+        } catch (Exception renderFailure) {
+            // テンプレート描画自体が壊れているとエラー画面が一切出せず、
+            // 例外がそのままログに落ち続ける。静的HTMLへフォールバックする。
+            // (スタックトレースは出さない: エラー経路ごとに巨大ログを吐くため)
+            System.getLogger("volta").log(System.Logger.Level.WARNING,
+                    "error page template render failed (" + code + "): "
+                            + renderFailure.getClass().getName() + ": " + renderFailure.getMessage());
+            ctx.status(status).contentType("text/html; charset=utf-8")
+                    .result(staticErrorPage(code, userMessage, actionHref, actionLabel));
+        }
+    }
+
+    /** error/error.jte が描画できないときのフォールバック。依存ゼロの静的HTML。 */
+    private static String staticErrorPage(String code, String message, String actionHref, String actionLabel) {
+        return """
+                <!DOCTYPE html>
+                <html lang="ja"><head><meta charset="utf-8">
+                <meta name="viewport" content="width=device-width,initial-scale=1">
+                <title>エラー</title></head>
+                <body style="font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem">
+                <h1 style="font-size:1.25rem">エラー</h1>
+                <p>%s</p>
+                <p style="color:#666;font-size:.85rem">コード: %s</p>
+                <p><a href="%s">%s</a></p>
+                </body></html>
+                """.formatted(escapeHtml(message), escapeHtml(code), escapeHtml(actionHref), escapeHtml(actionLabel));
+    }
+
+    private static String escapeHtml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&#39;");
     }
 
     private static String humanMessage(String code, String fallback) {

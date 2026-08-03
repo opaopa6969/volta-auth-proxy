@@ -401,14 +401,14 @@ sequenceDiagram
     participant V as volta-auth-proxy
     participant A as Authenticator (Platform / Roaming)
 
-    B->>V: POST /auth/passkey/authenticate/start
+    B->>V: POST /auth/passkey/start
     V->>V: PasskeyFlowDef.start() — INIT
     V->>V: PasskeyChallengeProcessor: challenge 生成 (CHALLENGE_ISSUED)
     V-->>B: PublicKeyCredentialRequestOptions (challenge, allowCredentials, rpId)
     B->>A: navigator.credentials.get(options)
     A->>A: ユーザー確認 (生体認証 / PIN)
     A-->>B: AuthenticatorAssertionResponse (signature, authenticatorData)
-    B->>V: POST /auth/passkey/authenticate/finish { assertion }
+    B->>V: POST /auth/passkey/finish { assertion }
     V->>V: [PasskeyAssertionGuard]: assertion 受信 → ASSERTION_RECEIVED
     V->>V: PasskeyVerifyProcessor (webauthn4j)
     Note over V: rpId Hash 検証<br/>userPresence / userVerification フラグ確認<br/>challenge 一致確認<br/>signature 検証<br/>sign_count インクリメント (クローン検出)

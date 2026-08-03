@@ -50,15 +50,16 @@ git clone https://github.com/opaopa6969/volta-auth-proxy
 cd volta-auth-proxy
 
 # 1. Start Postgres
-docker-compose up -d
+docker compose up -d postgres
 
 # 2. Minimal env (Google OIDC for the first run)
 cat > .env <<'EOF'
 BASE_URL=http://localhost:7070
-DATABASE_URL=jdbc:postgresql://localhost:5432/volta
-DATABASE_USER=volta
-DATABASE_PASSWORD=volta
-SESSION_COOKIE_NAME=__volta_session
+DB_HOST=localhost
+DB_PORT=54329
+DB_NAME=volta_auth
+DB_USER=volta
+DB_PASSWORD=volta
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 DEV_MODE=true
@@ -66,7 +67,7 @@ EOF
 
 # 3. Build + run
 mvn -q -DskipTests package
-java -jar target/volta-auth-proxy-*-shaded.jar
+java -jar target/volta-auth-proxy-0.3.0-SNAPSHOT.jar
 
 # 4. Open the login page
 open http://localhost:7070/login
@@ -86,13 +87,10 @@ The full list is in `.env.example`. Essentials:
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `BASE_URL` | Used for `Secure` cookie inference + redirect URIs | — (required) |
-| `DATABASE_URL` / `DATABASE_USER` / `DATABASE_PASSWORD` | Postgres | — (required) |
-| `SESSION_COOKIE_NAME` | Cookie name | `__volta_session` |
-| `SESSION_TTL_MINUTES` | Idle timeout | `60` |
-| `SESSION_ABSOLUTE_TTL_HOURS` | Hard cap | `24` |
-| `MFA_ENABLED` | Feature flag | `false` |
-| `PASSKEY_ENABLED` | Feature flag | `false` |
-| `LOCAL_BYPASS_CIDRS` | ADR-003 LAN bypass (comma-separated CIDRs, `""` = disabled) | `192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,100.64.0.0/10,127.0.0.1/32` |
+| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | Postgres connection | `localhost` / `54329` / `volta_auth` / `volta` / `volta` |
+| `SESSION_TTL_SECONDS` | Session timeout | `28800` |
+| `JWT_TTL_SECONDS` | JWT lifetime | `300` |
+| `SAML_SKIP_SIGNATURE` | Allow unsigned SAML assertions (development only) | `false` |
 | `DEV_MODE` | Enables localhost-only dev conveniences | `false` |
 | `WEBHOOK_ENABLED` | Outbox worker | `false` |
 | `BASE_URL` scheme (http/https) | Drives `Secure` cookie | inferred |
@@ -104,18 +102,12 @@ Tenancy / access / binding layers (schema v3). Start from `volta-config.example.
 ```yaml
 tenancy:
   mode: multi            # single | multi
-  resolver: subdomain    # subdomain | header | path
+  creation_policy: disabled # disabled | auto | admin_only | invite_only
+  routing:
+    mode: none              # none | slug | subdomain | domain
 access:
-  default_role: MEMBER
-  admin_emails:
-    - admin@example.com
-binding:
-  apps:
-    - host: console.example.com
-      auth: required
-      headers: [X-Volta-User-Id, X-Volta-Tenant-Id, X-Volta-Role]
-    - host: public.example.com
-      auth: anonymous
+  default_visibility: all  # public | all | bound-users | explicit
+  custom_roles: false
 ```
 
 ---
@@ -182,13 +174,13 @@ See `afb6eab` for the nginx routing fix that handles `/auth/*` routes correctly.
 
 1. <https://console.cloud.google.com/> → APIs & Services → Credentials
 2. Create **OAuth 2.0 Client ID** → Web application
-3. Authorized redirect URI: `https://auth.example.com/auth/callback`
+3. Authorized redirect URI: `https://auth.example.com/callback`
 4. Save `Client ID` + `Client secret` to `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
 
 ### Microsoft Entra (OIDC)
 
 1. Entra portal → App registrations → New registration
-2. Redirect URI (Web): `https://auth.example.com/auth/callback`
+2. Redirect URI (Web): `https://auth.example.com/callback`
 3. Certificates & secrets → New client secret
 4. Environment: `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID`
 
@@ -228,9 +220,9 @@ Any SAML 2.0 IdP works as long as it can POST an `AuthnResponse` to
 ## Enabling Passkey
 
 ```bash
-PASSKEY_ENABLED=true
-PASSKEY_RP_ID=auth.example.com      # the RP ID the browser binds credentials to
-PASSKEY_RP_NAME="Example Inc."
+WEBAUTHN_RP_ID=auth.example.com      # the RP ID the browser binds credentials to
+WEBAUTHN_RP_NAME="Example Inc."
+WEBAUTHN_RP_ORIGIN=https://auth.example.com
 ```
 
 Users register credentials via `POST /auth/passkey/register/start` → browser
@@ -239,13 +231,8 @@ selectable at registration (`0d17ce6`).
 
 ## Enabling MFA (TOTP)
 
-```bash
-MFA_ENABLED=true
-MFA_ISSUER="Example Inc."
-```
-
-Users enroll via `POST /auth/mfa/setup`, scan a QR code, and confirm with
-`POST /auth/mfa/verify`. The MFA flow is a 4-state tramli FlowDefinition — see
+Users enroll via `POST /api/v1/users/{userId}/mfa/totp/setup`, scan a QR code, and confirm with
+`POST /api/v1/users/{userId}/mfa/totp/verify`. The MFA flow is a 4-state tramli FlowDefinition — see
 [architecture.md](architecture.md#mfa-flow-tramli).
 
 > **ADR-004**: MFA verification is *tenant-scoped*. Switching tenants forces a

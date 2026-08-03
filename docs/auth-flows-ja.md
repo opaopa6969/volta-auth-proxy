@@ -42,15 +42,15 @@ sequenceDiagram
     V->>V: OIDC フロー開始 (tramli) — state=REDIRECTED
     V-->>B: 302 IdP authorize URL (state, nonce, PKCE)
     B->>I: 認証
-    I-->>B: 302 /auth/callback?code=...&state=...
-    B->>V: GET /auth/callback
+    I-->>B: 302 /callback?code=...&state=...
+    B->>V: GET /callback
     V->>V: [OidcCallbackGuard] → TOKEN_EXCHANGED
     V->>I: code → トークン交換 (PKCE)
     I-->>V: id_token, access_token
     V->>V: UserResolve → RiskCheck → MfaBranch
     alt MFA 必須
       V->>V: issueSession(mfaVerifiedAt=null) ; auth_state=AUTHENTICATED_MFA_PENDING
-      V-->>B: 302 /auth/mfa/challenge + Set-Cookie
+      V-->>B: 302 /mfa/challenge + Set-Cookie
     else MFA 不要
       V->>V: issueSession(mfaVerifiedAt=now) ; auth_state=FULLY_AUTHENTICATED
       V-->>B: 302 return_to + Set-Cookie
@@ -96,7 +96,7 @@ sequenceDiagram
     V->>V: SamlService.parseIdentity(...)
     Note over V: XXE ハード化パース · XSW secureValidation ·<br/>Issuer · Audience · ACS URL ·<br/>NotOnOrAfter · RequestId · Signature
     alt MFA 必須
-      V-->>B: 302 /auth/mfa/challenge + Set-Cookie
+      V-->>B: 302 /mfa/challenge + Set-Cookie
     else
       V-->>B: 302 RelayState.return_to + Set-Cookie
     end
@@ -141,7 +141,7 @@ sequenceDiagram
     participant V as volta-auth-proxy
     participant A as Authenticator app
 
-    B->>V: GET /auth/mfa/challenge
+    B->>V: GET /mfa/challenge
     V->>V: MFA フロー開始 (tramli) — CHALLENGE_SHOWN
     V-->>B: 200 HTML コード入力
     A->>B: 6 桁コード（オフライン）
@@ -193,11 +193,11 @@ sequenceDiagram
     participant B as Browser
     participant V as volta-auth-proxy
 
-    B->>V: POST /auth/passkey/login/start
+    B->>V: POST /auth/passkey/start
     V->>V: Passkey フロー開始 — CHALLENGE_ISSUED
     V-->>B: 200 PublicKeyCredentialRequestOptions
     B->>B: navigator.credentials.get(...)
-    B->>V: POST /auth/passkey/login/finish (assertion)
+    B->>V: POST /auth/passkey/finish (assertion)
     V->>V: [PasskeyAssertionGuard] → ASSERTION_RECEIVED
     V->>V: PasskeyVerifyProcessor → USER_RESOLVED
     V->>V: PasskeySessionProcessor → COMPLETE

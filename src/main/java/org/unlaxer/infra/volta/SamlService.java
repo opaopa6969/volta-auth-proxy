@@ -13,6 +13,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Base64;
@@ -110,7 +111,7 @@ final class SamlService {
             if (notOnOrAfter != null && !notOnOrAfter.isBlank()) {
                 try {
                     Instant expiry = Instant.parse(notOnOrAfter);
-                    if (expiry.isBefore(Instant.now())) {
+                    if (expiry.isBefore(Instant.now().minus(Duration.ofMinutes(5)))) {
                         throw new ApiException(401, "SAML_INVALID_RESPONSE", "assertion expired");
                     }
                 } catch (DateTimeParseException e) {

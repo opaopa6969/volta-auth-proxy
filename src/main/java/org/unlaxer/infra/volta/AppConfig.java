@@ -144,4 +144,35 @@ public record AppConfig(
         return "jdbc:postgresql://%s:%d/%s".formatted(dbHost, dbPort, dbName);
     }
 
+    private static final String DEFAULT_JWT_KEY_ENCRYPTION_SECRET = "dev-only-secret-change-me";
+    private static final String DEFAULT_AUTH_FLOW_HMAC_KEY = "dev-only-hmac-key-change-me";
+
+    public boolean isJwtKeyEncryptionSecretDefault() {
+        return jwtKeyEncryptionSecret == null
+                || jwtKeyEncryptionSecret.isBlank()
+                || DEFAULT_JWT_KEY_ENCRYPTION_SECRET.equals(jwtKeyEncryptionSecret);
+    }
+
+    public boolean isAuthFlowHmacKeyDefault() {
+        return authFlowHmacKey == null
+                || authFlowHmacKey.isBlank()
+                || DEFAULT_AUTH_FLOW_HMAC_KEY.equals(authFlowHmacKey);
+    }
+
+    public void validateProductionSecrets() {
+        if (devMode) {
+            return;
+        }
+        if (isJwtKeyEncryptionSecretDefault()) {
+            throw new IllegalStateException(
+                    "JWT_KEY_ENCRYPTION_SECRET is missing or set to the dev-only default. "
+                            + "Set a strong unique value before running in production (DEV_MODE=false).");
+        }
+        if (isAuthFlowHmacKeyDefault()) {
+            throw new IllegalStateException(
+                    "AUTH_FLOW_HMAC_KEY is missing or set to the dev-only default. "
+                            + "Set a strong unique value before running in production (DEV_MODE=false).");
+        }
+    }
+
 }

@@ -19,6 +19,7 @@ import static io.javalin.rendering.template.TemplateUtil.model;
  * Javalin routes for Invite flow via FlowEngine.
  */
 public final class InviteFlowRouter {
+    private static final System.Logger LOG = System.getLogger("volta.invite");
     private final FlowEngine engine;
     private final FlowDefinition<InviteFlowState> definition;
     private final AppConfig config;
@@ -131,7 +132,12 @@ public final class InviteFlowRouter {
             try {
                 var body = objectMapper.readTree(ctx.body());
                 flowId = body.path("flow_id").asText();
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                // body が JSON でない場合は flow_id 無しとして進む。クライアントが
+                // 送っているつもりで届いていない、を切り分けられるよう DEBUG で残す (#40)。
+                LOG.log(System.Logger.Level.DEBUG,
+                        "invite flow_id not found in JSON body: {0}", e.toString());
+            }
         }
 
         if (flowId == null || flowId.isBlank()) {

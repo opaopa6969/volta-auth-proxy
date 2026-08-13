@@ -299,10 +299,15 @@ public final class VizRouter {
     /** Call from shutdown hook to cleanly stop the Redis subscribers. */
     public void close() {
         if (pubSub != null) {
-            try { pubSub.unsubscribe(); } catch (Exception ignored) {}
+            // 購読解除の失敗は接続が既に切れている場合が多い。DEBUG で足りる (#40)。
+            try { pubSub.unsubscribe(); } catch (Exception e) {
+                LOG.log(System.Logger.Level.DEBUG, "pubSub unsubscribe failed: {0}", e.toString());
+            }
         }
         if (wsPubSub != null) {
-            try { wsPubSub.unsubscribe(); } catch (Exception ignored) {}
+            try { wsPubSub.unsubscribe(); } catch (Exception e) {
+                LOG.log(System.Logger.Level.DEBUG, "wsPubSub unsubscribe failed: {0}", e.toString());
+            }
         }
     }
 
@@ -399,8 +404,11 @@ public final class VizRouter {
                             if (tenantNode != null && !tenantNode.isNull()) {
                                 row.put("tenantId", tenantNode.asText());
                             }
-                        } catch (Exception ignore) {
-                            // skip malformed context
+                        } catch (Exception e) {
+                            // 壊れた context の行はスキップする。表示が欠ける原因を
+                            // 追えるよう DEBUG で残す (#40)。
+                            LOG.log(System.Logger.Level.DEBUG,
+                                    "skipping malformed flow context: {0}", e.toString());
                         }
                     }
                     java.sql.Timestamp created = rs.getTimestamp("created_at");

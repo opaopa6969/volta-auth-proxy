@@ -12,6 +12,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 final class OutboxWorker implements AutoCloseable {
+    private static final System.Logger LOG = System.getLogger("volta.outbox");
     private final AppConfig config;
     private final SqlStore store;
     private final NotificationService notificationService;
@@ -40,7 +41,11 @@ final class OutboxWorker implements AutoCloseable {
             for (SqlStore.OutboxRecord outbox : pending) {
                 process(outbox);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            // ワーカーのループを止めないために飲み込む。ただし黙ると
+            // 「メールが送られていない」ことに気付けない (#40)。
+            LOG.log(System.Logger.Level.WARNING,
+                    "outbox worker iteration failed (will retry next tick): {0}", e.toString());
         }
     }
 

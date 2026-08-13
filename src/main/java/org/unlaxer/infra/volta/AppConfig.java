@@ -147,6 +147,25 @@ public record AppConfig(
     private static final String DEFAULT_JWT_KEY_ENCRYPTION_SECRET = "dev-only-secret-change-me";
     private static final String DEFAULT_AUTH_FLOW_HMAC_KEY = "dev-only-hmac-key-change-me";
 
+    /**
+     * Redis セッションの保存時暗号化に使う鍵 (#37)。
+     *
+     * {@code SESSION_ENCRYPTION_SECRET} があればそれを使い、無ければ
+     * {@code JWT_KEY_ENCRYPTION_SECRET} で代用する。新しい env を必須にすると
+     * 既存デプロイが起動しなくなるため、フォールバックを置いている。
+     * 分けておくと、セッション鍵を回しても JWT 鍵（保存済みの暗号文）に影響しない。
+     *
+     * どちらも無ければ null を返し、呼び出し側は暗号化なし（警告ログ）で動く。
+     */
+    public String sessionEncryptionSecret() {
+        String explicit = System.getenv("SESSION_ENCRYPTION_SECRET");
+        if (explicit != null && !explicit.isBlank()) return explicit;
+        if (jwtKeyEncryptionSecret != null && !jwtKeyEncryptionSecret.isBlank()) {
+            return jwtKeyEncryptionSecret;
+        }
+        return null;
+    }
+
     public boolean isJwtKeyEncryptionSecretDefault() {
         return jwtKeyEncryptionSecret == null
                 || jwtKeyEncryptionSecret.isBlank()

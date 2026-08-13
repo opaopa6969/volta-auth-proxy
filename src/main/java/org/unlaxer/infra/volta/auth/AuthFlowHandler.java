@@ -144,16 +144,13 @@ public class AuthFlowHandler {
                 ctx.header("X-Forwarded-Proto"),
                 ctx.cookie(AuthService.SESSION_COOKIE) != null ? "present" : "absent");
 
+        // (#38) X-Forwarded-* 由来の returnTo は allowlist を通す。下の forwardedReturnTo() を使う。
         // MFA check: if session exists but MFA not verified, redirect to challenge
         if (authService.isMfaPending(ctx)) {
-            String fwdHost  = ctx.header("X-Forwarded-Host");
-            String fwdUri   = ctx.header("X-Forwarded-Uri");
-            String fwdProto = ctx.header("X-Forwarded-Proto");
-            String baseScheme = appConfig.baseUrl().startsWith("https") ? "https" : "http";
-            String proto = fwdProto != null && !"http".equals(fwdProto) ? fwdProto : baseScheme;
-            String returnTo = (fwdHost != null && fwdUri != null)
-                    ? proto + "://" + fwdHost + fwdUri
-                    : "/";
+            // #38: 以前はヘッダの値をそのまま returnTo にしていた。ヘッダ注入の
+            // 経路があると、MFA 後に任意サイトへ飛ばせる（open redirect）。
+            String validated = forwardedReturnTo(ctx);
+            String returnTo = validated != null ? validated : "/";
             LOG.log(System.Logger.Level.INFO, "[verify] MFA pending, redirecting to challenge. returnTo={0}", returnTo);
             ctx.header(AUTH_REASON_HEADER, "mfa_pending");
             ctx.redirect(appConfig.baseUrl() + "/mfa/challenge?return_to="
@@ -262,13 +259,10 @@ public class AuthFlowHandler {
         }
 
         // 2. セッションなし -> /login にリダイレクト
-        String fwdHost  = ctx.header("X-Forwarded-Host");
-        String fwdUri   = ctx.header("X-Forwarded-Uri");
-        String fwdProto = ctx.header("X-Forwarded-Proto");
-        if (fwdHost != null && fwdUri != null) {
-            String baseScheme = appConfig.baseUrl().startsWith("https") ? "https" : "http";
-            String proto = fwdProto != null && !"http".equals(fwdProto) ? fwdProto : baseScheme;
-            String returnTo = proto + "://" + fwdHost + fwdUri;
+        // #38: returnTo は allowlist 済みのものだけ使う。弾かれたら 401 に落とす
+        // （認証は要求するが、任意サイトへは飛ばさない）。
+        String returnTo = forwardedReturnTo(ctx);
+        if (returnTo != null) {
             LOG.log(System.Logger.Level.INFO, "[verify] no session → redirecting to login. returnTo={0}", returnTo);
             ctx.header(AUTH_REASON_HEADER, "cookie_absent_redirect");
             ctx.redirect(appConfig.baseUrl() + "/login?return_to="
@@ -661,4 +655,34 @@ public class AuthFlowHandler {
         ctx.header("Cache-Control", "no-store, no-cache, must-revalidate, private");
         ctx.header("Pragma", "no-cache");
     }
+
+    /**
+     * X-Forwarded-Host / -Uri / -Proto から returnTo を組み立て、allowlist を
+     * 通ったものだけ返す。通らなければ null（#38）。
+     *
+     * これらのヘッダは gateway が付ける前提だが、コード側で検証していなかった。
+     * gateway の設定を1つ間違える（trustForwardHeader を広く許す等）だけで
+     * open redirect になるため、受け取る側でも弾く。判定は
+     * {@link HttpSupport#isAllowedReturnTo} に一本化している
+     * （ALLOWED_REDIRECT_DOMAINS。ワイルドカード `*.example.org` 対応）。
+     */
+    private String forwardedReturnTo(io.javalin.http.Context ctx) {
+        String fwdHost = ctx.header("X-Forwarded-Host");
+        String fwdUri  = ctx.header("X-Forwarded-Uri");
+        if (fwdHost == null || fwdUri == null) return null;
+
+        String fwdProto = ctx.header("X-Forwarded-Proto");
+        String baseScheme = appConfig.baseUrl().startsWith("https") ? "https" : "http";
+        String proto = fwdProto != null && !"http".equals(fwdProto) ? fwdProto : baseScheme;
+        String candidate = proto + "://" + fwdHost + fwdUri;
+
+        if (!org.unlaxer.infra.volta.HttpSupport.isAllowedReturnTo(
+                candidate, appConfig.allowedRedirectDomains())) {
+            LOG.log(System.Logger.Level.WARNING,
+                    "[verify] rejected X-Forwarded returnTo (not in ALLOWED_REDIRECT_DOMAINS): {0}", candidate);
+            return null;
+        }
+        return candidate;
+    }
+
 }

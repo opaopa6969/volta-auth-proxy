@@ -2568,9 +2568,10 @@ public final class SqlStore {
         String token = SecurityUtils.randomUrlSafe(48);
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "INSERT INTO magic_links (email, token, expires_at) VALUES (?, ?, now() + interval '" + ttlMinutes + " minutes')")) {
+                     "INSERT INTO magic_links (email, token, expires_at) VALUES (?, ?, now() + (? || ' minutes')::interval)")) {
             ps.setString(1, email);
             ps.setString(2, token);
+            ps.setInt(3, ttlMinutes);
             ps.executeUpdate();
             return token;
         } catch (SQLException e) {

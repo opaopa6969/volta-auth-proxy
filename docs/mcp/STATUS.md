@@ -1,6 +1,6 @@
 # MCP 化 Phase 2 STATUS — volta-auth-proxy
 
-> 更新: 2026-08-22
+> 更新: 2026-08-22 (最終確認完了)
 
 ## 進捗
 
@@ -20,8 +20,8 @@
 | Deploy | gateway_routes_diff | done (1 件: auth-mcp.unlaxer.org) |
 | Deploy | gateway_routes_apply confirm:true | done (SIGHUP 済み) |
 | Deploy | prod で MCP サーバ起動 | done (systemctl --user enable --now) |
-| Deploy | https://auth-mcp.unlaxer.org/healthz 200 | pending (確認中) |
-| Deploy | catalog__backend_status ready | pending (確認中) |
+| Deploy | https://auth-mcp.unlaxer.org/healthz 200 | done (200, {"ok":true,"name":"auth-mcp","version":"0.1.0"}) |
+| Deploy | catalog__backend_status ready | done (status=ready, tools=25, server=auth-mcp v0.1.0) |
 
 ## dry-run 記録
 

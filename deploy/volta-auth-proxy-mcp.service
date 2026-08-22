@@ -1,0 +1,16 @@
+[Unit]
+Description=volta-auth-proxy MCP backend (namespace: auth)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/volta-auth-proxy
+Environment=PORT=9211
+Environment=AUTH_BACKEND_URL=http://127.0.0.1:7070
+EnvironmentFile=-/home/opa/volta-secrets/volta-auth-proxy-mcp.env
+ExecStart=%h/volta-auth-proxy/run.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -1466,6 +1466,35 @@ This project was designed using DGE (Dialogue-driven Gap Extraction) -- 106 desi
 
 ***
 
+## MCP
+
+This service exposes its REST API as MCP tools (namespace: `auth`).
+
+| | |
+|---|---|
+| **Namespace** | `auth` |
+| **Spec** | `auth://spec` (machine-readable capability list) |
+| **Guide** | `auth://guide` (M2M token → tool call flow) |
+| **Design** | [`docs/mcp/DESIGN.md`](docs/mcp/DESIGN.md) |
+| **Status** | [`docs/mcp/STATUS.md`](docs/mcp/STATUS.md) |
+| **Server** | `mcp/server.mjs` (Node, Streamable HTTP `/mcp`, port 9211) |
+| **Volta service** | `volta-auth-proxy-mcp` (host 192.168.1.8, hostname `auth-mcp.unlaxer.org`) |
+
+M2M token flow: `auth__issue_m2m_token` → JWT in subsequent tool calls.
+Destructive operations require `confirm: true` (dry-run by default).
+
+Run locally:
+```sh
+PORT=9211 node mcp/server.mjs
+```
+
+Test:
+```sh
+node mcp/test/e2e.mjs
+```
+
+***
+
 ## License
 
 TBD

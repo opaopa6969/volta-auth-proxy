@@ -70,6 +70,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    mem_limit: 1536m
     environment:
       PORT:                   7070
       BASE_URL:               ${BASE_URL:-http://localhost}

@@ -850,7 +850,7 @@ services:
 | **[Internal API](docs/glossary/internal-api.md)** | `/api/v1/*` for [apps](docs/glossary/downstream-app.md) to delegate user/[tenant](docs/glossary/tenant.md)/member CRUD |
 | **[Audit Log](docs/glossary/audit-log.md)** | All auth events logged to `audit_logs` table |
 | **[CSRF](docs/glossary/csrf.md)** | [Token](docs/glossary/token.md)-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) [API](docs/glossary/api.md) exempt ([SameSite](docs/glossary/samesite.md) + Content-Type) |
-| **[Rate Limiting](docs/glossary/rate-limiting.md)** | [Caffeine](docs/glossary/caffeine-cache.md)-based. Per-IP for [login](docs/glossary/login.md), per-user for [API](docs/glossary/api.md) |
+| **[Rate Limiting](docs/glossary/rate-limiting.md)** | In-process sliding-window counter (`RateLimiter`, no external cache). Per-IP for [login](docs/glossary/login.md), per-user for [API](docs/glossary/api.md) |
 | **Dev Mode** | `POST /dev/token` for local development (disabled in [production](docs/glossary/production.md)) |
 
 ***

@@ -37,6 +37,7 @@ final class NoopAuditSink implements AuditSink {
 }
 
 final class KafkaAuditSink implements AuditSink {
+    private static final System.Logger LOG = System.getLogger("volta.audit-sink.kafka");
     private final KafkaProducer<String, String> producer;
     private final String topic;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -59,7 +60,11 @@ final class KafkaAuditSink implements AuditSink {
         try {
             String payload = objectMapper.writeValueAsString(event);
             producer.send(new ProducerRecord<>(topic, payload));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            // 監査イベントの外部送信失敗。送信できないこと自体が監査の欠落なので
+            // ログには必ず残す (#40)。
+            LOG.log(System.Logger.Level.WARNING,
+                    "audit event publish to Kafka failed (topic={0}): {1}", topic, e.toString());
         }
     }
 
@@ -71,6 +76,7 @@ final class KafkaAuditSink implements AuditSink {
 }
 
 final class ElasticsearchAuditSink implements AuditSink {
+    private static final System.Logger LOG = System.getLogger("volta.audit-sink.es");
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final String endpoint;
@@ -92,7 +98,9 @@ final class ElasticsearchAuditSink implements AuditSink {
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();
             httpClient.send(req, HttpResponse.BodyHandlers.discarding());
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOG.log(System.Logger.Level.WARNING,
+                    "audit event POST failed (endpoint={0}): {1}", endpoint, e.toString());
         }
     }
 }

@@ -45,4 +45,21 @@ class ReturnToValidatorTest {
         assertNull(validator.validateOrNull("javascript:alert(1)"));
         assertNull(validator.validateOrNull("ftp://app.example.com/file"));
     }
+
+    @Test
+    void productionBaseUrlRejectsHttpScheme() {
+        ReturnToValidator prod = new ReturnToValidator("app.example.com,console.example.com", "https://auth.example.com");
+        // http は本番 (BASE_URL=https) で拒否
+        assertNull(prod.validateOrNull("http://app.example.com/dashboard"));
+        // https は本番でも許可
+        assertEquals("https://app.example.com/dashboard",
+                prod.validateOrNull("https://app.example.com/dashboard"));
+    }
+
+    @Test
+    void devBaseUrlAllowsHttpScheme() {
+        ReturnToValidator dev = new ReturnToValidator("app.example.com", "http://localhost:7070");
+        assertEquals("http://app.example.com/dashboard",
+                dev.validateOrNull("http://app.example.com/dashboard"));
+    }
 }

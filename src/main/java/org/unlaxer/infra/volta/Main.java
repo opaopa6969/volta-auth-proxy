@@ -24,6 +24,7 @@ public final class Main {
 
     public static void main(String[] args) {
         AppConfig config = AppConfig.fromEnv();
+        config.validateProductionSecrets();
         HikariDataSource dataSource = Database.createDataSource(config);
         Database.migrate(dataSource);
         // AUTH-014 Phase 4 item 4: bring tenant_<slug> schemas up to date.

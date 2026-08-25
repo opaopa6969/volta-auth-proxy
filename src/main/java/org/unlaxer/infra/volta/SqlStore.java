@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -1667,7 +1668,31 @@ public final class SqlStore {
         }
     }
 
+    /**
+     * 指定テナントの監査ログを返す。
+     *
+     * #39: 以前は {@code WHERE (?::uuid IS NULL OR tenant_id = ?)} で、tenantId に
+     * null を渡すと**全テナントの監査ログが返る**実装だった。呼び出し元
+     * (AdminRouter) がロールで守っているとはいえ、principal.tenantId() が null に
+     * なる経路（service token 等）が1つできた時点で cross-tenant 漏洩になる。
+     * null を拒否して、全体閲覧は {@link #listAllAuditLogs} に分離した。
+     */
     public List<Map<String, Object>> listAuditLogs(UUID tenantId, int offset, int limit) {
+        Objects.requireNonNull(tenantId, "tenantId is required (use listAllAuditLogs for cross-tenant)");
+        return queryAuditLogs(tenantId, offset, limit);
+    }
+
+    /**
+     * 全テナントの監査ログを返す。**呼び出し元で OWNER 相当を強制すること。**
+     *
+     * メソッドを分けているのは「うっかり null を渡して全件見えた」を防ぐため。
+     * 全体を見るのは意図的な操作であるべきで、引数の値で切り替わるべきではない。
+     */
+    public List<Map<String, Object>> listAllAuditLogs(int offset, int limit) {
+        return queryAuditLogs(null, offset, limit);
+    }
+
+    private List<Map<String, Object>> queryAuditLogs(UUID tenantId, int offset, int limit) {
         String sql = """
                 SELECT id, timestamp, event_type, actor_id, tenant_id, target_type, target_id, detail, request_id
                 FROM audit_logs

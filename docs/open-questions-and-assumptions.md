@@ -10,8 +10,9 @@ Target: volta-auth-proxy implementation review
 - 現状は Google/OIDC/SAML 混在時に email 一致で `google_sub` 不一致が起きると `upsertUser` が破綻しやすい。
 
 2. SAML 本番要件
-- 本番では XML Signature / 証明書検証（X509）を必須にする方針で確定か？
-- 現実装は issuer / audience / expiry などの値検証中心で、署名検証までは未実装。
+- `SAML_SKIP_SIGNATURE=false` (デフォルト推奨) で `XMLSignature.validate()` による署名検証が実装済み (`SamlService.java:62-78`, `secureValidation=true`)。`idp_configs.x509_cert` (V11) に IdP 証明書を設定する運用が前提。
+- XSW (XML Signature Wrapping) 対策 — 署名の「位置検証」(Reference URI と抽出要素の整合確認) は未実装 (issue #33 で追跡中)。
+- `SAML_SKIP_SIGNATURE` フラグで署名検証の on/off を制御可能。本番では `false` 必須 (SPEC §12.3)。
 
 3. OAuth token endpoint の CSRF 方針
 - `POST /oauth/token` を機械間アクセス前提で CSRF 対象外にする方針で良いか？

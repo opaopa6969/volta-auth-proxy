@@ -16,6 +16,7 @@ import java.util.Map;
  * <p>Required ENV: {@code GITHUB_CLIENT_ID}, {@code GITHUB_CLIENT_SECRET}
  */
 public final class GitHubIdp extends BaseIdpProvider {
+    private static final System.Logger LOG = System.getLogger("volta.idp.github");
 
     private static final String AUTH_URL      = "https://github.com/login/oauth/authorize";
     private static final String TOKEN_URL     = "https://github.com/login/oauth/access_token";
@@ -96,8 +97,11 @@ public final class GitHubIdp extends BaseIdpProvider {
                     return e.path("email").asText(null);
                 }
             }
-        } catch (Exception ignored) {
-            // best-effort
+        } catch (Exception e) {
+            // best-effort: primary email が取れなくてもログインは続ける。
+            // ただし「メールが空でユーザー作成に失敗する」の原因はここなので残す (#40)。
+            LOG.log(System.Logger.Level.WARNING,
+                    "GitHub primary email lookup failed: {0}", e.toString());
         }
         return null;
     }

@@ -74,7 +74,7 @@ flowchart TD
     C --> D{auth_state}
     D -- FULLY_AUTHENTICATED --> E[MFA scope + セッション TTL チェック]
     E -- ok --> F[200 + X-Volta-User-Id / Tenant-Id / Role / Email]
-    E -- MFA 必須 --> G[302 /auth/mfa/challenge]
+    E -- MFA 必須 --> G[302 /mfa/challenge]
     E -- 期限切れ --> H[302 /login]
     D -- AUTHENTICATED_MFA_PENDING --> G
     D -- AUTHENTICATING --> I[302 フロー再開]

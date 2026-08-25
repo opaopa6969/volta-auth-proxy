@@ -42,15 +42,15 @@ sequenceDiagram
     V->>V: Start OIDC flow (tramli) — state=REDIRECTED
     V-->>B: 302 IdP authorize URL (state, nonce, PKCE)
     B->>I: Authenticate
-    I-->>B: 302 /auth/callback?code=...&state=...
-    B->>V: GET /auth/callback
+    I-->>B: 302 /callback?code=...&state=...
+    B->>V: GET /callback
     V->>V: [OidcCallbackGuard] → TOKEN_EXCHANGED
     V->>I: Exchange code → tokens (PKCE)
     I-->>V: id_token, access_token
     V->>V: UserResolve → RiskCheck → MfaBranch
     alt MFA required
       V->>V: issueSession(mfaVerifiedAt=null) ; auth_state=AUTHENTICATED_MFA_PENDING
-      V-->>B: 302 /auth/mfa/challenge + Set-Cookie
+      V-->>B: 302 /mfa/challenge + Set-Cookie
     else no MFA
       V->>V: issueSession(mfaVerifiedAt=now) ; auth_state=FULLY_AUTHENTICATED
       V-->>B: 302 return_to + Set-Cookie
@@ -96,7 +96,7 @@ sequenceDiagram
     V->>V: SamlService.parseIdentity(...)
     Note over V: XXE hardened parse · XSW secureValidation ·<br/>Issuer · Audience · ACS URL ·<br/>NotOnOrAfter · RequestId · Signature
     alt MFA required
-      V-->>B: 302 /auth/mfa/challenge + Set-Cookie
+      V-->>B: 302 /mfa/challenge + Set-Cookie
     else
       V-->>B: 302 RelayState.return_to + Set-Cookie
     end
@@ -141,7 +141,7 @@ sequenceDiagram
     participant V as volta-auth-proxy
     participant A as Authenticator app
 
-    B->>V: GET /auth/mfa/challenge
+    B->>V: GET /mfa/challenge
     V->>V: Start MFA flow (tramli) — CHALLENGE_SHOWN
     V-->>B: 200 HTML code input
     A->>B: 6-digit code (offline)

@@ -46,6 +46,20 @@ public final class JwtService {
     // This is what gets published to the JWKS endpoint.
     private volatile Map<String, RSAKey> verificationKeys;
 
+    // ── JWT issuance cache ──────────────────────────────────────────────
+    // /auth/verify signs a fresh RS256 JWT on every request (~1ms/op). Within
+    // a single JWT TTL window the claims for a given principal are identical,
+    // so the signed token is reusable. This cache returns the previously
+    // signed token when (a) the key hasn't rotated and (b) the remaining
+    // lifetime is above a floor, skipping the RSA sign entirely.
+    // Evicted on key rotation and when the remaining lifetime drops below
+    // the floor. Bounded by the number of distinct active principals, which
+    // is small relative to request volume.
+    private final java.util.concurrent.ConcurrentHashMap<JwtCacheKey, CachedJwt> jwtCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long CACHE_MIN_REMAINING_SECONDS = 30L;
+    private volatile int cacheGeneration = 0;
+
     public JwtService(AppConfig config, SqlStore store) {
         this.config = config;
         this.store = store;
@@ -59,10 +73,25 @@ public final class JwtService {
     }
 
     public String issueToken(AuthPrincipal principal, List<String> audience, Map<String, Object> extraClaims) {
+        List<String> aud = (audience == null || audience.isEmpty()) ? List.of(config.jwtAudience()) : audience;
+        // Cache lookup: the signed token for this exact claim set is reusable
+        // as long as the key hasn't rotated and the remaining lifetime is
+        // above the floor. This skips the ~1ms RS256 sign on /auth/verify.
+        JwtCacheKey key = new JwtCacheKey(principal, aud, extraClaims, cacheGeneration);
+        CachedJwt cached = jwtCache.get(key);
+        if (cached != null) {
+            long remaining = cached.expiresAt().getEpochSecond() - Instant.now().getEpochSecond();
+            if (remaining > CACHE_MIN_REMAINING_SECONDS) {
+                return cached.token();
+            }
+            // expired or near-expiry: drop and re-sign
+            jwtCache.remove(key, cached);
+        }
+
         Instant now = Instant.now();
         JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
                 .issuer(config.jwtIssuer())
-                .audience(audience == null || audience.isEmpty() ? List.of(config.jwtAudience()) : audience)
+                .audience(aud)
                 .subject(principal.userId().toString())
                 .expirationTime(Date.from(now.plusSeconds(config.jwtTtlSeconds())))
                 .issueTime(Date.from(now))
@@ -81,11 +110,23 @@ public final class JwtService {
         JWTClaimsSet claims = builder.build();
         try {
             SignedJWT jwt = new SignedJWT(
-                    new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(rsaKey.getKeyID()).type(JOSEObjectType.JWT).build(),
+                    new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(rsaKey.getKeyID()).type(com.nimbusds.jose.JOSEObjectType.JWT).build(),
                     claims
             );
             jwt.sign(new RSASSASigner(rsaKey.toPrivateKey()));
-            return jwt.serialize();
+            String token = jwt.serialize();
+            // Populate cache. Token expires at now + jwtTtlSeconds.
+            Instant exp = now.plusSeconds(config.jwtTtlSeconds());
+            CachedJwt entry = new CachedJwt(token, exp);
+            // Guard against unbounded growth: if the cache is very large, clear
+            // stale entries first. The realistic cardinality is the number of
+            // concurrently active principals, which is small, but a defensive
+            // bound keeps memory predictable under abuse.
+            if (jwtCache.size() > 50_000) {
+                jwtCache.clear();
+            }
+            jwtCache.put(key, entry);
+            return token;
         } catch (JOSEException e) {
             throw new RuntimeException(e);
         }
@@ -259,6 +300,10 @@ public final class JwtService {
             // Reload so the new active key and the just-retired (rotated) key are
             // both present in the verification set / JWKS during the grace period.
             this.verificationKeys = loadVerificationKeys();
+            // Invalidate the JWT issuance cache: any cached token was signed
+            // with the retiring key and must not be handed out again.
+            this.cacheGeneration++;
+            this.jwtCache.clear();
             return kid;
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -278,4 +323,18 @@ public final class JwtService {
         );
         return issueToken(principal, audience, Map.of("volta_client", true, "volta_client_id", clientId));
     }
+
+    // ── JWT issuance cache types ────────────────────────────────────────
+    // Cache key: the exact claim set that determines a signed token, plus a
+    // generation counter that bumps on key rotation. Records give us value
+    // equality on principal (record) + audience (List) + extraClaims (Map) +
+    // generation (int), which is what we need for a stable cache key.
+    private record JwtCacheKey(
+            AuthPrincipal principal,
+            List<String> audience,
+            Map<String, Object> extraClaims,
+            int generation
+    ) {}
+
+    private record CachedJwt(String token, Instant expiresAt) {}
 }

@@ -1,0 +1,188 @@
+{
+  "repo": "volta-auth-proxy",
+  "surveyed_at": "2026-08-22T00:00:00Z",
+  "kind": "service",
+  "summary": "Java 21 + Javalin 製のマルチテナント認証ゲートウェイ。OIDC/SAML/MFA/Passkey/Invite/Magic-Link を tramli ステートマシンで駆動し、ForwardAuth + Internal API で下流アプリに認証を提供する。豊富な REST API と healthz を持つが、prod では retired 扱い（後継は Rust 製 volta-gateway/volta-auth-server）。",
+  "decision": "defer",
+  "decision_reason": "本リポジトリ（Java 版）は prod のカタログで operational_status=retired になっており、後継の Rust 製 volta-gateway / volta-auth-server が稼働中。Java 版に新規 MCP サーバを立てて volta に参加させる投資は不合理。エージェントから認証系（テナント解決・ユーザー照会・セッション検証等）を呼ぶ価値自体はあるが、実装対象は後継 Rust 版であるべき。Phase 2 で後継リポジトリの MCP 化を検討する条件付きで保留とする。",
+  "existing": {
+    "http_api": true,
+    "cli": false,
+    "mcp": false,
+    "healthz": true,
+    "volta_manifest": false,
+    "hosted_url": null
+  },
+  "proposed_namespace": null,
+  "capabilities": [
+    {
+      "verb": "セッションを検証してユーザー・テナント情報を返す",
+      "kind": "tool",
+      "name": "verify_session",
+      "io": "cookie/JWT → {userId, tenantId, roles, email, displayName}",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/Main.java:185 (GET /auth/verify), AuthFlowHandler.verify()"
+    },
+    {
+      "verb": "JWT を発行する（テスト用・M2M）",
+      "kind": "tool",
+      "name": "issue_token",
+      "io": "{userId, tenantId, roles} → {token}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/Main.java:399 (POST /dev/token), Main.java:418 (POST /oauth/token)"
+    },
+    {
+      "verb": "ユーザー情報を取得する",
+      "kind": "tool",
+      "name": "get_user",
+      "io": "JWT → {user profile, tenants}",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:283 (GET /api/v1/users/me)"
+    },
+    {
+      "verb": "テナントのメンバー一覧を取得する",
+      "kind": "tool",
+      "name": "list_members",
+      "io": "{tenantId, offset, limit} → [member]",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java (GET /api/v1/tenants/{tid}/members)"
+    },
+    {
+      "verb": "メンバーのロールを変更する",
+      "kind": "tool",
+      "name": "update_member_role",
+      "io": "{tenantId, userId, role} → {updated}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java (PATCH /api/v1/tenants/{tid}/members/{uid})"
+    },
+    {
+      "verb": "招待を作成する",
+      "kind": "tool",
+      "name": "create_invitation",
+      "io": "{tenantId, role, expiry, ...} → {invitation}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java (POST /api/v1/tenants/{tid}/invitations)"
+    },
+    {
+      "verb": "署名鍵をローテーションする",
+      "kind": "tool",
+      "name": "rotate_keys",
+      "io": "→ {new key info}",
+      "side_effect": "destructive",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:265 (POST /api/v1/admin/keys/rotate)"
+    },
+    {
+      "verb": "監査ログを照会する",
+      "kind": "tool",
+      "name": "list_audit_logs",
+      "io": "{filters, offset, limit} → [audit entry]",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/AdminRouter.java:200 (GET /admin/audit)"
+    },
+    {
+      "verb": "能力の仕様",
+      "kind": "resource",
+      "name": "spec",
+      "uri": "auth://spec"
+    },
+    {
+      "verb": "使い方",
+      "kind": "resource",
+      "name": "guide",
+      "uri": "auth://guide"
+    },
+    {
+      "verb": "認証フロー定義（ステートマシン）を参照する",
+      "kind": "resource",
+      "name": "flows",
+      "uri": "auth://flows"
+    },
+    {
+      "verb": "JWKS 公開鍵を取得する",
+      "kind": "resource",
+      "name": "jwks",
+      "uri": "auth://jwks"
+    },
+    {
+      "verb": "ForwardAuth 統合手順",
+      "kind": "skill",
+      "name": "forwardauth-setup",
+      "locality": "service"
+    },
+    {
+      "verb": "App 登録と Traefik 連携手順",
+      "kind": "skill",
+      "name": "app-registration",
+      "locality": "service"
+    }
+  ],
+  "composition_examples": [
+    "auth__verify_session → catalog__describe_service（セッション検証後にサービス一覧でテナント別に利用可能なツールを発見）",
+    "auth__list_members → index__agent_fork（テナントのメンバー一覧を取得し、各メンバーに作業用エージェントを起動）",
+    "auth__create_invitation → notification__send（招待リンク作成後に通知チャネルで送信）"
+  ],
+  "dependencies": [
+    {
+      "repo": "volta-gateway",
+      "direction": "provides_to",
+      "capability": "ForwardAuth /auth/verify プロトコル（X-Volta-* ヘッダ）のオリジナル実装。後継の volta-gateway が互換プロトコルを実装",
+      "exists_now": true,
+      "note": "volta-gateway はこのリポジトリのプロトコルを踏襲。本リポジトリ自身は retired"
+    },
+    {
+      "repo": "volta-auth-server",
+      "direction": "provides_to",
+      "capability": "認証サーバ機能の後継（Rust）。auth.unlaxer.org のログイン UI を提供",
+      "exists_now": true,
+      "note": "catalog 上は operational_status=active。MCP バックエンドは未所有"
+    },
+    {
+      "repo": "volta-auth-console",
+      "direction": "depends_on",
+      "capability": "React 製管理コンソール。本リポジトリの Internal API を呼ぶ",
+      "exists_now": true,
+      "note": "catalog に登録済み（auth-console.unlaxer.org）"
+    },
+    {
+      "repo": "tramli",
+      "direction": "depends_on",
+      "capability": "ステートマシンエンジン（認証フロー定義に使用）",
+      "exists_now": true,
+      "note": "独立ライブラリ。pom.xml で org.unlaxer:tramli:3.7.1 として依存"
+    },
+    {
+      "repo": "tramli-plugins",
+      "direction": "depends_on",
+      "capability": "audit/lint/observability プラグイン",
+      "exists_now": true,
+      "note": "pom.xml で org.unlaxer:tramli-plugins:3.6.1 として依存"
+    }
+  ],
+  "library_serve": {
+    "needed": false,
+    "new_work": [],
+    "runtime": "java",
+    "estimated_effort": "S"
+  },
+  "risks": [
+    "本リポジトリは prod で retired。新規投資の妥当性に疑問がある",
+    "認証系は秘密情報（Google Client Secret, JWT 鍵暗号化秘密鍵, VOLTA_SERVICE_TOKEN 等）を多数扱う。MCP 化する場合は認証・認可の設計が必須",
+    "壊す系操作（鍵ローテーション・メンバー削除・招待取消）には dry-run / confirm が必要",
+    "Postgres + Redis 依存。常駐プロセスとして稼働するため起動コストは低くないが、JVM の起動は ~200ms と早い",
+    "後継 Rust 版（volta-gateway）との機能パリティが不明。Java 版にだけある機能の MCP 化は後継で使えない可能性がある"
+  ],
+  "open_questions": [
+    "後継の volta-gateway / volta-auth-server（Rust）に MCP サーバを付ける計画はあるか？ あれば本リポジトリの MCP 化は skip でよい",
+    "volta-auth-proxy（Java）は完全に廃止予定か、並行運用期間はあるか",
+    "エージェントが認証系を呼ぶユースケース（セッション検証・ユーザー照会・テナント管理）は実際に必要か。volta-gateway が ForwardAuth を内蔵しているなら、エージェントが直接認証 API を呼ぶ場面は限られるのではないか",
+    "Java 版にだけ存在する機能（SAML XSW/XXE テストカバレッジ、SCIM、Billing webhook 等）を後継に移行する計画はあるか"
+  ]
+}

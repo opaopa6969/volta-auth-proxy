@@ -176,12 +176,12 @@ sequenceDiagram
     participant B as Browser
     participant V as volta-auth-proxy
 
-    B->>V: POST /auth/passkey/register/start
+    B->>V: POST /api/v1/users/{userId}/passkeys/register/start
     V-->>B: 200 PublicKeyCredentialCreationOptions (challenge, rp, user, ...)
     B->>B: navigator.credentials.create(...)
-    B->>V: POST /auth/passkey/register/finish (attestation)
-    V->>V: Verify attestation (Yubico webauthn-server) ; store credential
-    V-->>B: 200 { ok: true }
+    B->>V: POST /api/v1/users/{userId}/passkeys/register/finish (attestation)
+    V->>V: Verify attestation (webauthn4j) ; store credential
+    V-->>B: 201 { ok: true }
 ```
 
 Authenticator type is selectable at registration time (`0d17ce6`).
@@ -193,11 +193,11 @@ sequenceDiagram
     participant B as Browser
     participant V as volta-auth-proxy
 
-    B->>V: POST /auth/passkey/login/start
+    B->>V: POST /auth/passkey/start
     V->>V: Start Passkey flow — CHALLENGE_ISSUED
     V-->>B: 200 PublicKeyCredentialRequestOptions
     B->>B: navigator.credentials.get(...)
-    B->>V: POST /auth/passkey/login/finish (assertion)
+    B->>V: POST /auth/passkey/finish (assertion)
     V->>V: [PasskeyAssertionGuard] → ASSERTION_RECEIVED
     V->>V: PasskeyVerifyProcessor → USER_RESOLVED
     V->>V: PasskeySessionProcessor → COMPLETE

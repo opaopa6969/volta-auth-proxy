@@ -232,9 +232,10 @@ PASSKEY_RP_ID=auth.example.com      # ブラウザがクレデンシャルを結
 PASSKEY_RP_NAME="Example Inc."
 ```
 
-`POST /auth/passkey/register/start` → ブラウザ WebAuthn セレモニー →
-`POST /auth/passkey/register/finish` でクレデンシャル登録。オーセンティケータ
-種別は登録時に選択可能（`0d17ce6`）。
+認証済みユーザーが `POST /api/v1/users/{userId}/passkeys/register/start` →
+ブラウザ WebAuthn セレモニー →
+`POST /api/v1/users/{userId}/passkeys/register/finish` でクレデンシャル登録。
+オーセンティケータ種別は `?type=platform` または `?type=cross-platform` で選択可能。
 
 ## MFA (TOTP) 有効化
 
@@ -243,8 +244,9 @@ MFA_ENABLED=true
 MFA_ISSUER="Example Inc."
 ```
 
-`POST /auth/mfa/setup` で QR 発行、`POST /auth/mfa/verify` で確認。MFA フローは
-4 状態の tramli FlowDefinition ——
+`POST /api/v1/users/{userId}/mfa/totp/setup` で QR 発行、
+`POST /api/v1/users/{userId}/mfa/totp/verify` で TOTP を確認する。MFA チャレンジは
+`POST /auth/mfa/verify`。MFA フローは 4 状態の tramli FlowDefinition ——
 [architecture-ja.md](architecture-ja.md#mfa-flow-tramli) 参照。
 
 > **ADR-004**: MFA は *テナントスコープ*。テナント切替で再検証が走る。
@@ -255,7 +257,7 @@ MFA_ISSUER="Example Inc."
 
 ```bash
 # 1. ヘルスチェック
-curl -s http://localhost:7070/health | jq .
+curl -s http://localhost:7070/healthz | jq .
 
 # 2. ForwardAuth（未認証 → 302）
 curl -i -H "X-Forwarded-Host: app.example.com" \

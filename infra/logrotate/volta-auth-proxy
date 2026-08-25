@@ -1,0 +1,20 @@
+# volta-auth-proxy のアプリログを回転させる。
+#
+# 導入 (root):
+#   sudo cp infra/logrotate/volta-auth-proxy /etc/logrotate.d/volta-auth-proxy
+#   sudo logrotate -d /etc/logrotate.d/volta-auth-proxy   # dry-run で確認
+#
+# start-dev.sh は `>> logs/auth-proxy.log` で追記する (O_APPEND) ため、
+# copytruncate で inode を保ったまま切り詰める。JVM の再起動は不要。
+
+/home/opa/work/volta-workspace/volta-auth-proxy/logs/*.log {
+    daily
+    rotate 7
+    size 100M
+    copytruncate
+    compress
+    delaycompress
+    missingok
+    notifempty
+    su opa opa
+}

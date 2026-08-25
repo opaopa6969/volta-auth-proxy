@@ -375,10 +375,10 @@ sequenceDiagram
 **登録フロー:**
 
 ```
-POST /auth/passkey/register/start
+POST /api/v1/users/{userId}/passkeys/register/start
   → PublicKeyCredentialCreationOptions (challenge, rp, user, pubKeyCredParams)
-POST /auth/passkey/register/finish (attestation)
-  → Yubico webauthn4j で attestation 検証
+POST /api/v1/users/{userId}/passkeys/register/finish (attestation)
+  → webauthn4j で attestation 検証
   → user_passkeys テーブルに credential_id + public_key 保存
 ```
 
@@ -1612,11 +1612,11 @@ VIEWER:
 
 | Method | Path | 説明 |
 |---|---|---|
-| POST | `/api/v1/users/me/mfa/totp/enroll` | TOTP QR/secret 取得 |
-| POST | `/api/v1/users/me/mfa/totp/activate` | TOTP コード検証 + 有効化 |
-| DELETE | `/api/v1/users/me/mfa/totp` | TOTP 無効化 |
-| GET | `/api/v1/users/me/mfa/recovery-codes` | リカバリーコード一覧 |
-| POST | `/api/v1/users/me/mfa/recovery-codes/regenerate` | リカバリーコード再生成 |
+| POST | `/api/v1/users/{userId}/mfa/totp/setup` | TOTP QR/secret 取得 |
+| POST | `/api/v1/users/{userId}/mfa/totp/verify` | TOTP コード検証 + 有効化 |
+| DELETE | `/api/v1/users/{userId}/mfa/totp` | TOTP 無効化 |
+| GET | `/api/v1/users/me/mfa` | TOTP 状態・残りリカバリーコード数 |
+| POST | `/api/v1/users/{userId}/mfa/recovery-codes/regenerate` | リカバリーコード再生成 |
 
 ### 6.3 AdminRouter (`/admin/*`)
 

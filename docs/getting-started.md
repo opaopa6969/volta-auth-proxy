@@ -233,9 +233,10 @@ PASSKEY_RP_ID=auth.example.com      # the RP ID the browser binds credentials to
 PASSKEY_RP_NAME="Example Inc."
 ```
 
-Users register credentials via `POST /auth/passkey/register/start` → browser
-WebAuthn ceremony → `POST /auth/passkey/register/finish`. Authenticator type is
-selectable at registration (`0d17ce6`).
+Authenticated users register credentials via `POST /api/v1/users/{userId}/passkeys/register/start`
+→ browser WebAuthn ceremony → `POST /api/v1/users/{userId}/passkeys/register/finish`.
+Authenticator type is selectable at registration (`?type=platform` or
+`?type=cross-platform`).
 
 ## Enabling MFA (TOTP)
 
@@ -244,8 +245,9 @@ MFA_ENABLED=true
 MFA_ISSUER="Example Inc."
 ```
 
-Users enroll via `POST /auth/mfa/setup`, scan a QR code, and confirm with
-`POST /auth/mfa/verify`. The MFA flow is a 4-state tramli FlowDefinition — see
+Users enroll via `POST /api/v1/users/{userId}/mfa/totp/setup`, scan a QR code, and
+confirm with `POST /api/v1/users/{userId}/mfa/totp/verify`. The MFA challenge
+flow uses `POST /auth/mfa/verify`. It is a 4-state tramli FlowDefinition — see
 [architecture.md](architecture.md#mfa-flow-tramli).
 
 > **ADR-004**: MFA verification is *tenant-scoped*. Switching tenants forces a
@@ -257,7 +259,7 @@ Users enroll via `POST /auth/mfa/setup`, scan a QR code, and confirm with
 
 ```bash
 # 1. Health
-curl -s http://localhost:7070/health | jq .
+curl -s http://localhost:7070/healthz | jq .
 
 # 2. ForwardAuth (unauthenticated → 302)
 curl -i -H "X-Forwarded-Host: app.example.com" \

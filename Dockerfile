@@ -16,5 +16,10 @@ COPY volta-config.yaml .
 
 EXPOSE 7070
 
+# JVM メモリ上限・OOM 時の自己終了（2026-08-23/24 本番枯渇予防）。
+# mvn exec:java は maven プロセス内で実行するので MAVEN_OPTS がそのまま効く。
+# -Xmx1g の根拠: Javalin + PostgreSQL + Kafka クライアント（未実測・保守値）。
+ENV MAVEN_OPTS="-Xmx1g -XX:+ExitOnOutOfMemoryError"
+
 # -o = offline (all deps already in the image layer above)
 ENTRYPOINT ["mvn", "-o", "-q", "exec:java"]

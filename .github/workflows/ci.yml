@@ -35,13 +35,30 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      # #50: fork からの PR には secrets が渡らない（GitHub の仕様）。
+      # tramli 等の unlaxer artifact は private Nexus にしか無いため、
+      # そのまま走らせると「依存が解決できない」という無関係な失敗になる。
+      # fork PR では skip し、理由を明示する（案c）。
+      # 恒久策は Nexus の anonymous read 開放（案a）か Maven Central 公開（案b）。
+      - name: Check Nexus availability
+        id: nexus
+        run: |
+          if [ -n "${{ secrets.NEXUS_USERNAME }}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Nexus credentials are not available (fork PR?). Skipping compile/test — a maintainer must re-run this from a branch in this repository."
+          fi
+
       - name: Compile
+        if: steps.nexus.outputs.available == 'true'
         run: mvn compile -q --settings .mvn/settings.xml
         env:
           NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
       - name: Test
+        if: steps.nexus.outputs.available == 'true'
         run: mvn test -q --settings .mvn/settings.xml
         env:
           DB_HOST: localhost

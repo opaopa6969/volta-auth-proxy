@@ -375,10 +375,10 @@ sequenceDiagram
 **登録フロー:**
 
 ```
-POST /auth/passkey/register/start
+POST /api/v1/users/{userId}/passkeys/register/start
   → PublicKeyCredentialCreationOptions (challenge, rp, user, pubKeyCredParams)
-POST /auth/passkey/register/finish (attestation)
-  → Yubico webauthn4j で attestation 検証
+POST /api/v1/users/{userId}/passkeys/register/finish (attestation)
+  → webauthn4j で attestation 検証
   → user_passkeys テーブルに credential_id + public_key 保存
 ```
 
@@ -582,7 +582,7 @@ PostgreSQL 16 をプライマリストアとして使用。HikariCP 6.3.0 でコ
 
 ### 3.1 Flyway マイグレーション概要
 
-23 マイグレーション (V1 〜 V23) が `src/main/resources/db/migration/` に配置。
+27 マイグレーション (V1 〜 V27) が `src/main/resources/db/migration/public/` に配置。
 起動時に Flyway が自動適用。`fail-fast` — テーブル不在は起動失敗。
 
 | バージョン | ファイル | 追加内容 |
@@ -610,6 +610,10 @@ PostgreSQL 16 をプライマリストアとして使用。HikariCP 6.3.0 でコ
 | V21 | `conditional_access_and_gdpr.sql` | conditional_access_rules, gdpr_requests |
 | V22 | `pagination_indexes.sql` | ページネーション用複合インデックス |
 | V23 | `billing_usage.sql` | billing_usage (課金イベント) |
+| V24 | `rls_shared_tables.sql` | 共有テーブルの Row-Level Security (RLS) |
+| V25 | `tenants_isolation_column.sql` | tenants テナント分離カラム |
+| V26 | `tenants_maintenance.sql` | tenants メンテナンス状態 |
+| V27 | `invitation_code_hash.sql` | invitation コードのハッシュ化保存 |
 
 ### 3.2 コアテーブル
 
@@ -1608,11 +1612,11 @@ VIEWER:
 
 | Method | Path | 説明 |
 |---|---|---|
-| POST | `/api/v1/users/me/mfa/totp/enroll` | TOTP QR/secret 取得 |
-| POST | `/api/v1/users/me/mfa/totp/activate` | TOTP コード検証 + 有効化 |
-| DELETE | `/api/v1/users/me/mfa/totp` | TOTP 無効化 |
-| GET | `/api/v1/users/me/mfa/recovery-codes` | リカバリーコード一覧 |
-| POST | `/api/v1/users/me/mfa/recovery-codes/regenerate` | リカバリーコード再生成 |
+| POST | `/api/v1/users/{userId}/mfa/totp/setup` | TOTP QR/secret 取得 |
+| POST | `/api/v1/users/{userId}/mfa/totp/verify` | TOTP コード検証 + 有効化 |
+| DELETE | `/api/v1/users/{userId}/mfa/totp` | TOTP 無効化 |
+| GET | `/api/v1/users/me/mfa` | TOTP 状態・残りリカバリーコード数 |
+| POST | `/api/v1/users/{userId}/mfa/recovery-codes/regenerate` | リカバリーコード再生成 |
 
 ### 6.3 AdminRouter (`/admin/*`)
 
@@ -1926,7 +1930,11 @@ dxe ツールは dve 成果物を消費するが変更しない。
 | ACS URL | バインディング混同防止 | `expectedAcsUrl` 比較 |
 | RelayState | CSRF + return_to | HMAC 署名 JSON (`encodeRelayState` / `decodeRelayState`) |
 
-### 10.2 テストカバレッジ (17 観点中 5 カバー)
+### 10.2 テストカバレッジ (17 観点中 9 カバー)
+
+> 2026-08-13 に実測で更新 (#49)。**「実装」と「テスト」を分けて読むこと。**
+> 実装済みでもテストが無い項目があり、以前の表はそれを一律 `gap` と書いていたため
+> 「未実装」と誤読された。
 
 | 攻撃 / 懸念 | 防御 | テスト | ステータス |
 |---|---|---|---|
@@ -1935,14 +1943,14 @@ dxe ツールは dve 成果物を消費するが変更しない。
 | XXE — external parameter entities | `external-parameter-entities=false` | — | implicit |
 | XXE — external DTD load | `ACCESS_EXTERNAL_DTD=""` | — | implicit |
 | XXE — external schema load | `ACCESS_EXTERNAL_SCHEMA=""` | — | implicit |
-| XSW — signature wrapping | `secureValidation=true` + 単一 `<Signature>` | — | partial |
+| XSW — signature wrapping | `secureValidation=true` + 単一 `<Signature>` + **Reference 1本限定 / 署名対象を Response\|Assertion に限定 / claim を署名対象の子孫に限定 / ID 重複拒否** (#33) | — (署名付き XML の生成が必要) | 実装済み・テスト gap |
 | 署名存在確認 | skipSignature=false 時は必須 | `requiresSignatureWhenSkipDisabled` | **covered** |
-| 署名検証 | `XMLSignature.validate()` | — | gap |
+| 署名検証 | `XMLSignature.validate()` (`SamlService`) | — (IdP 鍵ペアの用意が必要) | 実装済み・テスト gap |
 | Issuer 不一致 | `idp.issuer()` 比較 | `rejectsIssuerMismatch` | **covered** |
-| Audience 不一致 | `idp.audience()` 比較 | — | gap |
-| NotOnOrAfter 期限切れ | クロックスキュー検証 | — | gap |
-| RequestId リプレイ | `expectedRequestId` 検証 | — | gap |
-| ACS URL 不一致 | `expectedAcsUrl` 比較 | — | gap |
+| Audience 不一致 | `idp.clientId()` 比較 | ハッピーパスのみ (`parsesSamlXmlIdentity`) | 実装済み・不一致テスト gap |
+| NotOnOrAfter 期限切れ | 5分のクロックスキュー許容 | `rejectsNotOnOrAfterExpired` / `allowsNotOnOrAfterJustInsideClockSkew` / `allowsNotOnOrAfterAtSkewBoundary` / `rejectsNotOnOrAfterJustBeyondSkew` | **covered** |
+| RequestId リプレイ | `expectedRequestId` 検証 | — | 実装済み・テスト gap |
+| ACS URL 不一致 | `expectedAcsUrl` 比較 (Destination / Recipient) | — | 実装済み・テスト gap |
 | RelayState ラウンドトリップ | HMAC JSON encode/decode | `encodesAndDecodesRelayState` | **covered** |
 | MOCK dev バイパス | `DEV_MODE && !isProd` ゲート | `parsesMockIdentityInDevMode` | **covered** |
 | ハッピーパス | 完全パース | `parsesSamlXmlIdentity` | **covered** |
@@ -2315,4 +2323,4 @@ graph TB
 `docs/decisions/001-004`, source inspection of `Main.java`, `AuthFlowHandler.java`,
 `AuthRouter.java`, `ApiRouter.java`, `AdminRouter.java`, `AppConfig.java`,
 `PolicyEngine.java`, `LocalNetworkBypass.java`, `OidcFlowDef.java`,
-`*FlowState.java`, Flyway migrations V1-V23, `pom.xml`, `docker-compose.demo.yml`.*
+`*FlowState.java`, Flyway migrations V1-V27, `pom.xml`, `docker-compose.demo.yml`*.

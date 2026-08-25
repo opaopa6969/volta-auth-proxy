@@ -2,6 +2,7 @@ package org.unlaxer.infra.volta.flow;
 import org.unlaxer.tramli.FlowException;
 import org.unlaxer.tramli.FlowContext;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.HashMap;
@@ -15,6 +16,10 @@ public final class FlowDataRegistry {
     private final Map<String, Class<?>> aliasByName = new HashMap<>();
     private final Map<Class<?>, String> nameByAlias = new HashMap<>();
     private final ObjectMapper objectMapper;
+
+    // Reusable TypeReference for Map<String, Object> — avoids per-call
+    // TypeFactory.constructType(Map.class) overhead in convertValue.
+    private static final TypeReference<Map<String, Object>> MAP_TYPE_REF = new TypeReference<>() {};
 
     public FlowDataRegistry(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -56,7 +61,7 @@ public final class FlowDataRegistry {
         for (var entry : ctx.snapshot().entrySet()) {
             String alias = nameByAlias.get(entry.getKey());
             if (alias != null) {
-                result.put(alias, objectMapper.convertValue(entry.getValue(), Map.class));
+                result.put(alias, objectMapper.convertValue(entry.getValue(), MAP_TYPE_REF));
             }
         }
         return result;

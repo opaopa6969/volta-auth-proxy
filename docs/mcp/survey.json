@@ -2,9 +2,9 @@
   "repo": "volta-auth-proxy",
   "surveyed_at": "2026-08-22T00:00:00Z",
   "kind": "service",
-  "summary": "Java 21 + Javalin 製のマルチテナント認証ゲートウェイ。OIDC/SAML/MFA/Passkey/Invite/Magic-Link を tramli ステートマシンで駆動し、ForwardAuth + Internal API で下流アプリに認証を提供する。豊富な REST API と healthz を持つが、prod では retired 扱い（後継は Rust 製 volta-gateway/volta-auth-server）。",
-  "decision": "defer",
-  "decision_reason": "本リポジトリ（Java 版）は prod のカタログで operational_status=retired になっており、後継の Rust 製 volta-gateway / volta-auth-server が稼働中。Java 版に新規 MCP サーバを立てて volta に参加させる投資は不合理。エージェントから認証系（テナント解決・ユーザー照会・セッション検証等）を呼ぶ価値自体はあるが、実装対象は後継 Rust 版であるべき。Phase 2 で後継リポジトリの MCP 化を検討する条件付きで保留とする。",
+  "summary": "マルチテナント認証ゲートウェイ（Java/Javalin）。OIDC/SAML/Passkey/MFA・JWT 発行・セッション・テナント・招待・RBAC・SCIM・Billing を 1 プロセスで提供。ForwardAuth パターンで下流 App に X-Volta-* ヘッダを注入する。catalog 上は retired（後継: volta-auth-server / Rust 製 volta-gateway が active）。",
+  "decision": "wrap",
+  "decision_reason": "既に豊富な REST API（/api/v1/*, /auth/*, /scim/v2/*, /oauth/token, /healthz, /.well-known/jwks.json）を持つ常駐サーバ。MCP 化は既存 API を薄く包む（wrap）だけで済む。ただし catalog で operational_status=retired であり、後継の volta-auth-server（Rust）が active になっているため、投資の優先度は低い。機能の大部分は後継に移行済みと見られ、MCP ラップを付ける価値があるかは後継の動向次第。退役確定なら skip に倒すべき。",
   "existing": {
     "http_api": true,
     "cli": false,
@@ -13,79 +13,232 @@
     "volta_manifest": false,
     "hosted_url": null
   },
-  "proposed_namespace": null,
+  "proposed_namespace": "auth",
   "capabilities": [
     {
-      "verb": "セッションを検証してユーザー・テナント情報を返す",
+      "verb": "セッションを検証して X-Volta-* ヘッダを返す",
       "kind": "tool",
       "name": "verify_session",
-      "io": "cookie/JWT → {userId, tenantId, roles, email, displayName}",
+      "io": "cookie/header → {userId, tenantId, roles, jwt, appId} | 401",
       "side_effect": "read",
       "long_running": false,
-      "maps_to": "src/main/java/org/unlaxer/infra/volta/Main.java:185 (GET /auth/verify), AuthFlowHandler.verify()"
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/auth/AuthFlowHandler.java:verify (GET /auth/verify)"
     },
     {
-      "verb": "JWT を発行する（テスト用・M2M）",
+      "verb": "JWT をリフレッシュする",
       "kind": "tool",
-      "name": "issue_token",
-      "io": "{userId, tenantId, roles} → {token}",
+      "name": "refresh_token",
+      "io": "session cookie → {token: jwt}",
       "side_effect": "write",
       "long_running": false,
-      "maps_to": "src/main/java/org/unlaxer/infra/volta/Main.java:399 (POST /dev/token), Main.java:418 (POST /oauth/token)"
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/AuthRouter.java:204 (POST /auth/refresh)"
     },
     {
-      "verb": "ユーザー情報を取得する",
+      "verb": "M2M クライアント認証でトークンを発行する",
       "kind": "tool",
-      "name": "get_user",
-      "io": "JWT → {user profile, tenants}",
+      "name": "issue_m2m_token",
+      "io": "{client_id, client_secret, scope?, audience?} → {access_token, token_type, expires_in, scope}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/Main.java:418 (POST /oauth/token)"
+    },
+    {
+      "verb": "現在のユーザー情報を取得する",
+      "kind": "tool",
+      "name": "get_current_user",
+      "io": "jwt → {id, email, displayName, tenantId, roles}",
       "side_effect": "read",
       "long_running": false,
       "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:283 (GET /api/v1/users/me)"
     },
     {
-      "verb": "テナントのメンバー一覧を取得する",
+      "verb": "ユーザーが所属するテナント一覧を取得する",
       "kind": "tool",
-      "name": "list_members",
-      "io": "{tenantId, offset, limit} → [member]",
+      "name": "list_user_tenants",
+      "io": "jwt → {data: [{id, name, slug, role, isLast}]}",
       "side_effect": "read",
       "long_running": false,
-      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java (GET /api/v1/tenants/{tid}/members)"
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:375 (GET /api/v1/users/me/tenants)"
     },
     {
-      "verb": "メンバーのロールを変更する",
+      "verb": "テナント情報を取得する",
       "kind": "tool",
-      "name": "update_member_role",
-      "io": "{tenantId, userId, role} → {updated}",
-      "side_effect": "write",
+      "name": "get_tenant",
+      "io": "{tenantId} + jwt → tenantDetail",
+      "side_effect": "read",
       "long_running": false,
-      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java (PATCH /api/v1/tenants/{tid}/members/{uid})"
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:393 (GET /api/v1/tenants/{tenantId})"
     },
     {
-      "verb": "招待を作成する",
+      "verb": "テナントメンバー一覧を取得する",
+      "kind": "tool",
+      "name": "list_tenant_members",
+      "io": "{tenantId} + jwt → paginated members",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:572 (GET /api/v1/tenants/{tenantId}/members)"
+    },
+    {
+      "verb": "テナントに招待を作成する",
       "kind": "tool",
       "name": "create_invitation",
-      "io": "{tenantId, role, expiry, ...} → {invitation}",
+      "io": "{tenantId, email?, role?, max_uses?, expires_in_hours?} + jwt → {id, code, link, expiresAt}",
       "side_effect": "write",
       "long_running": false,
-      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java (POST /api/v1/tenants/{tid}/invitations)"
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:617 (POST /api/v1/tenants/{tenantId}/invitations)"
+    },
+    {
+      "verb": "テナントの招待一覧を取得する",
+      "kind": "tool",
+      "name": "list_invitations",
+      "io": "{tenantId, status?} + jwt → paginated invitations",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:675 (GET /api/v1/tenants/{tenantId}/invitations)"
+    },
+    {
+      "verb": "招待をキャンセルする",
+      "kind": "tool",
+      "name": "cancel_invitation",
+      "io": "{tenantId, invitationId} + jwt → {ok: true}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:685 (DELETE /api/v1/tenants/{tenantId}/invitations/{invitationId})"
+    },
+    {
+      "verb": "メンバーロールを変更する",
+      "kind": "tool",
+      "name": "change_member_role",
+      "io": "{tenantId, memberId, role} + jwt → {ok: true}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:590 (PATCH /api/v1/tenants/{tenantId}/members/{memberId})"
+    },
+    {
+      "verb": "メンバーを削除する",
+      "kind": "tool",
+      "name": "remove_member",
+      "io": "{tenantId, memberId} + jwt → {ok: true}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:699 (DELETE /api/v1/tenants/{tenantId}/members/{memberId})"
+    },
+    {
+      "verb": "セッション一覧を取得する",
+      "kind": "tool",
+      "name": "list_sessions",
+      "io": "jwt → {items: [{id, tenantId, ip, lastActiveAt, device, browser, os}]}",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:240 (GET /api/v1/users/me/sessions)"
+    },
+    {
+      "verb": "セッションを失効する",
+      "kind": "tool",
+      "name": "revoke_session",
+      "io": "{sessionId} + jwt → {ok: true}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:227 (DELETE /api/v1/users/me/sessions/{id})"
+    },
+    {
+      "verb": "全セッションを失効する",
+      "kind": "tool",
+      "name": "revoke_all_sessions",
+      "io": "jwt → {ok: true}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:250 (DELETE /api/me/sessions)"
+    },
+    {
+      "verb": "MFA (TOTP) セットアップを開始する",
+      "kind": "tool",
+      "name": "mfa_setup",
+      "io": "{userId} + jwt → {secret, otpauth_url}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:443 (POST /api/v1/users/{userId}/mfa/totp/setup)"
+    },
+    {
+      "verb": "MFA (TOTP) を検証・有効化する",
+      "kind": "tool",
+      "name": "mfa_verify",
+      "io": "{userId, code} + jwt → {ok, enabled}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:458 (POST /api/v1/users/{userId}/mfa/totp/verify)"
+    },
+    {
+      "verb": "MFA ステータスを取得する",
+      "kind": "tool",
+      "name": "get_mfa_status",
+      "io": "jwt → {totp: {enabled}, recovery_codes_remaining}",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:499 (GET /api/v1/users/me/mfa)"
     },
     {
       "verb": "署名鍵をローテーションする",
       "kind": "tool",
-      "name": "rotate_keys",
-      "io": "→ {new key info}",
-      "side_effect": "destructive",
+      "name": "rotate_signing_key",
+      "io": "jwt(OWNER) → {ok, kid}",
+      "side_effect": "write",
       "long_running": false,
       "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:265 (POST /api/v1/admin/keys/rotate)"
     },
     {
-      "verb": "監査ログを照会する",
+      "verb": "監査ログを取得する",
       "kind": "tool",
       "name": "list_audit_logs",
-      "io": "{filters, offset, limit} → [audit entry]",
+      "io": "{tenantId?, from?, to?, event?, offset?, limit?} + jwt(ADMIN+) → paginated logs",
       "side_effect": "read",
       "long_running": false,
-      "maps_to": "src/main/java/org/unlaxer/infra/volta/AdminRouter.java:200 (GET /admin/audit)"
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:1175 (GET /api/v1/admin/audit)"
+    },
+    {
+      "verb": "認証フロー定義一覧を取得する（tramli-viz）",
+      "kind": "tool",
+      "name": "list_flow_definitions",
+      "io": "→ {flows: [{name, mermaid, stateDiagram}]}",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/viz/VizRouter.java:134 (GET /viz/flows)"
+    },
+    {
+      "verb": "認証フロー実行一覧を取得する",
+      "kind": "tool",
+      "name": "list_flows",
+      "io": "{tenant_id?, flow_type?, since?, limit?} + jwt(ADMIN) → {flows: [...]}",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/viz/VizRouter.java:81 (GET /api/v1/admin/flows)"
+    },
+    {
+      "verb": "フロー遷移履歴を取得する",
+      "kind": "tool",
+      "name": "get_flow_transitions",
+      "io": "{flowId} + jwt(ADMIN) → {flowId, transitions: [...]}",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/viz/VizRouter.java:117 (GET /api/v1/admin/flows/{flowId}/transitions)"
+    },
+    {
+      "verb": "GDPR データエクスポート",
+      "kind": "tool",
+      "name": "export_user_data",
+      "io": "jwt → JSON attachment (user, memberships, sessions, devices)",
+      "side_effect": "read",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:295 (POST /api/v1/users/me/data-export)"
+    },
+    {
+      "verb": "GDPR 削除要求",
+      "kind": "tool",
+      "name": "request_account_deletion",
+      "io": "jwt → {status: scheduled, delete_at}",
+      "side_effect": "write",
+      "long_running": false,
+      "maps_to": "src/main/java/org/unlaxer/infra/volta/ApiRouter.java:302 (DELETE /api/v1/users/me)"
     },
     {
       "verb": "能力の仕様",
@@ -100,70 +253,65 @@
       "uri": "auth://guide"
     },
     {
-      "verb": "認証フロー定義（ステートマシン）を参照する",
-      "kind": "resource",
-      "name": "flows",
-      "uri": "auth://flows"
-    },
-    {
-      "verb": "JWKS 公開鍵を取得する",
+      "verb": "JWKS 公開鍵",
       "kind": "resource",
       "name": "jwks",
       "uri": "auth://jwks"
     },
     {
-      "verb": "ForwardAuth 統合手順",
-      "kind": "skill",
-      "name": "forwardauth-setup",
-      "locality": "service"
+      "verb": "認証フロー図（mermaid + stateDiagram）",
+      "kind": "resource",
+      "name": "flow_definitions",
+      "uri": "auth://flows"
     },
     {
-      "verb": "App 登録と Traefik 連携手順",
+      "verb": "volta-auth-proxy の運用手順",
       "kind": "skill",
-      "name": "app-registration",
-      "locality": "service"
+      "name": "operate-auth-proxy",
+      "locality": "repo"
     }
   ],
   "composition_examples": [
-    "auth__verify_session → catalog__describe_service（セッション検証後にサービス一覧でテナント別に利用可能なツールを発見）",
-    "auth__list_members → index__agent_fork（テナントのメンバー一覧を取得し、各メンバーに作業用エージェントを起動）",
-    "auth__create_invitation → notification__send（招待リンク作成後に通知チャネルで送信）"
+    "auth__verify_session → (tenantId を取得) → volta__svc_health(auth 関連サービスの健全性確認)",
+    "auth__list_audit_logs → index__agent_fork (監査ログから不審なアクティビティを検知したら調査エージェントを起動)",
+    "auth__list_flow_definitions → design__get_component_snippet (認証フローの状態遷移図を UI コンポーネントで可視化)",
+    "auth__issue_m2m_token → volta__svc_deploy (デプロイ用 M2M トークンを発行してサービスデプロイを自動化)"
   ],
   "dependencies": [
     {
-      "repo": "volta-gateway",
-      "direction": "provides_to",
-      "capability": "ForwardAuth /auth/verify プロトコル（X-Volta-* ヘッダ）のオリジナル実装。後継の volta-gateway が互換プロトコルを実装",
-      "exists_now": true,
-      "note": "volta-gateway はこのリポジトリのプロトコルを踏襲。本リポジトリ自身は retired"
-    },
-    {
-      "repo": "volta-auth-server",
-      "direction": "provides_to",
-      "capability": "認証サーバ機能の後継（Rust）。auth.unlaxer.org のログイン UI を提供",
-      "exists_now": true,
-      "note": "catalog 上は operational_status=active。MCP バックエンドは未所有"
-    },
-    {
-      "repo": "volta-auth-console",
-      "direction": "depends_on",
-      "capability": "React 製管理コンソール。本リポジトリの Internal API を呼ぶ",
-      "exists_now": true,
-      "note": "catalog に登録済み（auth-console.unlaxer.org）"
-    },
-    {
       "repo": "tramli",
       "direction": "depends_on",
-      "capability": "ステートマシンエンジン（認証フロー定義に使用）",
+      "capability": "state machine engine (FlowDefinition, FlowEngine, plugins)",
       "exists_now": true,
-      "note": "独立ライブラリ。pom.xml で org.unlaxer:tramli:3.7.1 として依存"
+      "note": "pom.xml 依存。認証フロー定義・実行の中核"
     },
     {
       "repo": "tramli-plugins",
       "direction": "depends_on",
-      "capability": "audit/lint/observability プラグイン",
+      "capability": "audit / lint / observability plugins",
       "exists_now": true,
-      "note": "pom.xml で org.unlaxer:tramli-plugins:3.6.1 として依存"
+      "note": "pom.xml 依存。全フローに横断的関心事を適用"
+    },
+    {
+      "repo": "volta-gateway",
+      "direction": "depends_on",
+      "capability": "認証サーバ（Rust 版後継）— 同等の X-Volta-* ヘッダを生成",
+      "exists_now": true,
+      "note": "catalog で active。本リポジトリは retired で、後継が稼働中"
+    },
+    {
+      "repo": "volta-auth-console",
+      "direction": "provides_to",
+      "capability": "Internal API (/api/v1/*) — 管理コンソールがユーザー・テナント・セッション・監査ログを操作",
+      "exists_now": true,
+      "note": "React 製管理 UI。本プロキシの API を消費"
+    },
+    {
+      "repo": "nanori-site",
+      "direction": "provides_to",
+      "capability": "認証（管理コンソール /admin/ が volta-auth 認証 + owner トークンを使用）",
+      "exists_now": true,
+      "note": "catalog に記載。nanori が認証を委譲している可能性がある"
     }
   ],
   "library_serve": {
@@ -173,16 +321,16 @@
     "estimated_effort": "S"
   },
   "risks": [
-    "本リポジトリは prod で retired。新規投資の妥当性に疑問がある",
-    "認証系は秘密情報（Google Client Secret, JWT 鍵暗号化秘密鍵, VOLTA_SERVICE_TOKEN 等）を多数扱う。MCP 化する場合は認証・認可の設計が必須",
-    "壊す系操作（鍵ローテーション・メンバー削除・招待取消）には dry-run / confirm が必要",
-    "Postgres + Redis 依存。常駐プロセスとして稼働するため起動コストは低くないが、JVM の起動は ~200ms と早い",
-    "後継 Rust 版（volta-gateway）との機能パリティが不明。Java 版にだけある機能の MCP 化は後継で使えない可能性がある"
+    "operational_status=retired: catalog で退役扱い。後継 volta-auth-server (Rust) が active。MCP ラップを付けても本番運用に乗らない可能性がある",
+    "秘密情報: JWT_KEY_ENCRYPTION_SECRET, VOLTA_SERVICE_TOKEN, Google/Microsoft/GitHub/Apple client secret, Stripe secret key 等の環境変数を扱う。MCP 経由で漏洩しないよう注意",
+    "破壊的操作: アカウント削除(GDPR), 鍵ローテーション, メンバー削除, セッション失効等。confirm パラメータを必須にすべき",
+    "外部 API 課金: Stripe (billing), Google/Microsoft OIDC (API クォータ), Fraud Alert (FRAUD_ALERT_URL) 等",
+    "認証コンテキスト: MCP tool 経由の呼び出しでいかに JWT/cookie を適切に扱うかが課題。エージェントがセッション cookie を保持する形は不自然。M2M トークン(issue_m2m_token)を前段に使う形が現実的"
   ],
   "open_questions": [
-    "後継の volta-gateway / volta-auth-server（Rust）に MCP サーバを付ける計画はあるか？ あれば本リポジトリの MCP 化は skip でよい",
-    "volta-auth-proxy（Java）は完全に廃止予定か、並行運用期間はあるか",
-    "エージェントが認証系を呼ぶユースケース（セッション検証・ユーザー照会・テナント管理）は実際に必要か。volta-gateway が ForwardAuth を内蔵しているなら、エージェントが直接認証 API を呼ぶ場面は限られるのではないか",
-    "Java 版にだけ存在する機能（SAML XSW/XXE テストカバレッジ、SCIM、Billing webhook 等）を後継に移行する計画はあるか"
+    "retired 確定か? 後継 volta-auth-server (Rust) に機能が完全に移行済みなら、このリポジトリの MCP 化は skip にすべき",
+    "もし MCP 化するなら、認証コンテキストをどう渡すか（M2M トークン発行→tool 呼び出しの 2 段階？ユーザー JWT を外部から注入？）",
+    "volta-auth-console (React 管理UI) との役割分担。MCP tool は管理UIがやることを代替するのか、それとも API 経由の自動化用途か",
+    "後継 volta-auth-server (Rust) 側に MCP を付ける方が適切ではないか（active な方に投資すべき）"
   ]
 }

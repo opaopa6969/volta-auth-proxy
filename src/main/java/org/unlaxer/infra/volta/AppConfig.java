@@ -144,4 +144,54 @@ public record AppConfig(
         return "jdbc:postgresql://%s:%d/%s".formatted(dbHost, dbPort, dbName);
     }
 
+    private static final String DEFAULT_JWT_KEY_ENCRYPTION_SECRET = "dev-only-secret-change-me";
+    private static final String DEFAULT_AUTH_FLOW_HMAC_KEY = "dev-only-hmac-key-change-me";
+
+    /**
+     * Redis セッションの保存時暗号化に使う鍵 (#37)。
+     *
+     * {@code SESSION_ENCRYPTION_SECRET} があればそれを使い、無ければ
+     * {@code JWT_KEY_ENCRYPTION_SECRET} で代用する。新しい env を必須にすると
+     * 既存デプロイが起動しなくなるため、フォールバックを置いている。
+     * 分けておくと、セッション鍵を回しても JWT 鍵（保存済みの暗号文）に影響しない。
+     *
+     * どちらも無ければ null を返し、呼び出し側は暗号化なし（警告ログ）で動く。
+     */
+    public String sessionEncryptionSecret() {
+        String explicit = System.getenv("SESSION_ENCRYPTION_SECRET");
+        if (explicit != null && !explicit.isBlank()) return explicit;
+        if (jwtKeyEncryptionSecret != null && !jwtKeyEncryptionSecret.isBlank()) {
+            return jwtKeyEncryptionSecret;
+        }
+        return null;
+    }
+
+    public boolean isJwtKeyEncryptionSecretDefault() {
+        return jwtKeyEncryptionSecret == null
+                || jwtKeyEncryptionSecret.isBlank()
+                || DEFAULT_JWT_KEY_ENCRYPTION_SECRET.equals(jwtKeyEncryptionSecret);
+    }
+
+    public boolean isAuthFlowHmacKeyDefault() {
+        return authFlowHmacKey == null
+                || authFlowHmacKey.isBlank()
+                || DEFAULT_AUTH_FLOW_HMAC_KEY.equals(authFlowHmacKey);
+    }
+
+    public void validateProductionSecrets() {
+        if (devMode) {
+            return;
+        }
+        if (isJwtKeyEncryptionSecretDefault()) {
+            throw new IllegalStateException(
+                    "JWT_KEY_ENCRYPTION_SECRET is missing or set to the dev-only default. "
+                            + "Set a strong unique value before running in production (DEV_MODE=false).");
+        }
+        if (isAuthFlowHmacKeyDefault()) {
+            throw new IllegalStateException(
+                    "AUTH_FLOW_HMAC_KEY is missing or set to the dev-only default. "
+                            + "Set a strong unique value before running in production (DEV_MODE=false).");
+        }
+    }
+
 }

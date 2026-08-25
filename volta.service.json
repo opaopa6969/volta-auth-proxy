@@ -1,0 +1,25 @@
+{
+  "id": "volta-auth-proxy-mcp",
+  "name": "Volta Auth Proxy MCP",
+  "description": "volta-auth-proxy (Java/Javalin) REST API の MCP ラップ。M2M トークン発行→認証・テナント・セッション・監査操作。namespace=auth",
+  "type": "node",
+  "hostname": "auth-mcp.unlaxer.org",
+  "port": 9211,
+  "host": "192.168.1.8",
+  "runtime": "systemd",
+  "exec_start": "/home/opa/volta-auth-proxy/run.sh",
+  "user": "opa",
+  "auth": "minRole:MEMBER",
+  "health_check": "/healthz",
+  "tags": ["mcp", "auth", "identity", "oauth2", "opa"],
+  "repo_url": "https://github.com/opaopa6969/volta-auth-proxy",
+  "mcp": {
+    "enabled": true,
+    "port": 9211,
+    "path": "/mcp",
+    "namespace": "auth",
+    "min_role": "MEMBER",
+    "timeoutMs": 110000,
+    "description": "volta-auth-proxy (Java) REST API の MCP ラップ。M2M トークン発行→認証・テナント・セッション・監査操作"
+  }
+}

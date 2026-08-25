@@ -50,16 +50,15 @@ git clone https://github.com/opaopa6969/volta-auth-proxy
 cd volta-auth-proxy
 
 # 1. Postgres 起動
-docker compose up -d postgres
+docker-compose up -d
 
 # 2. 最小限の env（初回は Google OIDC）
 cat > .env <<'EOF'
 BASE_URL=http://localhost:7070
-DB_HOST=localhost
-DB_PORT=54329
-DB_NAME=volta_auth
-DB_USER=volta
-DB_PASSWORD=volta
+DATABASE_URL=jdbc:postgresql://localhost:5432/volta
+DATABASE_USER=volta
+DATABASE_PASSWORD=volta
+SESSION_COOKIE_NAME=__volta_session
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 DEV_MODE=true
@@ -67,7 +66,7 @@ EOF
 
 # 3. ビルド + 起動
 mvn -q -DskipTests package
-java -jar target/volta-auth-proxy-0.3.0-SNAPSHOT.jar
+java -jar target/volta-auth-proxy-*-shaded.jar
 
 # 4. ログインページを開く
 open http://localhost:7070/login
@@ -87,10 +86,13 @@ open http://localhost:7070/login
 | 変数 | 用途 | デフォルト |
 |-----|------|-----------|
 | `BASE_URL` | `Secure` Cookie 推定 + redirect URI 生成 | —（必須） |
-| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | Postgres 接続 | `localhost` / `54329` / `volta_auth` / `volta` / `volta` |
-| `SESSION_TTL_SECONDS` | セッション有効時間 | `28800` |
-| `JWT_TTL_SECONDS` | JWT 有効時間 | `300` |
-| `SAML_SKIP_SIGNATURE` | 署名なし SAML を許可（開発用のみ） | `false` |
+| `DATABASE_URL` / `DATABASE_USER` / `DATABASE_PASSWORD` | Postgres | —（必須） |
+| `SESSION_COOKIE_NAME` | Cookie 名 | `__volta_session` |
+| `SESSION_TTL_MINUTES` | アイドルタイムアウト | `60` |
+| `SESSION_ABSOLUTE_TTL_HOURS` | 上限 | `24` |
+| `MFA_ENABLED` | 機能フラグ | `false` |
+| `PASSKEY_ENABLED` | 機能フラグ | `false` |
+| `LOCAL_BYPASS_CIDRS` | ADR-003 LAN bypass（カンマ区切り、`""` で無効化） | `192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,100.64.0.0/10,127.0.0.1/32` |
 | `DEV_MODE` | localhost 限定の開発便利機能 | `false` |
 | `WEBHOOK_ENABLED` | Outbox worker | `false` |
 
@@ -101,12 +103,18 @@ Tenancy / access / binding 3 レイヤ構成（schema v3）。`volta-config.exam
 ```yaml
 tenancy:
   mode: multi            # single | multi
-  creation_policy: disabled # disabled | auto | admin_only | invite_only
-  routing:
-    mode: none              # none | slug | subdomain | domain
+  resolver: subdomain    # subdomain | header | path
 access:
-  default_visibility: all  # public | all | bound-users | explicit
-  custom_roles: false
+  default_role: MEMBER
+  admin_emails:
+    - admin@example.com
+binding:
+  apps:
+    - host: console.example.com
+      auth: required
+      headers: [X-Volta-User-Id, X-Volta-Tenant-Id, X-Volta-Role]
+    - host: public.example.com
+      auth: anonymous
 ```
 
 ---
@@ -173,13 +181,13 @@ nginx 背面時の `/auth/*` ルーティング修正は `afb6eab` 参照。
 
 1. <https://console.cloud.google.com/> → API とサービス → 認証情報
 2. **OAuth 2.0 クライアント ID** → ウェブアプリケーション
-3. 承認済みリダイレクト URI: `https://auth.example.com/callback`
+3. 承認済みリダイレクト URI: `https://auth.example.com/auth/callback`
 4. `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` を保存
 
 ### Microsoft Entra (OIDC)
 
 1. Entra ポータル → アプリ登録 → 新規登録
-2. リダイレクト URI（Web）: `https://auth.example.com/callback`
+2. リダイレクト URI（Web）: `https://auth.example.com/auth/callback`
 3. 証明書とシークレット → 新しいクライアントシークレット
 4. env: `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID`
 
@@ -219,20 +227,26 @@ POST できれば動く。必須項目:
 ## Passkey 有効化
 
 ```bash
-WEBAUTHN_RP_ID=auth.example.com      # ブラウザがクレデンシャルを結びつける RP ID
-WEBAUTHN_RP_NAME="Example Inc."
-WEBAUTHN_RP_ORIGIN=https://auth.example.com
+PASSKEY_ENABLED=true
+PASSKEY_RP_ID=auth.example.com      # ブラウザがクレデンシャルを結びつける RP ID
+PASSKEY_RP_NAME="Example Inc."
 ```
 
-`POST /auth/passkey/register/start` → ブラウザ WebAuthn セレモニー →
-`POST /auth/passkey/register/finish` でクレデンシャル登録。オーセンティケータ
-種別は登録時に選択可能（`0d17ce6`）。
+認証済みユーザーが `POST /api/v1/users/{userId}/passkeys/register/start` →
+ブラウザ WebAuthn セレモニー →
+`POST /api/v1/users/{userId}/passkeys/register/finish` でクレデンシャル登録。
+オーセンティケータ種別は `?type=platform` または `?type=cross-platform` で選択可能。
 
 ## MFA (TOTP) 有効化
 
+```bash
+MFA_ENABLED=true
+MFA_ISSUER="Example Inc."
+```
+
 `POST /api/v1/users/{userId}/mfa/totp/setup` で QR 発行、
-`POST /api/v1/users/{userId}/mfa/totp/verify` で確認。MFA フローは
-4 状態の tramli FlowDefinition ——
+`POST /api/v1/users/{userId}/mfa/totp/verify` で TOTP を確認する。MFA チャレンジは
+`POST /auth/mfa/verify`。MFA フローは 4 状態の tramli FlowDefinition ——
 [architecture-ja.md](architecture-ja.md#mfa-flow-tramli) 参照。
 
 > **ADR-004**: MFA は *テナントスコープ*。テナント切替で再検証が走る。
@@ -243,7 +257,7 @@ WEBAUTHN_RP_ORIGIN=https://auth.example.com
 
 ```bash
 # 1. ヘルスチェック
-curl -s http://localhost:7070/health | jq .
+curl -s http://localhost:7070/healthz | jq .
 
 # 2. ForwardAuth（未認証 → 302）
 curl -i -H "X-Forwarded-Host: app.example.com" \

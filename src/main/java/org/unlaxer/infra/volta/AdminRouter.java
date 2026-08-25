@@ -202,6 +202,11 @@ public final class AdminRouter {
             policy.enforceMinRole(principal, "ADMIN");
             int offset = HttpSupport.parseOffset(ctx.queryParam("offset"));
             int limit = HttpSupport.parseLimit(ctx.queryParam("limit"));
+            // #39: tenantId が無い principal（service token 等）で全テナントの
+            // 監査ログが返っていた。テナントが特定できないなら見せない。
+            if (principal.tenantId() == null) {
+                throw new ApiException(403, "FORBIDDEN", "Audit log requires a tenant-scoped principal");
+            }
             List<Map<String, Object>> logs = store.listAuditLogs(principal.tenantId(), offset, limit);
             ctx.render("admin/audit.jte", model("title", "監査ログ", "logs", logs));
         });

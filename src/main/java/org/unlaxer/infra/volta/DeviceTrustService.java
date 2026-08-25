@@ -11,6 +11,7 @@ import java.util.UUID;
  * Checks if a login is from a known device and handles trust lifecycle.
  */
 public final class DeviceTrustService {
+    private static final System.Logger LOG = System.getLogger("volta.device-trust");
     public static final String DEVICE_COOKIE = "__volta_device_trust";
     private static final int COOKIE_MAX_AGE = 7_776_000; // 90 days
 
@@ -40,14 +41,34 @@ public final class DeviceTrustService {
     /**
      * Register a new trusted device. Issues cookie and stores in DB.
      */
+    /** tenant_security_policies に値が無い / 0 のときの上限。 */
+    private static final int DEFAULT_MAX_TRUSTED_DEVICES = 10;
+
     public TrustedDevice trustDevice(Context ctx, UUID userId) {
+        return trustDevice(ctx, userId, null);
+    }
+
+    /**
+     * 信頼済みデバイスを登録する。
+     *
+     * #45: 上限は 10 のハードコードだった（TODO が残っていた）。
+     * {@code tenant_security_policies.max_trusted_devices} 列は既にあり
+     * SqlStore も読めるのに、繋がっていなかった。tenantId が分かる呼び出し元は
+     * こちらを使うとテナントごとの上限が効く。
+     *
+     * @param tenantId null なら既定値（{@value #DEFAULT_MAX_TRUSTED_DEVICES}）を使う。
+     *                 UserRecord が tenantId を持たないため、userId から引くことは
+     *                 できない（members 経由の追加クエリが必要）。呼び出し元が
+     *                 principal 等から持っている値を渡す設計にしている。
+     */
+    public TrustedDevice trustDevice(Context ctx, UUID userId, UUID tenantId) {
         UUID deviceId = UUID.randomUUID();
         String userAgent = ctx.userAgent();
         String ip = HttpSupport.clientIp(ctx);
         String deviceName = DeviceNameResolver.fromUserAgent(userAgent);
 
         // Enforce max devices (LRU eviction)
-        int maxDevices = 10; // TODO: read from tenant_security_policies
+        int maxDevices = resolveMaxTrustedDevices(tenantId);
         store.evictOldestDevices(userId, maxDevices - 1);
 
         store.createTrustedDevice(userId, deviceId, deviceName, userAgent, ip);
@@ -107,4 +128,26 @@ public final class DeviceTrustService {
             String userAgent, String ipAddress,
             java.time.Instant createdAt, java.time.Instant lastSeenAt
     ) {}
+
+    /**
+     * テナントの信頼済みデバイス上限を解決する (#45)。
+     *
+     * policy が無い / 値が 0 以下なら既定値。policy 取得で例外が出ても既定値に
+     * 倒す（デバイス登録そのものを止めるほどの話ではない）。
+     */
+    private int resolveMaxTrustedDevices(UUID tenantId) {
+        if (tenantId == null) return DEFAULT_MAX_TRUSTED_DEVICES;
+        try {
+            return store.findSecurityPolicy(tenantId)
+                    .map(SqlStore.TenantSecurityPolicy::maxTrustedDevices)
+                    .filter(n -> n > 0)
+                    .orElse(DEFAULT_MAX_TRUSTED_DEVICES);
+        } catch (RuntimeException e) {
+            LOG.log(System.Logger.Level.WARNING,
+                    "failed to read tenant_security_policies.max_trusted_devices, using default {0}: {1}",
+                    DEFAULT_MAX_TRUSTED_DEVICES, e.toString());
+            return DEFAULT_MAX_TRUSTED_DEVICES;
+        }
+    }
+
 }

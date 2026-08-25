@@ -2,7 +2,7 @@
 
 [English](README.md) | [Japanese (日本語)](README.ja.md)
 
-**[Multi-tenant](docs/glossary/multi-tenant.md) auth. One [HTTP header](docs/glossary/header.md). That's it.**
+**[Multi-tenant](docs/glossary/multi-tenant.md) auth. Your apps just read [HTTP headers](docs/glossary/header.md). That's it.**
 
 [Multi-tenant](docs/glossary/multi-tenant.md) [identity gateway](docs/glossary/identity-gateway.md) for [SaaS](docs/glossary/saas.md).
 Handles [authentication](docs/glossary/authentication-vs-authorization.md), [tenant](docs/glossary/tenant.md)s, [role](docs/glossary/role.md)s, [invitations](docs/glossary/invitation-flow.md) so [downstream](docs/glossary/downstream-app.md) apps don't have to.
@@ -55,7 +55,7 @@ Handles [authentication](docs/glossary/authentication-vs-authorization.md), [ten
 flowchart LR
     Browser --> Traefik
     Traefik -->|ForwardAuth check| Volta[volta-auth-proxy]
-    Volta -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| Traefik
+    Volta -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Roles: MEMBER| Traefik
     Traefik --> App
 ```
 
@@ -64,7 +64,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     Browser --> Gateway[volta-gateway<br/>auth built-in]
-    Gateway -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Role: MEMBER| App
+    Gateway -->|auth + tenant resolution<br/>X-Volta-User-Id: abc123<br/>X-Volta-Tenant-Id: t456<br/>X-Volta-Roles: MEMBER| App
 ```
 
 [volta-gateway](https://github.com/opaopa6969/volta-gateway) is a Rust-based [reverse proxy](docs/glossary/reverse-proxy.md) that includes a volta-auth-proxy compatible auth server. No separate auth-proxy needed.
@@ -145,7 +145,7 @@ All flows are handled by a unified **AUTH-010 `AuthFlowHandler`** — a single e
 > **[tramli](https://github.com/opaopa6969/tramli)** is a standalone library usable in any [Java](docs/glossary/java.md) 21+ project.
 > For the design pattern guide, see [STATE-MACHINE-PATTERN-GUIDE.md](docs/STATE-MACHINE-PATTERN-GUIDE.md).
 
-#### OIDC Login Flow (9 states)
+#### OIDC Login Flow (11 states)
 
 ```mermaid
 stateDiagram-v2
@@ -850,7 +850,7 @@ services:
 | **[Internal API](docs/glossary/internal-api.md)** | `/api/v1/*` for [apps](docs/glossary/downstream-app.md) to delegate user/[tenant](docs/glossary/tenant.md)/member CRUD |
 | **[Audit Log](docs/glossary/audit-log.md)** | All auth events logged to `audit_logs` table |
 | **[CSRF](docs/glossary/csrf.md)** | [Token](docs/glossary/token.md)-based for [HTML](docs/glossary/html.md) forms. [JSON](docs/glossary/json.md) [API](docs/glossary/api.md) exempt ([SameSite](docs/glossary/samesite.md) + Content-Type) |
-| **[Rate Limiting](docs/glossary/rate-limiting.md)** | [Caffeine](docs/glossary/caffeine-cache.md)-based. Per-IP for [login](docs/glossary/login.md), per-user for [API](docs/glossary/api.md) |
+| **[Rate Limiting](docs/glossary/rate-limiting.md)** | In-process sliding-window counter (`RateLimiter`, no external cache). Per-IP for [login](docs/glossary/login.md), per-user for [API](docs/glossary/api.md) |
 | **Dev Mode** | `POST /dev/token` for local development (disabled in [production](docs/glossary/production.md)) |
 
 ***
@@ -1463,6 +1463,35 @@ This project was designed using DGE (Dialogue-driven Gap Extraction) -- 106 desi
 | [`dge/feedback/2026-03-31-volta-auth-proxy.md`](dge/feedback/2026-03-31-volta-auth-proxy.md) | DGE method feedback |
 | [`tasks/001-fix-critical-bugs-and-implement-templates.md`](tasks/001-fix-critical-bugs-and-implement-templates.md) | Current implementation task |
 | [`backlog/001-form-state-recovery.md`](backlog/001-form-state-recovery.md) | [Phase](docs/glossary/phase-based-development.md) 2: Form auto-save on [session](docs/glossary/session.md) expiry |
+
+***
+
+## MCP
+
+This service exposes its REST API as MCP tools (namespace: `auth`).
+
+| | |
+|---|---|
+| **Namespace** | `auth` |
+| **Spec** | `auth://spec` (machine-readable capability list) |
+| **Guide** | `auth://guide` (M2M token → tool call flow) |
+| **Design** | [`docs/mcp/DESIGN.md`](docs/mcp/DESIGN.md) |
+| **Status** | [`docs/mcp/STATUS.md`](docs/mcp/STATUS.md) |
+| **Server** | `mcp/server.mjs` (Node, Streamable HTTP `/mcp`, port 9211) |
+| **Volta service** | `volta-auth-proxy-mcp` (host 192.168.1.8, hostname `auth-mcp.unlaxer.org`) |
+
+M2M token flow: `auth__issue_m2m_token` → JWT in subsequent tool calls.
+Destructive operations require `confirm: true` (dry-run by default).
+
+Run locally:
+```sh
+PORT=9211 node mcp/server.mjs
+```
+
+Test:
+```sh
+node mcp/test/e2e.mjs
+```
 
 ***
 

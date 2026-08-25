@@ -9,6 +9,7 @@ import java.util.*;
 import static io.javalin.rendering.template.TemplateUtil.model;
 
 public final class AuthRouter {
+    private static final System.Logger LOG = System.getLogger("volta.auth-router");
     private final AppConfig config;
     private final SqlStore store;
     private final AuthService authService;
@@ -291,7 +292,12 @@ public final class AuthRouter {
                     if (normalized.startsWith("/invite/")) {
                         safeReturnTo = normalized;
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    // 不正な URI は returnTo を諦めるだけ（安全側）。DEBUG に留めるのは
+                    // 攻撃者が壊れた値を投げるだけで WARNING を量産できるため (#40)。
+                    LOG.log(System.Logger.Level.DEBUG,
+                            "invalid return_to, ignoring: {0}", e.toString());
+                }
             }
 
             // Revoke session (same pattern as logout)
@@ -488,7 +494,12 @@ public final class AuthRouter {
                         String loc = geo.label();
                         if (!loc.isBlank()) data.put("location", loc);
                     });
-                } catch (Exception ignored) { /* keep email flowing */ }
+                } catch (Exception e) {
+                    // GeoIP が引けなくてもメールは送る。位置情報が常に空になる原因を
+                    // 追えるようログは残す (#40)。
+                    LOG.log(System.Logger.Level.WARNING,
+                            "GeoIP lookup failed (email continues without location): {0}", e.toString());
+                }
                 data.put("timestamp", java.time.Instant.now().toString());
                 // i18n: carry the user's stored locale (V20 users.locale)
                 // so the notification email renders in their preferred

@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class AuditService {
+    private static final System.Logger LOG = System.getLogger("volta.audit");
     private final SqlStore store;
     private final AuditSink sink;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -85,7 +86,11 @@ public final class AuditService {
             if (metric != null && actor != null && actor.tenantId() != null) {
                 store.recordUsage(actor.tenantId(), metric, 1L, null);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            // 使用量の記録に失敗しても認証は続ける（fail-open）。ただし黙って
+            // 消すと「課金メトリクスが欠けている」ことに誰も気付けない (#40)。
+            LOG.log(System.Logger.Level.WARNING,
+                    "audit/usage recording failed (event continues): {0}", e.toString());
         }
     }
 
@@ -99,8 +104,11 @@ public final class AuditService {
             event.put("requestId", requestId != null ? requestId.toString() : null);
             event.put("ts", System.currentTimeMillis());
             authEventJedis.publish(authEventChannel, objectMapper.writeValueAsString(event));
-        } catch (Exception ignored) {
-            // Fire-and-forget: never let viz failure break auth flow
+        } catch (Exception e) {
+            // Fire-and-forget: viz の失敗で認証フローを壊さない。
+            // ただし Monitor 画面にイベントが出ない原因を追えるようログは残す (#40)。
+            LOG.log(System.Logger.Level.WARNING,
+                    "auth-event publish to Redis failed (auth flow continues): {0}", e.toString());
         }
     }
 }

@@ -38,3 +38,9 @@ dist/
 .next/
 .nuxt/
 bower_components/
+
+# Runtime logs (start-dev.sh writes logs/auth-proxy.log; rotated by infra/logrotate)
+logs/
+
+# Local MCP server wiring (absolute paths, machine-specific)
+.mcp.json

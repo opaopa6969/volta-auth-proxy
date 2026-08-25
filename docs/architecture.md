@@ -75,8 +75,8 @@ flowchart TD
     B -- yes --> C[Load session from SqlStore]
     C --> D{auth_state}
     D -- FULLY_AUTHENTICATED --> E[Check MFA scope & session TTL]
-    E -- ok --> F[200 + X-Volta-User-Id / Tenant-Id / Role / Email]
-    E -- MFA required --> G[302 /mfa/challenge]
+    E -- ok --> F[200 + X-Volta-User-Id / Tenant-Id / Roles / Email]
+    E -- MFA required --> G[302 /auth/mfa/challenge]
     E -- expired --> H[302 /login]
     D -- AUTHENTICATED_MFA_PENDING --> G
     D -- AUTHENTICATING --> I[302 back into flow]

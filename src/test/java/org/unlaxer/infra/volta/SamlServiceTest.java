@@ -34,6 +34,18 @@ final class SamlServiceTest {
     }
 
     @Test
+    void allowsMockSamlOnlyForExactLocalHosts() {
+        assertTrue(SamlService.isLocalDevBaseUrl(null));
+        assertTrue(SamlService.isLocalDevBaseUrl("http://localhost:7070"));
+        assertTrue(SamlService.isLocalDevBaseUrl("http://127.0.0.1:7070"));
+
+        assertFalse(SamlService.isLocalDevBaseUrl("https://localhost.attacker.com"));
+        assertFalse(SamlService.isLocalDevBaseUrl("https://evil-127.0.0.1.example.com"));
+        assertFalse(SamlService.isLocalDevBaseUrl("https://example.com/path/localhost"));
+        assertFalse(SamlService.isLocalDevBaseUrl("not a valid base url"));
+    }
+
+    @Test
     void parsesSamlXmlIdentity() {
         String xml = """
                 <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">

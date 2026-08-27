@@ -10,6 +10,7 @@ import javax.xml.crypto.dsig.XMLSignature;
 import javax.xml.crypto.dsig.XMLSignatureFactory;
 import javax.xml.crypto.dsig.dom.DOMValidateContext;
 import java.io.ByteArrayInputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -37,8 +38,7 @@ final class SamlService {
         if (devMode && xml.startsWith("MOCK:")) {
             // Only allow MOCK SAML in development with explicit DEV_MODE=true AND non-production base URL
             String baseUrl = System.getenv("BASE_URL");
-            boolean isLocalDev = baseUrl == null || baseUrl.contains("localhost") || baseUrl.contains("127.0.0.1");
-            if (!isLocalDev) {
+            if (!isLocalDevBaseUrl(baseUrl)) {
                 throw new ApiException(400, "SAML_INVALID_RESPONSE", "MOCK SAML not allowed in production");
             }
             String email = xml.substring("MOCK:".length()).trim();
@@ -163,6 +163,18 @@ final class SamlService {
             throw e;
         } catch (Exception e) {
             throw new ApiException(400, "SAML_INVALID_RESPONSE", "invalid saml response");
+        }
+    }
+
+    static boolean isLocalDevBaseUrl(String baseUrl) {
+        if (baseUrl == null) {
+            return true;
+        }
+        try {
+            String host = URI.create(baseUrl).getHost();
+            return "localhost".equals(host) || "127.0.0.1".equals(host);
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 

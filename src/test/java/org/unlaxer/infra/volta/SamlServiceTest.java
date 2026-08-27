@@ -167,6 +167,93 @@ final class SamlServiceTest {
         assertEquals("SAML_INVALID_RESPONSE", ex.code());
     }
 
+    // --- #61: Conditions/@NotBefore 検証 ---
+
+    @Test
+    void rejectsNotBeforeFarInTheFuture() {
+        String saml = samlResponseWithNotBefore(Instant.now().plus(10, ChronoUnit.MINUTES));
+        ApiException ex = assertThrows(ApiException.class, () -> service.parseIdentity(saml, idp, false, true, "https://sp.example.com/callback", null));
+        assertEquals("SAML_INVALID_RESPONSE", ex.code());
+    }
+
+    @Test
+    void allowsNotBeforeJustInsideClockSkew() {
+        String saml = samlResponseWithNotBefore(Instant.now().plus(4, ChronoUnit.MINUTES));
+        SamlService.SamlIdentity identity = service.parseIdentity(saml, idp, false, true, "https://sp.example.com/callback", null);
+        assertEquals("bob@example.com", identity.email());
+    }
+
+    @Test
+    void allowsNotBeforeAtSkewBoundary() {
+        String saml = samlResponseWithNotBefore(Instant.now().plus(4, ChronoUnit.MINUTES).plus(55, ChronoUnit.SECONDS));
+        SamlService.SamlIdentity identity = service.parseIdentity(saml, idp, false, true, "https://sp.example.com/callback", null);
+        assertEquals("bob@example.com", identity.email());
+    }
+
+    @Test
+    void rejectsNotBeforeJustBeyondSkew() {
+        String saml = samlResponseWithNotBefore(Instant.now().plus(5, ChronoUnit.MINUTES).plus(5, ChronoUnit.SECONDS));
+        ApiException ex = assertThrows(ApiException.class, () -> service.parseIdentity(saml, idp, false, true, "https://sp.example.com/callback", null));
+        assertEquals("SAML_INVALID_RESPONSE", ex.code());
+    }
+
+    @Test
+    void allowsNotBeforeInThePast() {
+        String saml = samlResponseWithNotBefore(Instant.now().minus(10, ChronoUnit.MINUTES));
+        SamlService.SamlIdentity identity = service.parseIdentity(saml, idp, false, true, "https://sp.example.com/callback", null);
+        assertEquals("bob@example.com", identity.email());
+    }
+
+    @Test
+    void allowsMissingNotBefore() {
+        String xml = """
+                <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
+                  <saml:Issuer>https://idp.example.com/issuer</saml:Issuer>
+                  <saml:Assertion>
+                    <saml:Conditions>
+                      <saml:AudienceRestriction>
+                        <saml:Audience>volta-sp-audience</saml:Audience>
+                      </saml:AudienceRestriction>
+                    </saml:Conditions>
+                    <saml:Subject>
+                      <saml:NameID>bob@example.com</saml:NameID>
+                      <saml:SubjectConfirmation>
+                        <saml:SubjectConfirmationData NotOnOrAfter="2999-01-01T00:00:00Z"/>
+                      </saml:SubjectConfirmation>
+                    </saml:Subject>
+                  </saml:Assertion>
+                </samlp:Response>
+                """;
+        String saml = Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8));
+        SamlService.SamlIdentity identity = service.parseIdentity(saml, idp, false, true, "https://sp.example.com/callback", null);
+        assertEquals("bob@example.com", identity.email());
+    }
+
+    @Test
+    void rejectsInvalidNotBeforeFormat() {
+        String xml = """
+                <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
+                  <saml:Issuer>https://idp.example.com/issuer</saml:Issuer>
+                  <saml:Assertion>
+                    <saml:Conditions NotBefore="not-a-date">
+                      <saml:AudienceRestriction>
+                        <saml:Audience>volta-sp-audience</saml:Audience>
+                      </saml:AudienceRestriction>
+                    </saml:Conditions>
+                    <saml:Subject>
+                      <saml:NameID>bob@example.com</saml:NameID>
+                      <saml:SubjectConfirmation>
+                        <saml:SubjectConfirmationData NotOnOrAfter="2999-01-01T00:00:00Z"/>
+                      </saml:SubjectConfirmation>
+                    </saml:Subject>
+                  </saml:Assertion>
+                </samlp:Response>
+                """;
+        String saml = Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8));
+        ApiException ex = assertThrows(ApiException.class, () -> service.parseIdentity(saml, idp, false, true, "https://sp.example.com/callback", null));
+        assertEquals("SAML_INVALID_RESPONSE", ex.code());
+    }
+
     private static String samlResponseWithNotOnOrAfter(Instant notOnOrAfter) {
         String xml = """
                 <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
@@ -186,6 +273,28 @@ final class SamlServiceTest {
                   </saml:Assertion>
                 </samlp:Response>
                 """.formatted(notOnOrAfter.toString());
+        return Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String samlResponseWithNotBefore(Instant notBefore) {
+        String xml = """
+                <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
+                  <saml:Issuer>https://idp.example.com/issuer</saml:Issuer>
+                  <saml:Assertion>
+                    <saml:Conditions NotBefore="%s">
+                      <saml:AudienceRestriction>
+                        <saml:Audience>volta-sp-audience</saml:Audience>
+                      </saml:AudienceRestriction>
+                    </saml:Conditions>
+                    <saml:Subject>
+                      <saml:NameID>bob@example.com</saml:NameID>
+                      <saml:SubjectConfirmation>
+                        <saml:SubjectConfirmationData NotOnOrAfter="2999-01-01T00:00:00Z"/>
+                      </saml:SubjectConfirmation>
+                    </saml:Subject>
+                  </saml:Assertion>
+                </samlp:Response>
+                """.formatted(notBefore.toString());
         return Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8));
     }
 }

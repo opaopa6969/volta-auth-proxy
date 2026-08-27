@@ -198,16 +198,24 @@ See `afb6eab` for the nginx routing fix that handles `/auth/*` routes correctly.
 2. **Single sign-on URL (ACS)**: `https://auth.example.com/auth/saml/callback`
 3. **Audience URI (SP Entity ID)**: `volta-sp-audience`
 4. Name ID format: `EmailAddress`
-5. Export the Okta metadata XML, register it in volta admin:
+5. Export the Okta signing certificate, register it through the tenant IdP API,
+   and keep signature verification enabled:
 
 ```bash
-curl -X POST https://auth.example.com/admin/idp \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -F "kind=SAML" \
-  -F "issuer=http://www.okta.com/exk..." \
-  -F "audience=volta-sp-audience" \
-  -F "x509Cert=@okta.cer"
+jq -n --rawfile cert okta.cer \
+  --arg issuer "http://www.okta.com/exk..." \
+  '{provider_type:"SAML", issuer:$issuer, client_id:"volta-sp-audience", x509_cert:$cert}' \
+  | curl -X POST "https://auth.example.com/api/v1/tenants/$TENANT_ID/idp-configs" \
+      -H "Authorization: Bearer $ADMIN_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary @-
+
+# Production and externally reachable environments must use this value.
+SAML_SKIP_SIGNATURE=false
 ```
+
+After changing an existing setup from `SAML_SKIP_SIGNATURE=true`, restart volta
+and complete a fresh SAML login to verify the configured certificate.
 
 volta enforces **XXE / XSW** defences on every assertion — see
 [auth-flows.md](auth-flows.md#saml-xswxxe-test-coverage).

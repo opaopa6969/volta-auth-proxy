@@ -197,16 +197,24 @@ nginx 背面時の `/auth/*` ルーティング修正は `afb6eab` 参照。
 2. **Single sign-on URL (ACS)**: `https://auth.example.com/auth/saml/callback`
 3. **Audience URI (SP Entity ID)**: `volta-sp-audience`
 4. Name ID 形式: `EmailAddress`
-5. Okta metadata XML をエクスポート → volta admin に登録:
+5. Okta の署名証明書をエクスポートし、テナント IdP API に登録して、
+   署名検証を有効のままにする:
 
 ```bash
-curl -X POST https://auth.example.com/admin/idp \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -F "kind=SAML" \
-  -F "issuer=http://www.okta.com/exk..." \
-  -F "audience=volta-sp-audience" \
-  -F "x509Cert=@okta.cer"
+jq -n --rawfile cert okta.cer \
+  --arg issuer "http://www.okta.com/exk..." \
+  '{provider_type:"SAML", issuer:$issuer, client_id:"volta-sp-audience", x509_cert:$cert}' \
+  | curl -X POST "https://auth.example.com/api/v1/tenants/$TENANT_ID/idp-configs" \
+      -H "Authorization: Bearer $ADMIN_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary @-
+
+# 本番および外部到達可能な環境では必ずこの値を使用する。
+SAML_SKIP_SIGNATURE=false
 ```
+
+既存環境を `SAML_SKIP_SIGNATURE=true` から移行した場合は volta を再起動し、
+新しい SAML ログインを完了して登録証明書を検証する。
 
 volta は全アサーションに対し **XXE / XSW** 対策を強制する ——
 [auth-flows-ja.md](auth-flows-ja.md#saml-xswxxe-テストカバー状況) 参照。

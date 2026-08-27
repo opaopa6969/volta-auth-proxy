@@ -22,6 +22,11 @@ import java.util.Map;
 
 final class SamlService {
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final String relayStateHmacKey;
+
+    SamlService(String relayStateHmacKey) {
+        this.relayStateHmacKey = relayStateHmacKey;
+    }
 
     SamlIdentity parseIdentity(
             String samlResponseB64,
@@ -181,7 +186,10 @@ final class SamlService {
     String encodeRelayState(Map<String, Object> relay) {
         try {
             String json = objectMapper.writeValueAsString(relay);
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+            String payload = Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(json.getBytes(StandardCharsets.UTF_8));
+            String signature = SecurityUtils.hmacSha256Hex(relayStateHmacKey, payload);
+            return payload + "." + signature;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -189,18 +197,35 @@ final class SamlService {
 
     RelayState decodeRelayState(String relayStateRaw) {
         if (relayStateRaw == null || relayStateRaw.isBlank()) {
-            return new RelayState(null, null, null);
+            throw invalidRelayState();
         }
         try {
-            byte[] decoded = Base64.getUrlDecoder().decode(relayStateRaw);
+            int separator = relayStateRaw.lastIndexOf('.');
+            if (separator <= 0 || separator == relayStateRaw.length() - 1) {
+                throw invalidRelayState();
+            }
+            String payload = relayStateRaw.substring(0, separator);
+            String signature = relayStateRaw.substring(separator + 1);
+            String expectedSignature = SecurityUtils.hmacSha256Hex(relayStateHmacKey, payload);
+            if (!SecurityUtils.constantTimeEquals(expectedSignature, signature)) {
+                throw invalidRelayState();
+            }
+
+            byte[] decoded = Base64.getUrlDecoder().decode(payload);
             JsonNode node = objectMapper.readTree(new String(decoded, StandardCharsets.UTF_8));
             String tenantId = node.path("tenant_id").isMissingNode() ? null : node.path("tenant_id").asText(null);
             String returnTo = node.path("return_to").isMissingNode() ? null : node.path("return_to").asText(null);
             String requestId = node.path("request_id").isMissingNode() ? null : node.path("request_id").asText(null);
             return new RelayState(tenantId, returnTo, requestId);
+        } catch (ApiException e) {
+            throw e;
         } catch (Exception e) {
-            return new RelayState(null, relayStateRaw, null);
+            throw invalidRelayState();
         }
+    }
+
+    private static ApiException invalidRelayState() {
+        return new ApiException(400, "SAML_INVALID_RELAY_STATE", "RelayState is invalid or unsigned");
     }
 
     /** #33: Document 全体ではなく「署名対象要素」を起点に探せるよう Node を取る。 */

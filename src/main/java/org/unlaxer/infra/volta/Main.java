@@ -57,7 +57,7 @@ public final class Main {
         AuthService authService = new AuthService(config, store, jwtService, sessionStore, globalTenancy);
         KeyCipher secretCipher = new KeyCipher(config.jwtKeyEncryptionSecret());
         OidcService oidcService = new OidcService(config, store, voltaConfig, secretCipher);
-        SamlService samlService = new SamlService();
+        SamlService samlService = new SamlService(config.authFlowHmacKey());
         AppRegistry appRegistry = new AppRegistry(config);
         AuditSink auditSink = AuditSink.create(config);
         NotificationService notificationService = NotificationService.create(config);

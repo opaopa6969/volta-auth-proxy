@@ -12,7 +12,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 final class SamlServiceTest {
-    private final SamlService service = new SamlService();
+    private static final String RELAY_STATE_KEY = "test-relay-state-hmac-key";
+    private final SamlService service = new SamlService(RELAY_STATE_KEY);
     private final SqlStore.IdpConfigRecord idp = new SqlStore.IdpConfigRecord(
             UUID.randomUUID(),
             UUID.randomUUID(),
@@ -81,6 +82,36 @@ final class SamlServiceTest {
         assertEquals("11111111-1111-1111-1111-111111111111", state.tenantId());
         assertEquals("https://app.example.com/path", state.returnTo());
         assertNull(state.requestId());
+    }
+
+    @Test
+    void rejectsTamperedRelayState() {
+        String encoded = service.encodeRelayState(Map.of("tenant_id", "original-tenant"));
+        String tampered = (encoded.charAt(0) == 'A' ? "B" : "A") + encoded.substring(1);
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.decodeRelayState(tampered));
+        assertEquals(400, ex.status());
+        assertEquals("SAML_INVALID_RELAY_STATE", ex.code());
+    }
+
+    @Test
+    void rejectsUnsignedRelayState() {
+        String unsigned = Base64.getUrlEncoder().withoutPadding().encodeToString(
+                "{\"tenant_id\":\"attacker-controlled\"}".getBytes(StandardCharsets.UTF_8));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.decodeRelayState(unsigned));
+        assertEquals(400, ex.status());
+        assertEquals("SAML_INVALID_RELAY_STATE", ex.code());
+    }
+
+    @Test
+    void rejectsRelayStateSignedWithDifferentKey() {
+        String encoded = service.encodeRelayState(Map.of("tenant_id", "original-tenant"));
+        SamlService serviceWithDifferentKey = new SamlService("different-relay-state-hmac-key");
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> serviceWithDifferentKey.decodeRelayState(encoded));
+        assertEquals("SAML_INVALID_RELAY_STATE", ex.code());
     }
 
     @Test

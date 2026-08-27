@@ -1926,11 +1926,12 @@ dxe ツールは dve 成果物を消費するが変更しない。
 | Issuer | 不一致 → 401 | `idp.issuer()` と比較 |
 | Audience | 不一致 → 401 | `idp.audience()` と比較 (デフォルト `volta-sp-audience`) |
 | NotOnOrAfter | クロックスキュー ≤ 5 分 | `Instant.parse` on `SubjectConfirmationData/@NotOnOrAfter` |
+| NotBefore | クロックスキュー ≤ 5 分 | `Instant.parse` on `Conditions/@NotBefore` (存在時のみ) (#61) |
 | RequestId | リプレイ防止 | `expectedRequestId` をフローコンテキスト経由で検証 |
 | ACS URL | バインディング混同防止 | `expectedAcsUrl` 比較 |
 | RelayState | CSRF + return_to | HMAC 署名 JSON (`encodeRelayState` / `decodeRelayState`) |
 
-### 10.2 テストカバレッジ (17 観点中 9 カバー)
+### 10.2 テストカバレッジ (18 観点中 11 カバー)
 
 > 2026-08-13 に実測で更新 (#49)。**「実装」と「テスト」を分けて読むこと。**
 > 実装済みでもテストが無い項目があり、以前の表はそれを一律 `gap` と書いていたため
@@ -1949,13 +1950,14 @@ dxe ツールは dve 成果物を消費するが変更しない。
 | Issuer 不一致 | `idp.issuer()` 比較 | `rejectsIssuerMismatch` | **covered** |
 | Audience 不一致 | `idp.clientId()` 比較 | ハッピーパスのみ (`parsesSamlXmlIdentity`) | 実装済み・不一致テスト gap |
 | NotOnOrAfter 期限切れ | 5分のクロックスキュー許容 | `rejectsNotOnOrAfterExpired` / `allowsNotOnOrAfterJustInsideClockSkew` / `allowsNotOnOrAfterAtSkewBoundary` / `rejectsNotOnOrAfterJustBeyondSkew` | **covered** |
+| NotBefore 未来日時 | 5分のクロックスキュー許容 | `rejectsNotBeforeFarInTheFuture` / `allowsNotBeforeJustInsideClockSkew` / `allowsNotBeforeAtSkewBoundary` / `rejectsNotBeforeJustBeyondSkew` / `allowsNotBeforeInThePast` / `allowsMissingNotBefore` / `rejectsInvalidNotBeforeFormat` (#61) | **covered** |
 | RequestId リプレイ | `expectedRequestId` 検証 | — | 実装済み・テスト gap |
 | ACS URL 不一致 | `expectedAcsUrl` 比較 (Destination / Recipient) | — | 実装済み・テスト gap |
 | RelayState ラウンドトリップ | HMAC JSON encode/decode | `encodesAndDecodesRelayState` | **covered** |
 | MOCK dev バイパス | `DEV_MODE && !isProd` ゲート | `parsesMockIdentityInDevMode` | **covered** |
 | ハッピーパス | 完全パース | `parsesSamlXmlIdentity` | **covered** |
 
-**5 / 17 カバー**。XXE は構造的に排除済み (implicit)。残 gap: XSW wrapped-assertion payload, Audience 不一致, NotOnOrAfter 境界, RequestId 不一致, ACS URL 不一致, 署名 positive/negative テスト。
+**7 / 18 カバー**。XXE は構造的に排除済み (implicit)。残 gap: XSW wrapped-assertion payload, Audience 不一致, RequestId 不一致, ACS URL 不一致, 署名 positive/negative テスト。
 
 ### 10.3 その他セキュリティプロパティ
 

@@ -146,6 +146,22 @@ final class SamlService {
                     throw new ApiException(400, "SAML_INVALID_RESPONSE", "invalid NotOnOrAfter");
                 }
             }
+            // #61: Conditions/@NotBefore を検証する（存在時のみ）。
+            // NotBefore は「アサーションが有効になる時刻」。未来すぎる（clock-skew
+            // 以上）ものは「まだ有効でない」として拒否する。IdP 互換性のため、
+            // NotBefore が未設定のアサーションは検証せず受け入れる（NotOnOrAfter と
+            // 同様に optional）。skew は #35 と同じ ±5 分。
+            String notBefore = attributeOf(scope, "Conditions", "NotBefore");
+            if (notBefore != null && !notBefore.isBlank()) {
+                try {
+                    Instant validFrom = Instant.parse(notBefore);
+                    if (validFrom.isAfter(Instant.now().plus(Duration.ofMinutes(5)))) {
+                        throw new ApiException(401, "SAML_INVALID_RESPONSE", "assertion not yet valid");
+                    }
+                } catch (DateTimeParseException e) {
+                    throw new ApiException(400, "SAML_INVALID_RESPONSE", "invalid NotBefore");
+                }
+            }
             String email = textOf(scope, "NameID");
             if (email == null || email.isBlank() || !email.contains("@")) {
                 email = findAttributeValue(scope, "email");

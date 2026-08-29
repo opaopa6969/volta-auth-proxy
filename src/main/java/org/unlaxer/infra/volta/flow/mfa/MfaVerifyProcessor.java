@@ -21,17 +21,20 @@ public final class MfaVerifyProcessor implements StateProcessor {
     private final KeyCipher secretCipher;
     private final AppRegistry appRegistry;
     private final TenancyPolicy tenancy;
+    private final AppConfig config;
 
-    public MfaVerifyProcessor(SqlStore store, AuthService authService, KeyCipher secretCipher, AppRegistry appRegistry) {
-        this(store, authService, secretCipher, appRegistry, new TenancyPolicy((VoltaConfig) null));
+    public MfaVerifyProcessor(SqlStore store, AuthService authService, KeyCipher secretCipher,
+                              AppRegistry appRegistry, AppConfig config) {
+        this(store, authService, secretCipher, appRegistry, config, new TenancyPolicy((VoltaConfig) null));
     }
 
     public MfaVerifyProcessor(SqlStore store, AuthService authService, KeyCipher secretCipher,
-                              AppRegistry appRegistry, TenancyPolicy tenancy) {
+                              AppRegistry appRegistry, AppConfig config, TenancyPolicy tenancy) {
         this.store = store;
         this.authService = authService;
         this.secretCipher = secretCipher;
         this.appRegistry = appRegistry;
+        this.config = config;
         this.tenancy = tenancy == null ? new TenancyPolicy((VoltaConfig) null) : tenancy;
     }
 
@@ -74,14 +77,20 @@ public final class MfaVerifyProcessor implements StateProcessor {
     }
 
     private String resolveRedirect(MfaSessionContext session) {
+        return resolveRedirect(session, config, store, appRegistry, tenancy);
+    }
+
+    static String resolveRedirect(MfaSessionContext session, AppConfig config,
+                                  SqlStore store, AppRegistry appRegistry, TenancyPolicy tenancy) {
         String returnTo = session.returnTo();
         if (returnTo != null && returnTo.startsWith("invite:")) {
             return "/invite/" + returnTo.substring("invite:".length());
         }
-        if (returnTo != null && !returnTo.isBlank()) {
+        if (returnTo != null && !returnTo.isBlank()
+                && HttpSupport.isAllowedReturnTo(returnTo, config.allowedRedirectDomains())) {
             return returnTo;
         }
-        // No return_to — decide based on tenancy mode.
+        // No validated return_to — decide based on tenancy mode.
         var tenants = store.findTenantsByUser(session.userId());
         if (tenancy.shouldSelectTenant(tenants.size())) return "/select-tenant";
         return appRegistry.defaultAppUrl().orElse(tenancy.isSingle() ? "/" : "/select-tenant");

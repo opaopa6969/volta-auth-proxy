@@ -23,7 +23,7 @@ public final class MfaFlowDef {
             AuthService authService,
             KeyCipher secretCipher,
             AppRegistry appRegistry) {
-        return create(store, authService, secretCipher, appRegistry, new TenancyPolicy((VoltaConfig) null));
+        return create(store, authService, secretCipher, appRegistry, null, new TenancyPolicy((VoltaConfig) null));
     }
 
     public static FlowDefinition<MfaFlowState> create(
@@ -31,6 +31,16 @@ public final class MfaFlowDef {
             AuthService authService,
             KeyCipher secretCipher,
             AppRegistry appRegistry,
+            TenancyPolicy tenancy) {
+        return create(store, authService, secretCipher, appRegistry, null, tenancy);
+    }
+
+    public static FlowDefinition<MfaFlowState> create(
+            SqlStore store,
+            AuthService authService,
+            KeyCipher secretCipher,
+            AppRegistry appRegistry,
+            AppConfig config,
             TenancyPolicy tenancy) {
 
         return FlowDefinition.builder("mfa", MfaFlowState.class)
@@ -41,7 +51,7 @@ public final class MfaFlowDef {
 
                 .from(CHALLENGE_SHOWN).external(VERIFIED,
                         new MfaCodeGuard(),
-                        new MfaVerifyProcessor(store, authService, secretCipher, appRegistry, tenancy))
+                        new MfaVerifyProcessor(store, authService, secretCipher, appRegistry, config, tenancy))
 
                 .onAnyError(TERMINAL_ERROR)
 

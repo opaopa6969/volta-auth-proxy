@@ -162,7 +162,7 @@ public final class Main {
 
             // MFA Flow
             var mfaFlowDef = org.unlaxer.infra.volta.flow.mfa.MfaFlowDef.create(
-                    store, authService, secretCipher, appRegistry, tenancyPolicyEarly);
+                    store, authService, secretCipher, appRegistry, config, tenancyPolicyEarly);
             pluginRegistry.analyzeAndValidate(mfaFlowDef);
 
             // Invite Flow (independent — NOT migrated to AuthFlowHandler)

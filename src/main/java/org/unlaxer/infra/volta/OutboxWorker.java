@@ -86,15 +86,25 @@ final class OutboxWorker implements AutoCloseable {
                 store.markOutboxPublished(outbox.id());
                 return;
             }
-            int nextAttempt = outbox.attemptCount() + 1;
-            if (nextAttempt >= Math.max(1, config.webhookRetryMax())) {
+            RetryDecision retry = computeRetry(outbox.attemptCount(), config.webhookRetryMax());
+            if (retry.giveUp()) {
                 store.markOutboxPublished(outbox.id());
                 return;
             }
-            Instant nextAt = Instant.now().plusSeconds(backoffSeconds(nextAttempt));
-            store.markOutboxRetry(outbox.id(), nextAttempt, nextAt, "delivery failed");
+            store.markOutboxRetry(outbox.id(), retry.nextAttempt(), retry.nextAt(), "delivery failed");
         } catch (Exception e) {
+            // processNotification と対称にリトライ管理を行う。
+            // ここに到達するのは配信以外の DB 操作(listWebhooks / insertWebhookDelivery /
+            // markOutboxRetry 等)が例外を投げたとき。clearOutboxLock だけだと
+            // attempt_count が進まず毎 tick で無限再取得されるため (#71)。
             store.clearOutboxLock(outbox.id());
+            RetryDecision retry = computeRetry(outbox.attemptCount(), config.webhookRetryMax());
+            if (retry.giveUp()) {
+                store.markOutboxPublished(outbox.id());
+                return;
+            }
+            store.markOutboxRetry(outbox.id(), retry.nextAttempt(), retry.nextAt(),
+                    "processing exception: " + e.getMessage());
         }
     }
 
@@ -144,13 +154,12 @@ final class OutboxWorker implements AutoCloseable {
             }
             store.markOutboxPublished(outbox.id());
         } catch (Exception e) {
-            int nextAttempt = outbox.attemptCount() + 1;
-            if (nextAttempt >= Math.max(1, config.webhookRetryMax())) {
+            RetryDecision retry = computeRetry(outbox.attemptCount(), config.webhookRetryMax());
+            if (retry.giveUp()) {
                 store.markOutboxPublished(outbox.id());
                 return;
             }
-            Instant nextAt = Instant.now().plusSeconds(backoffSeconds(nextAttempt));
-            store.markOutboxRetry(outbox.id(), nextAttempt, nextAt, "notification failed: " + e.getMessage());
+            store.markOutboxRetry(outbox.id(), retry.nextAttempt(), retry.nextAt(), "notification failed: " + e.getMessage());
         }
     }
 
@@ -184,6 +193,22 @@ final class OutboxWorker implements AutoCloseable {
             default -> 1800;
         };
     }
+
+    /**
+     * 次のリトライを判定する。attemptCount を進め、webhookRetryMax に達したら
+     * 打ち切り(giveUp=true)、未達なら backoff 適用済みの nextAt を返す。
+     * process と processNotification で同一ロジックを共有する (#71)。
+     */
+    static RetryDecision computeRetry(int attemptCount, int webhookRetryMax) {
+        int nextAttempt = attemptCount + 1;
+        if (nextAttempt >= Math.max(1, webhookRetryMax)) {
+            return new RetryDecision(true, nextAttempt, null);
+        }
+        Instant nextAt = Instant.now().plusSeconds(backoffSeconds(nextAttempt));
+        return new RetryDecision(false, nextAttempt, nextAt);
+    }
+
+    record RetryDecision(boolean giveUp, int nextAttempt, Instant nextAt) {}
 
     private static boolean acceptsEvent(String eventsCsv, String eventType) {
         if (eventsCsv == null || eventsCsv.isBlank()) {

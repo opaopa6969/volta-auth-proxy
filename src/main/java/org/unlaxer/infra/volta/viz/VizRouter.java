@@ -139,9 +139,33 @@ public final class VizRouter {
             ctx.json(Map.of("flows", flows));
         });
 
-        // SAAS-016: SSE stream of login/logout auth events for Auth Monitor
+        // SAAS-016: SSE stream of login/logout auth events for Auth Monitor.
+        // 認証 + ADMIN ロールチェックを必須にする (#72)。
+        // /api/v1/admin/flows* と同等の保護レベル。
         if (authEventJedis != null) {
+            app.before("/viz/auth/stream", ctx -> {
+                var principal = authService.authenticate(ctx)
+                        .orElse(null);
+                if (principal == null) {
+                    HttpSupport.jsonError(ctx, 401, "AUTHENTICATION_REQUIRED", "Authentication required");
+                    ctx.skipRemainingHandlers();
+                    return;
+                }
+                policy.enforceMinRole(principal, "ADMIN");
+                ctx.attribute("principal", principal);
+            });
+
             app.sse("/viz/auth/stream", client -> {
+                // app.before で認証済みだが、upgrade に before が走らない
+                // 環境も想定して fail-closed で二重チェックする。
+                var principal = (AuthPrincipal) client.ctx().attribute("principal");
+                if (principal == null) {
+                    principal = authService.authenticate(client.ctx()).orElse(null);
+                }
+                if (principal == null) {
+                    client.close();
+                    return;
+                }
                 sseClients.add(client);
                 client.sendEvent("connected", "{\"status\":\"connected\"}");
                 client.onClose(() -> sseClients.remove(client));
@@ -160,9 +184,19 @@ public final class VizRouter {
         // tramli-viz VizDashboard protocol. On connect we emit `init-multi`
         // with all flow definitions, then forward each telemetry event as
         // `{ type: 'event', event: {...} }`.
+        // 認証 + ADMIN ロールチェックを必須にする (#72)。
+        // Javalin 6.7 では app.before は WS upgrade に走らないため、
+        // ws.onConnect で upgrade context を取り出して認証する。
         if (authEventJedis != null && vizFlowChannel != null && !vizFlowChannel.isBlank()) {
             app.ws("/viz/ws", ws -> {
                 ws.onConnect(ctx -> {
+                    var upgradeCtx = ctx.getUpgradeCtx$javalin();
+                    var principal = authService.authenticate(upgradeCtx).orElse(null);
+                    if (principal == null) {
+                        ctx.closeSession(4001, "AUTHENTICATION_REQUIRED");
+                        return;
+                    }
+                    policy.enforceMinRole(principal, "ADMIN");
                     wsClients.add(ctx);
                     try {
                         ctx.send(buildInitMultiMessage());

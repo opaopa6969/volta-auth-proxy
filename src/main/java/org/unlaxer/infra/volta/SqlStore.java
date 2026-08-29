@@ -507,6 +507,101 @@ public final class SqlStore {
         }
     }
 
+    /**
+     * テナントスコープ付きのアクティブセッション一覧。
+     * #39 と同一パターン: AdminRouter の /admin/sessions が listAllActiveSessions を
+     * 呼んでテナントフィルタを欠いていたため、クロステナント漏洩を防ぐ。
+     */
+    public List<AdminSessionView> listActiveSessionsForTenant(UUID tenantId, int offset, int limit) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT s.id, s.user_id, u.email, u.display_name, s.ip_address, s.user_agent,
+                            s.created_at, s.last_active_at, s.expires_at, s.invalidated_at, s.tenant_id
+                     FROM sessions s
+                     JOIN users u ON u.id = s.user_id
+                     WHERE s.invalidated_at IS NULL AND s.expires_at > now()
+                       AND s.tenant_id = ?
+                     ORDER BY s.last_active_at DESC
+                     LIMIT ? OFFSET ?
+                     """)) {
+            ps.setObject(1, tenantId);
+            ps.setInt(2, limit);
+            ps.setInt(3, offset);
+            List<AdminSessionView> result = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new AdminSessionView(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("user_id", UUID.class),
+                            rs.getString("email"),
+                            rs.getString("display_name"),
+                            rs.getString("ip_address"),
+                            rs.getString("user_agent"),
+                            rs.getTimestamp("created_at").toInstant(),
+                            rs.getTimestamp("last_active_at").toInstant(),
+                            rs.getTimestamp("expires_at").toInstant(),
+                            rs.getTimestamp("invalidated_at") == null ? null : rs.getTimestamp("invalidated_at").toInstant(),
+                            rs.getObject("tenant_id", UUID.class)
+                    ));
+                }
+            }
+            return result;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * テナントスコープ付きのアクティブセッション件数。
+     */
+    public int countActiveSessionsForTenant(UUID tenantId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT count(*) FROM sessions WHERE invalidated_at IS NULL AND expires_at > now() AND tenant_id = ?")) {
+            ps.setObject(1, tenantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 単一セッションを取得(テナントスコープ検証用)。無効化済み含む。
+     */
+    public Optional<AdminSessionView> findActiveSession(UUID sessionId) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT s.id, s.user_id, u.email, u.display_name, s.ip_address, s.user_agent,
+                            s.created_at, s.last_active_at, s.expires_at, s.invalidated_at, s.tenant_id
+                     FROM sessions s
+                     JOIN users u ON u.id = s.user_id
+                     WHERE s.id = ?
+                     """)) {
+            ps.setObject(1, sessionId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new AdminSessionView(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("user_id", UUID.class),
+                        rs.getString("email"),
+                        rs.getString("display_name"),
+                        rs.getString("ip_address"),
+                        rs.getString("user_agent"),
+                        rs.getTimestamp("created_at").toInstant(),
+                        rs.getTimestamp("last_active_at").toInstant(),
+                        rs.getTimestamp("expires_at").toInstant(),
+                        rs.getTimestamp("invalidated_at") == null ? null : rs.getTimestamp("invalidated_at").toInstant(),
+                        rs.getObject("tenant_id", UUID.class)
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public int countActiveSessions() {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("SELECT count(*) FROM sessions WHERE invalidated_at IS NULL AND expires_at > now()")) {
@@ -3208,6 +3303,14 @@ public final class SqlStore {
     }
 
     public Pagination.PageResponse<AdminSessionView> findSessionsPaginated(Pagination.PageRequest req, UUID userIdFilter) {
+        return findSessionsPaginated(req, userIdFilter, null);
+    }
+
+    /**
+     * テナントフィルタ付きセッションページネーション。
+     * tenantFilter が null なら全テナント(service token 向け)、非 null ならそのテナントのみ。
+     */
+    public Pagination.PageResponse<AdminSessionView> findSessionsPaginated(Pagination.PageRequest req, UUID userIdFilter, UUID tenantFilter) {
         String sql = """
                 SELECT s.id, s.user_id, u.email, u.display_name, s.ip_address, s.user_agent,
                        s.created_at, s.last_active_at, s.expires_at, s.invalidated_at, s.tenant_id,
@@ -3216,6 +3319,7 @@ public final class SqlStore {
                 JOIN users u ON u.id = s.user_id
                 WHERE s.invalidated_at IS NULL AND s.expires_at > now()
                   AND (?::uuid IS NULL OR s.user_id = ?)
+                  AND (?::uuid IS NULL OR s.tenant_id = ?)
                 ORDER BY s.last_active_at DESC
                 LIMIT ? OFFSET ?
                 """;
@@ -3223,8 +3327,10 @@ public final class SqlStore {
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setObject(1, userIdFilter);
             ps.setObject(2, userIdFilter);
-            ps.setInt(3, req.size());
-            ps.setInt(4, req.offset());
+            ps.setObject(3, tenantFilter);
+            ps.setObject(4, tenantFilter);
+            ps.setInt(5, req.size());
+            ps.setInt(6, req.offset());
             List<AdminSessionView> result = new ArrayList<>();
             long total = 0;
             try (ResultSet rs = ps.executeQuery()) {

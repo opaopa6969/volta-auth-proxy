@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -13,6 +14,15 @@ import java.util.concurrent.TimeUnit;
 
 final class OutboxWorker implements AutoCloseable {
     private static final System.Logger LOG = System.getLogger("volta.outbox");
+    /**
+     * webhook 配信の接続タイムアウト。他の HTTP クライアントと同様 10s。
+     */
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    /**
+     * webhook 配信の要求タイムアウト。未設定だと無限待機になり、
+     * 単一スレッド worker が 1 件のハングで全テナントの通知を止める DoS になる。
+     */
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
     private final AppConfig config;
     private final SqlStore store;
     private final NotificationService notificationService;
@@ -21,7 +31,9 @@ final class OutboxWorker implements AutoCloseable {
         t.setDaemon(true);
         return t;
     });
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(CONNECT_TIMEOUT)
+            .build();
     private final String workerId = "worker-" + UUID.randomUUID().toString().substring(0, 8);
 
     OutboxWorker(AppConfig config, SqlStore store, NotificationService notificationService) {
@@ -166,6 +178,7 @@ final class OutboxWorker implements AutoCloseable {
     private DeliveryResult deliver(SqlStore.WebhookRecord webhook, String eventType, String payloadJson) {
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(webhook.endpointUrl()))
+                    .timeout(REQUEST_TIMEOUT)
                     .header("Content-Type", "application/json")
                     .header("X-Volta-Event", eventType)
                     .header("X-Volta-Signature", SecurityUtils.hmacSha256Hex(webhook.secret(), payloadJson))

@@ -362,6 +362,9 @@ public final class ApiRouter {
             UUID userId = UUID.fromString(ctx.pathParam("id"));
             if (!p.serviceToken() && !p.userId().equals(userId)) {
                 policy.enforceMinRole(p, "ADMIN");
+                // ADMIN が他ユーザーの PII を取得する場合、対象ユーザーが
+                // 呼び出し元のテナントのアクティブメンバーであることを検証。
+                ensureTargetIsTenantMember(p, userId);
             }
             UserRecord user = store.findUserById(userId)
                     .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "ユーザーが見つかりません。"));
@@ -545,6 +548,13 @@ public final class ApiRouter {
             UUID userId = UUID.fromString(ctx.pathParam("userId"));
             policy.enforceTenantMatch(p, tenantId);
             policy.enforceMinRole(p, "ADMIN");
+            // 対象 userId がこのテナントのアクティブメンバーであることを検証。
+            // enforceTenantMatch は呼び出し元のテナントしか検証せず、{userId} の
+            // メンバーシップは見ないため、他テナントのユーザーの MFA を無効化
+            // できていた。
+            store.findMembershipByUser(tenantId, userId)
+                    .filter(MembershipRecord::active)
+                    .orElseThrow(() -> new ApiException(404, "MEMBER_NOT_FOUND", "メンバーが見つかりません。"));
             store.deactivateUserMfa(userId, "totp");
             store.deleteRecoveryCodes(userId);
             auditService.log(ctx, "ADMIN_MFA_RESET", p, "USER", userId.toString(),
@@ -1091,6 +1101,10 @@ public final class ApiRouter {
             UUID userId = UUID.fromString(ctx.pathParam("userId"));
             if (!p.userId().equals(userId)) {
                 policy.enforceMinRole(p, "ADMIN");
+                // ADMIN が他ユーザーのデータを export する場合、対象ユーザーが
+                // 呼び出し元のテナントのアクティブメンバーであることを検証。
+                // service token はスキップ(全テナント横断)。
+                ensureTargetIsTenantMember(p, userId);
             }
             UserRecord user = store.findUserById(userId).orElseThrow(() -> new ApiException(404, "NOT_FOUND", "ユーザーが見つかりません。"));
             List<SessionRecord> sessions = sessionStore.listUserSessions(userId);
@@ -1114,6 +1128,11 @@ public final class ApiRouter {
             UUID userId = UUID.fromString(ctx.pathParam("userId"));
             if (!p.userId().equals(userId) && !p.roles().contains("ADMIN") && !p.roles().contains("OWNER")) {
                 throw new ApiException(403, "FORBIDDEN", "データ削除の権限がありません。");
+            }
+            if (!p.userId().equals(userId)) {
+                // ADMIN/OWNER が他ユーザーのデータを削除する場合、対象ユーザーが
+                // 呼び出し元のテナントのアクティブメンバーであることを検証。
+                ensureTargetIsTenantMember(p, userId);
             }
             int updated = store.deleteUserData(userId);
             if (updated == 0) {
@@ -1166,6 +1185,10 @@ public final class ApiRouter {
             AuthPrincipal p = ctx.attribute("principal");
             policy.enforceMinRole(p, "ADMIN");
             UUID userId = UUID.fromString(ctx.pathParam("userId"));
+            // ADMIN が他ユーザーのデバイスを wipe する場合、対象ユーザーが
+            // 呼び出し元のテナントのアクティブメンバーであることを検証。
+            // service token はスキップ(全テナント横断)。
+            ensureTargetIsTenantMember(p, userId);
             int removed = store.deleteAllKnownDevices(userId);
             auditService.log(ctx, "KNOWN_DEVICES_ADMIN_RESET", p, "USER", userId.toString(),
                     Map.of("count", removed));
@@ -1186,10 +1209,12 @@ public final class ApiRouter {
         app.get("/api/v1/admin/sessions", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             policy.enforceMinRole(p, "ADMIN");
+            // service token (tenantId=null) 以外は自テナントのみ。#39 と同一パターン。
+            UUID tenantFilter = p.serviceToken() ? null : p.tenantId();
             Pagination.PageRequest pageReq = Pagination.PageRequest.from(ctx);
             String userIdRaw = ctx.queryParam("user_id");
             UUID userIdFilter = userIdRaw == null ? null : UUID.fromString(userIdRaw);
-            ctx.json(store.findSessionsPaginated(pageReq, userIdFilter).toJson());
+            ctx.json(store.findSessionsPaginated(pageReq, userIdFilter, tenantFilter).toJson());
         });
 
         app.post("/api/v1/admin/outbox/flush", ctx -> {
@@ -1235,6 +1260,22 @@ public final class ApiRouter {
     }
 
     // --- Private helpers ---
+
+    /**
+     * ADMIN が他ユーザー(targetUserId)を対象に操作する際、対象ユーザーが
+     * 呼び出し元のテナントのアクティブメンバーであることを検証する。
+     * service token (tenantId=null) の場合はスキップ(全テナント横断操作を許可)。
+     *
+     * <p>これを欠くと、テナントAの ADMIN がテナントBのユーザーの PII を読んだり
+     * データを削除したりできてしまう(IDOR / クロステナント権限昇格)。
+     */
+    private void ensureTargetIsTenantMember(AuthPrincipal p, UUID targetUserId) {
+        if (p.serviceToken() || p.tenantId() == null) return;
+        store.findMembershipByUser(p.tenantId(), targetUserId)
+                .filter(MembershipRecord::active)
+                .orElseThrow(() -> new ApiException(404, "USER_NOT_IN_TENANT",
+                        "対象ユーザーはこのテナントのメンバーではありません。"));
+    }
 
     /**
      * Validate webhook endpoint URL to prevent SSRF attacks.

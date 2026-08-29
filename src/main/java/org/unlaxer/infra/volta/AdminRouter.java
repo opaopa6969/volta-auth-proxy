@@ -163,10 +163,16 @@ public final class AdminRouter {
         app.get("/admin/sessions", ctx -> {
             AuthPrincipal principal = AuthRouter.requireAuth(ctx, authService);
             policy.enforceMinRole(principal, "ADMIN");
+            // service token (tenantId=null) には全テナントのセッションは見せない。
+            // #39 と同一パターン: enforceMinRole は呼び出し元のロールしか検証せず、
+            // テナントスコープが無いとクロステナントでセッション一覧が漏れる。
+            if (principal.tenantId() == null) {
+                throw new ApiException(403, "FORBIDDEN", "Session list requires a tenant-scoped principal");
+            }
             int offset = HttpSupport.parseOffset(ctx.queryParam("offset"));
             int limit = HttpSupport.parseLimit(ctx.queryParam("limit"));
-            List<SqlStore.AdminSessionView> sessions = store.listAllActiveSessions(offset, limit);
-            int totalActive = store.countActiveSessions();
+            List<SqlStore.AdminSessionView> sessions = store.listActiveSessionsForTenant(principal.tenantId(), offset, limit);
+            int totalActive = store.countActiveSessionsForTenant(principal.tenantId());
             List<Map<String, String>> sessionView = new ArrayList<>();
             for (SqlStore.AdminSessionView s : sessions) {
                 Map<String, String> row = new LinkedHashMap<>();
@@ -191,7 +197,17 @@ public final class AdminRouter {
         app.delete("/admin/sessions/{id}", ctx -> {
             AuthPrincipal principal = AuthRouter.requireAuth(ctx, authService);
             policy.enforceMinRole(principal, "ADMIN");
+            if (principal.tenantId() == null) {
+                throw new ApiException(403, "FORBIDDEN", "Session revoke requires a tenant-scoped principal");
+            }
             UUID sessionId = UUID.fromString(ctx.pathParam("id"));
+            // 対象セッションの tenantId が呼び出し元と一致することを検証。
+            // 無ければ 404 (存在を漏らさない)。
+            SqlStore.AdminSessionView target = store.findActiveSession(sessionId)
+                    .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "session not found"));
+            if (!principal.tenantId().equals(target.tenantId())) {
+                throw new ApiException(404, "NOT_FOUND", "session not found");
+            }
             sessionStore.revokeSession(sessionId);
             auditService.log(ctx, "ADMIN_SESSION_REVOKED", principal, "SESSION", sessionId.toString(), Map.of());
             ctx.json(Map.of("ok", true));

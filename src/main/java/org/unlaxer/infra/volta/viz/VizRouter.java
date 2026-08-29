@@ -86,26 +86,39 @@ public final class VizRouter {
             }
             policy.enforceMinRole(principal, "ADMIN");
 
-            String tenantIdParam = ctx.queryParam("tenant_id");
+            // service token (tenantId=null) は任意テナント指定可。
+            // 人間の ADMIN は自テナントのみ。#39 と同パターンでテナントスコープ
+            // を欠くと全テナントの auth_flows context(メール/IP等を含む)が漏れる。
+            UUID enforcedTenantId;
+            if (principal.serviceToken()) {
+                String tenantIdParam = ctx.queryParam("tenant_id");
+                enforcedTenantId = (tenantIdParam == null || tenantIdParam.isBlank()) ? null : UUID.fromString(tenantIdParam);
+            } else {
+                enforcedTenantId = principal.tenantId();
+                if (enforcedTenantId == null) {
+                    HttpSupport.jsonError(ctx, 403, "FORBIDDEN", "Flow list requires a tenant-scoped principal");
+                    return;
+                }
+                // クエリパラメータで他人テナントを指定しても無視(自テナント固定)。
+                String requested = ctx.queryParam("tenant_id");
+                if (requested != null && !requested.isBlank()
+                        && !enforcedTenantId.equals(UUID.fromString(requested))) {
+                    HttpSupport.jsonError(ctx, 403, "TENANT_ACCESS_DENIED", "Tenant access denied");
+                    return;
+                }
+            }
+
             String flowType      = ctx.queryParam("flow_type");
             String sinceParam    = ctx.queryParam("since");
             int limit = parseLimit(ctx.queryParam("limit"), 50, 200);
 
-            UUID tenantId = null;
-            if (tenantIdParam != null && !tenantIdParam.isBlank()) {
-                try { tenantId = UUID.fromString(tenantIdParam); }
-                catch (IllegalArgumentException e) {
-                    HttpSupport.jsonError(ctx, 400, "BAD_REQUEST", "tenant_id must be a UUID");
-                    return;
-                }
-            }
             java.time.Instant since = parseSince(sinceParam);
 
-            List<Map<String, Object>> flows = listFlows(tenantId, flowType, since, limit);
+            List<Map<String, Object>> flows = listFlows(enforcedTenantId, flowType, since, limit);
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("flows", flows);
             body.put("filters", Map.of(
-                    "tenant_id", tenantId == null ? null : tenantId.toString(),
+                    "tenant_id", enforcedTenantId == null ? null : enforcedTenantId.toString(),
                     "flow_type", flowType,
                     "since",     since == null ? null : since.toString(),
                     "limit",     limit
@@ -121,12 +134,27 @@ public final class VizRouter {
                 return;
             }
             policy.enforceMinRole(principal, "ADMIN");
+            // service token 以外は自テナントのみ。flowId を列挙して他テナントの
+            // context_snapshot(メール/IP/displayName 等を含む)を読み出せないよう。
+            if (!principal.serviceToken() && principal.tenantId() == null) {
+                HttpSupport.jsonError(ctx, 403, "FORBIDDEN", "Flow transitions require a tenant-scoped principal");
+                return;
+            }
 
             String flowId = ctx.pathParam("flowId");
             // Validate UUID format
             UUID.fromString(flowId);
 
             List<Map<String, Object>> transitions = listTransitions(flowId);
+
+            // service token で無い場合は、取得した transitions が対象テナントの
+            // フローであることを検証する。flow の context->>'tenant_id' と
+            // principal.tenantId() が一致しなければ 404 (存在を漏らさない)。
+            if (!principal.serviceToken() && !flowBelongsToTenant(transitions, principal.tenantId())) {
+                HttpSupport.jsonError(ctx, 404, "NOT_FOUND", "flow not found");
+                return;
+            }
+
             ctx.json(Map.of("flowId", flowId, "transitions", transitions));
         });
 
@@ -496,6 +524,35 @@ public final class VizRouter {
             throw new ApiException(500, "DB_ERROR", "Failed to list transitions: " + e.getMessage());
         }
         return result;
+    }
+
+    /**
+     * transitions の context_snapshot に含まれる tenant_id が、
+     * principal.tenantId() と一致するかを検証する。service token 以外での
+     * クロステナント flow 参照を防ぐ。
+     *
+     * <p>auth_flows / auth_flow_transitions は context JSONB に tenant_id を
+     * 保存する(see OidcFlowData / PasskeyFlowData / InviteFlowData)。全遷移行の
+     * context_snapshot を舐めて、1つでも tenant_id が不一致の行があれば非該当。
+     * context_snapshot に tenant_id が無い古い行は安全側に倒して不一致扱い。
+     */
+    static boolean flowBelongsToTenant(List<Map<String, Object>> transitions, UUID tenantId) {
+        if (tenantId == null) return false;
+        for (Map<String, Object> row : transitions) {
+            Object ctx = row.get("contextSnapshot");
+            if (!(ctx instanceof com.fasterxml.jackson.databind.JsonNode node)) continue;
+            com.fasterxml.jackson.databind.JsonNode tidNode = node.get("tenant_id");
+            if (tidNode == null || tidNode.isNull()) {
+                // context に tenant_id が無い行は安全側に倒して mismatch。
+                // transitions が空の場合は後続で一覧取得時に弾かれる。
+                continue;
+            }
+            String tid = tidNode.asText();
+            if (!tenantId.toString().equals(tid)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

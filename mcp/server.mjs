@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { startSessionReaper } from './session-reaper.mjs';
 
 function log(...a) {
   process.stderr.write('[auth-mcp] ' + a.map((x) => typeof x === 'string' ? x : JSON.stringify(x)).join(' ') + '\n');
@@ -462,7 +463,24 @@ function buildSpec() {
 // --- HTTP server (Streamable HTTP) ---
 
 async function serveHttp(port) {
+  // sessionId -> { transport, lastSeen, open }
+  // **セッションを一生捨てない**問題があった。Streamable HTTP は要求ごとの往復なので、
+  // クライアントが黙って居なくなっても onclose が来ず、transport と McpServer が
+  // 丸ごと残る。実測(2026-08-30): 3.6 時間で 2,043MB(570MB/時)まで育った。
   const transports = new Map();
+
+  startSessionReaper({
+    sessions: transports,
+    close: (id) => {
+      const e = transports.get(id);
+      transports.delete(id);
+      e?.transport?.close?.().catch?.(() => {});
+    },
+    idleMs: Number(process.env.SESSION_IDLE_MS || 10 * 60_000),
+    sweepMs: Number(process.env.SESSION_SWEEP_MS || 30_000),
+    maxSessions: Number(process.env.MAX_SESSIONS || 32),
+    onReap: (n) => log('sessions reaped', { count: n, remaining: transports.size }),
+  });
   const httpServer = http.createServer(async (req, res) => {
     res.setHeader('content-encoding', 'identity');
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -477,13 +495,18 @@ async function serveHttp(port) {
       }
       const sid = req.headers['mcp-session-id'];
       if (sid && transports.has(sid)) {
-        return await transports.get(sid).handleRequest(req, res);
+        const entry = transports.get(sid);
+        entry.lastSeen = Date.now();
+        // 開いたままの stream(SSE)も「生きている」。要求が来ないだけで放置ではない
+        entry.open = (entry.open ?? 0) + 1;
+        res.on('close', () => { entry.open = Math.max(0, (entry.open ?? 1) - 1); entry.lastSeen = Date.now(); });
+        return await entry.transport.handleRequest(req, res);
       }
       if (req.method === 'POST' && !sid) {
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           enableJsonResponse: true,
-          onsessioninitialized: (id) => { transports.set(id, transport); log('session open', { sid: id }); },
+          onsessioninitialized: (id) => { transports.set(id, { transport, lastSeen: Date.now(), open: 0 }); log('session open', { sid: id }); },
           onsessionclosed: (id) => { transports.delete(id); log('session closed', { sid: id }); },
         });
         const server = createServer();

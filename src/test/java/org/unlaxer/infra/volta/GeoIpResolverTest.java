@@ -99,6 +99,14 @@ class GeoIpResolverTest {
     }
 
     @Test
+    void rejectsNonIpInputBeforeTemplateExpansion() {
+        assertFalse(HttpGeoIpResolver.isIpLiteral("x&callback=http://attacker.example/"));
+        assertFalse(HttpGeoIpResolver.isIpLiteral("localhost"));
+        assertTrue(HttpGeoIpResolver.isIpLiteral("8.8.8.8"));
+        assertTrue(HttpGeoIpResolver.isIpLiteral("2001:db8::1"));
+    }
+
+    @Test
     void fromEnvWithoutUrlReturnsNoop() {
         // We can't easily unset env vars in JVM, but the method returns NOOP
         // when GEOIP_API_URL is unset. Current test env shouldn't have it.

@@ -1,6 +1,7 @@
 package org.unlaxer.infra.volta;
 
 import java.net.URI;
+import java.net.InetAddress;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -109,6 +110,7 @@ final class HttpGeoIpResolver implements GeoIpResolver {
     }
 
     private Optional<GeoInfo> doLookup(String ip) {
+        if (!isIpLiteral(ip)) return Optional.empty();
         String url = urlTemplate.replace("{ip}", ip);
         try {
             HttpRequest req = HttpRequest.newBuilder(URI.create(url))
@@ -169,5 +171,24 @@ final class HttpGeoIpResolver implements GeoIpResolver {
         }
         if (ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80")) return true; // RFC 4193 / link-local
         return false;
+    }
+
+    /** Accept only numeric IPv4 or IPv6 literals; never pass header data to a URL template. */
+    static boolean isIpLiteral(String ip) {
+        if (ip == null || ip.isBlank()) return false;
+        try {
+            if (ip.indexOf(':') >= 0) {
+                return InetAddress.getByName(ip).getAddress().length == 16;
+            }
+            String[] octets = ip.split("\\.", -1);
+            if (octets.length != 4) return false;
+            for (String octet : octets) {
+                if (octet.isEmpty() || !octet.chars().allMatch(Character::isDigit)
+                        || Integer.parseInt(octet) > 255) return false;
+            }
+            return InetAddress.getByName(ip).getAddress().length == 4;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

@@ -1,6 +1,7 @@
 package org.unlaxer.infra.volta;
 
 import java.net.URI;
+import java.net.InetAddress;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -177,7 +178,9 @@ final class OutboxWorker implements AutoCloseable {
 
     private DeliveryResult deliver(SqlStore.WebhookRecord webhook, String eventType, String payloadJson) {
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(webhook.endpointUrl()))
+            URI endpoint = URI.create(webhook.endpointUrl());
+            validateDeliveryAddress(endpoint);
+            HttpRequest request = HttpRequest.newBuilder(endpoint)
                     .timeout(REQUEST_TIMEOUT)
                     .header("Content-Type", "application/json")
                     .header("X-Volta-Event", eventType)
@@ -190,6 +193,24 @@ final class OutboxWorker implements AutoCloseable {
         } catch (Exception e) {
             return new DeliveryResult(false, null, trim(e.getMessage()));
         }
+    }
+
+    /** Re-check DNS immediately before delivery to reduce webhook DNS-rebinding risk. */
+    static void validateDeliveryAddress(URI endpoint) throws Exception {
+        String host = endpoint.getHost();
+        if (host == null || host.isBlank()) throw new IllegalArgumentException("webhook host is missing");
+        for (InetAddress address : InetAddress.getAllByName(host)) {
+            if (address.isLoopbackAddress() || address.isSiteLocalAddress()
+                    || address.isLinkLocalAddress() || address.isAnyLocalAddress()
+                    || isCarrierGradeNat(address)) {
+                throw new SecurityException("webhook resolves to a private address");
+            }
+        }
+    }
+
+    private static boolean isCarrierGradeNat(InetAddress address) {
+        byte[] bytes = address.getAddress();
+        return bytes.length == 4 && (bytes[0] & 0xFF) == 100 && (bytes[1] & 0xC0) == 64;
     }
 
     private static String trim(String body) {

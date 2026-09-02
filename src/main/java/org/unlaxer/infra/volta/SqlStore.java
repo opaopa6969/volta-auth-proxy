@@ -2210,17 +2210,21 @@ public final class SqlStore {
         }
     }
 
-    public int updateScimUser(UUID userId, String email, String displayName, boolean active) {
+    public int updateScimUser(UUID tenantId, UUID userId, String email, String displayName, boolean active) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
                      UPDATE users
                      SET email = ?, display_name = ?, is_active = ?
-                     WHERE id = ?
+                     WHERE id = ? AND EXISTS (
+                         SELECT 1 FROM memberships m
+                         WHERE m.user_id = users.id AND m.tenant_id = ?
+                     )
                      """)) {
             ps.setString(1, email);
             ps.setString(2, displayName);
             ps.setBoolean(3, active);
             ps.setObject(4, userId);
+            ps.setObject(5, tenantId);
             return ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException(e);

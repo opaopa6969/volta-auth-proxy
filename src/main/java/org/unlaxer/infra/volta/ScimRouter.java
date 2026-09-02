@@ -66,22 +66,24 @@ public final class ScimRouter {
 
         app.put("/scim/v2/Users/{id}", ctx -> {
             JsonNode body = objectMapper.readTree(ctx.body());
+            UUID tenantId = scimTenantId(ctx, body);
             UUID userId = UUID.fromString(ctx.pathParam("id"));
             String email = body.path("userName").asText();
             String displayName = body.path("name").path("formatted").asText(email);
             boolean active = body.path("active").asBoolean(true);
-            int updated = store.updateScimUser(userId, email, displayName, active);
+            int updated = store.updateScimUser(tenantId, userId, email, displayName, active);
             if (updated == 0) throw new ApiException(404, "NOT_FOUND", "SCIM user not found");
             ctx.json(Map.of("id", userId.toString(), "userName", email, "active", active));
         });
 
         app.patch("/scim/v2/Users/{id}", ctx -> {
             JsonNode body = objectMapper.readTree(ctx.body());
+            UUID tenantId = scimTenantId(ctx, body);
             UUID userId = UUID.fromString(ctx.pathParam("id"));
             String email = body.path("userName").asText("patched-" + userId + "@example.local");
             String displayName = body.path("displayName").asText("patched");
             boolean active = body.path("active").asBoolean(true);
-            int updated = store.updateScimUser(userId, email, displayName, active);
+            int updated = store.updateScimUser(tenantId, userId, email, displayName, active);
             if (updated == 0) throw new ApiException(404, "NOT_FOUND", "SCIM user not found");
             ctx.json(Map.of("id", userId.toString(), "active", active));
         });
@@ -96,5 +98,10 @@ public final class ScimRouter {
 
         app.get("/scim/v2/Groups", ctx -> ctx.json(Map.of("schemas", List.of("urn:ietf:params:scim:api:messages:2.0:ListResponse"), "Resources", List.of())));
         app.post("/scim/v2/Groups", ctx -> ctx.status(201).json(Map.of("id", SecurityUtils.newUuid().toString(), "displayName", "group")));
+    }
+
+    private UUID scimTenantId(io.javalin.http.Context ctx, JsonNode body) {
+        String tenantId = body.path("tenantId").asText(ctx.queryParam("tenantId"));
+        return UUID.fromString(tenantId);
     }
 }

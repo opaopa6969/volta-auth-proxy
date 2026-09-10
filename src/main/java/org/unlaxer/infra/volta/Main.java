@@ -359,7 +359,9 @@ public final class Main {
             ctx.result(jwtService.jwksJson()).contentType("application/json");
         });
 
-        app.get("/", ctx -> ctx.redirect("/login"));
+        // `/` は login へ直行していたため、管理者が一時アクセス発行画面を発見できなかった。
+        // 発行そのものは /admin/invitations の認証・ADMIN 判定に委ね、ここは安全な導線だけ出す。
+        app.get("/", ctx -> ctx.render("auth/home.jte", model("title", "Volta 認証")));
 
         // SPA: /console/ and /console/* serve index.html, static assets pass through
         app.get("/console/", ctx -> {

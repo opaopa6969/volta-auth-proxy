@@ -95,6 +95,7 @@ async function main() {
     const temporaryAccessText = resTemporaryAccess.contents[0]?.text;
     assert(temporaryAccessText?.includes('Authorization'), 'temporary access guide explains Authorization header');
     assert(temporaryAccessText?.includes('Link token'), 'temporary access guide explains link token');
+    assert(temporaryAccessText?.includes('/temporary-access/exchange'), 'temporary access guide explains Bearer to cookie exchange');
     assert(temporaryAccessText?.includes('発行・再表示・コピーは MCP ではできません'), 'temporary access guide prohibits MCP issuance');
 
     const resSkill = await client.readResource({ uri: 'skill://operate-auth-proxy' });

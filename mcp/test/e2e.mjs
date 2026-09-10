@@ -91,6 +91,12 @@ async function main() {
     assert(guideText?.includes('# auth MCP'), 'guide resource has title');
     assert(guideText?.includes('M2M'), 'guide mentions M2M');
 
+    const resTemporaryAccess = await client.readResource({ uri: 'auth://temporary-access' });
+    const temporaryAccessText = resTemporaryAccess.contents[0]?.text;
+    assert(temporaryAccessText?.includes('Authorization'), 'temporary access guide explains Authorization header');
+    assert(temporaryAccessText?.includes('Link token'), 'temporary access guide explains link token');
+    assert(temporaryAccessText?.includes('発行・再表示・コピーは MCP ではできません'), 'temporary access guide prohibits MCP issuance');
+
     const resSkill = await client.readResource({ uri: 'skill://operate-auth-proxy' });
     const skillText = resSkill.contents[0]?.text;
     assert(skillText?.includes('name: operate-auth-proxy'), 'skill resource has frontmatter');

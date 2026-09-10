@@ -11,8 +11,10 @@
     <link rel="stylesheet" href="/css/volta.css">
 </head>
 <body>
+@template.layout.navbar(currentPath = "/admin/invitations")
 <main class="container">
-    <h1>招待管理</h1>
+    <h1>一時アクセス</h1>
+    <p class="muted">人に渡す link 型の一時アクセスを発行します。発行直後に表示される URL は再表示できません。</p>
     <table class="table">
         <thead><tr><th>ステータス</th><th>コード</th><th>ロール</th><th>期限</th><th>作成者</th><th>操作</th></tr></thead>
         <tbody>
@@ -29,7 +31,7 @@
         </tbody>
     </table>
 
-    <h2>招待を作成</h2>
+    <h2>Link を発行</h2>
     <form id="invite-create-form">
         <input type="hidden" name="_csrf" value="${csrfToken}">
         <input type="email" name="email" placeholder="メール（任意）" style="min-height:44px;">
@@ -37,7 +39,7 @@
             <option value="MEMBER">MEMBER</option>
             <option value="ADMIN">ADMIN</option>
         </select>
-        <button class="button" type="submit">招待を作成</button>
+        <button class="button" type="submit">Link を発行</button>
     </form>
     <p id="invite-result" class="muted"></p>
 </main>

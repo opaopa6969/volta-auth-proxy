@@ -360,6 +360,41 @@ function createServer() {
     return { contents: [{ uri: 'auth://guide', mimeType: 'text/markdown', text: guide }] };
   });
 
+  // 発行は UI に限定する。MCP は token を引数・戻り値に含めず、漏えいしやすい
+  // agent transcript / tool log を経由させない。ここは使い方だけを公開する。
+  server.resource('temporary-access', 'auth://temporary-access', { mimeType: 'text/markdown', description: '一時アクセス token の Bearer / link 利用ガイド（発行不可）' }, async () => {
+    const guide = [
+      '# 一時アクセス token の使い方',
+      '',
+      'token の発行・再表示・コピーは MCP ではできません。管理 UI でだけ発行し、値は発行時に一度だけ表示します。MCP は秘密を受け取らず、2 種類の利用方法と制約だけを案内します。',
+      '',
+      '## 1. Bearer token — API / 自動化向け',
+      '',
+      'HTTP リクエストの `Authorization` ヘッダへ付けます。URL の query、ログ、チャット本文には載せません。',
+      '',
+      '```sh',
+      'curl -H "Authorization: Bearer $VOLTA_TEMPORARY_ACCESS_TOKEN" https://kamishibai.unlaxer.org/api/…',
+      '```',
+      '',
+      '- 発行時に指定した role・対象 domain・活動時間を越えて使えません。',
+      '- 対象アプリは Volta の JWKS で署名と期限を検証し、要求 Host が token の domain 制約に一致することを確認します。',
+      '- `Referer` に残るため query parameter に token を置く方法は禁止です。',
+      '',
+      '## 2. Link token — 人がブラウザで使う向け',
+      '',
+      '管理 UI が出した URL をそのまま開きます。リンクを開いた人は通常のログインを完了し、発行時に指定した role と活動時間でアクセスします。',
+      '',
+      '- link は bearer token と同じ値ではありません。ブラウザ以外から API を呼ぶ用途には Bearer を使います。',
+      '- link 自体の有効期限と、ログイン後の活動時間は別です。どちらかが切れたらアクセスできません。',
+      '- URL は資格情報です。転送先を確認し、不要になったら管理 UI で失効してください。',
+      '',
+      '## MCP の境界',
+      '',
+      'この resource は read-only です。`auth__issue_m2m_token` や `auth__create_invitation` と異なり、一時アクセス token を発行する MCP tool は意図的に提供しません。',
+    ].join('\n');
+    return { contents: [{ uri: 'auth://temporary-access', mimeType: 'text/markdown', text: guide }] };
+  });
+
   server.resource('jwks', 'auth://jwks', { mimeType: 'application/json', description: 'JWKS 公開鍵' }, async () => {
     const r = await backendFetch('/.well-known/jwks.json');
     return { contents: [{ uri: 'auth://jwks', mimeType: 'application/json', text: JSON.stringify(r.body, null, 2) }] };
@@ -442,6 +477,7 @@ function buildSpec() {
       { kind: 'tool', name: 'request_account_deletion', summary: 'GDPR 削除要求', input: '{jwt,confirm?}', output: '{status,delete_at}|dry-run', side_effect: 'destructive', long_running: false, dry_run: true, min_role: 'MEMBER' },
       { kind: 'resource', name: 'spec', summary: '能力仕様', input: '-', output: 'JSON', side_effect: 'none', long_running: false, dry_run: false, min_role: 'VIEWER' },
       { kind: 'resource', name: 'guide', summary: '使い方ガイド', input: '-', output: 'markdown', side_effect: 'none', long_running: false, dry_run: false, min_role: 'VIEWER' },
+      { kind: 'resource', name: 'temporary-access', summary: '一時アクセス token の Bearer / link 利用ガイド（発行不可）', input: '-', output: 'markdown', side_effect: 'none', long_running: false, dry_run: false, min_role: 'VIEWER' },
       { kind: 'resource', name: 'jwks', summary: 'JWKS 公開鍵', input: '-', output: 'JSON', side_effect: 'none', long_running: false, dry_run: false, min_role: 'VIEWER' },
       { kind: 'resource', name: 'flows', summary: '認証フロー図', input: '-', output: 'JSON', side_effect: 'none', long_running: false, dry_run: false, min_role: 'VIEWER' },
       { kind: 'skill', name: 'operate-auth-proxy', summary: '運用手順', input: '-', output: 'markdown', side_effect: 'none', long_running: false, dry_run: false, min_role: 'MEMBER' },
@@ -456,7 +492,7 @@ function buildSpec() {
       { namespace: 'design', capability: 'design__get_component_snippet' },
     ],
     health: '/healthz',
-    docs: ['auth://guide', 'auth://spec'],
+    docs: ['auth://guide', 'auth://temporary-access', 'auth://spec'],
   };
 }
 

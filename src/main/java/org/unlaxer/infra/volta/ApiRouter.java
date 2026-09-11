@@ -597,6 +597,30 @@ public final class ApiRouter {
             ctx.json(member);
         });
 
+        app.post("/api/v1/tenants/{tenantId}/users", ctx -> {
+            AuthPrincipal p = ctx.attribute("principal");
+            UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));
+            policy.enforceTenantMatch(p, tenantId);
+            policy.enforceMinRole(p, "ADMIN");
+            JsonNode body = objectMapper.readTree(ctx.body());
+            String email = body.path("email").asText().trim().toLowerCase(Locale.ROOT);
+            String displayName = body.path("display_name").asText().trim();
+            String role = body.path("role").asText("MEMBER").trim().toUpperCase(Locale.ROOT);
+            if (!email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+                throw new ApiException(400, "INVALID_EMAIL", "有効な email が必要です。");
+            }
+            if (displayName.isBlank()) displayName = email;
+            if (!Set.of("ADMIN", "MEMBER", "VIEWER").contains(role)) {
+                throw new ApiException(400, "INVALID_ROLE", "role は ADMIN / MEMBER / VIEWER のいずれかです。");
+            }
+            if ("ADMIN".equals(role) && !p.roles().stream().anyMatch(r -> "OWNER".equalsIgnoreCase(r))) {
+                throw new ApiException(403, "ROLE_INSUFFICIENT", "ADMIN は ADMIN を作成できません。");
+            }
+            UUID userId = store.createConsoleUser(tenantId, email, displayName, role);
+            auditService.log(ctx, "USER_PROVISIONED", p, "USER", userId.toString(), Map.of("role", role));
+            ctx.status(201).json(Map.of("id", userId.toString(), "email", email, "display_name", displayName, "role", role));
+        });
+
         app.patch("/api/v1/tenants/{tenantId}/members/{memberId}", ctx -> {
             AuthPrincipal p = ctx.attribute("principal");
             UUID tenantId = UUID.fromString(ctx.pathParam("tenantId"));

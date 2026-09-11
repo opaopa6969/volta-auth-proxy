@@ -36,6 +36,21 @@ public final class SqlStore {
                     }
                 }
             }
+            // 管理画面/SCIM でメールアドレスだけを先に登録した場合、OIDC の
+            // 検証済みメールで初回ログインした時点で予約レコードを引き継ぐ。
+            try (PreparedStatement update = conn.prepareStatement("""
+                    UPDATE users
+                    SET display_name = ?, google_sub = ?, is_active = true
+                    WHERE email = ?
+                    RETURNING id, email, display_name, google_sub
+                    """)) {
+                update.setString(1, displayName);
+                update.setString(2, googleSub);
+                update.setString(3, email);
+                try (ResultSet rs = update.executeQuery()) {
+                    if (rs.next()) return readUser(rs);
+                }
+            }
             try (PreparedStatement insert = conn.prepareStatement("""
                     INSERT INTO users(email, display_name, google_sub)
                     VALUES (?, ?, ?)
@@ -2208,6 +2223,38 @@ public final class SqlStore {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /** 管理者が OIDC 初回ログイン前のユーザーをテナントへ事前登録する。 */
+    public UUID createConsoleUser(UUID tenantId, String email, String displayName, String role) {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                UUID userId;
+                try (PreparedStatement ps = conn.prepareStatement("""
+                        INSERT INTO users(email, display_name, google_sub, is_active)
+                        VALUES (?, ?, ?, true)
+                        ON CONFLICT(email) DO UPDATE SET display_name = EXCLUDED.display_name, is_active = true
+                        RETURNING id
+                        """)) {
+                    ps.setString(1, email);
+                    ps.setString(2, displayName);
+                    ps.setString(3, "manual:" + SecurityUtils.randomUrlSafe(16));
+                    try (ResultSet rs = ps.executeQuery()) { rs.next(); userId = rs.getObject("id", UUID.class); }
+                }
+                try (PreparedStatement ps = conn.prepareStatement("""
+                        INSERT INTO memberships(user_id, tenant_id, role, is_active)
+                        VALUES (?, ?, ?, true)
+                        ON CONFLICT(user_id, tenant_id) DO UPDATE SET role = EXCLUDED.role, is_active = true
+                        """)) {
+                    ps.setObject(1, userId); ps.setObject(2, tenantId); ps.setString(3, role); ps.executeUpdate();
+                }
+                conn.commit();
+                return userId;
+            } catch (SQLException e) {
+                conn.rollback(); throw e;
+            } finally { conn.setAutoCommit(true); }
+        } catch (SQLException e) { throw new RuntimeException(e); }
     }
 
     public int updateScimUser(UUID tenantId, UUID userId, String email, String displayName, boolean active) {
